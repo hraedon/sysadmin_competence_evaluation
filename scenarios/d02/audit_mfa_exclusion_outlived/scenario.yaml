@@ -1,0 +1,120 @@
+id: d02-audit-mfa-exclusion-outlived
+domain: 2
+domain_name: "Identity & Hybrid IAM"
+level: 2
+title: "The Exclusion That Outlived Its Purpose"
+delivery_mode: A
+subtype: null
+
+presentation:
+  type: policy_description
+  artifact_file: "scenarios/d02/audit_mfa_exclusion_outlived/policy_and_logs.txt"
+  context: |
+    During a quarterly Conditional Access policy review, you pull the sign-in logs for a group
+    that is excluded from your MFA policy. The attached document shows the CA policy configuration
+    and a summary of sign-in activity for the excluded group over the past six months.
+
+    Assess the current risk posture and recommend a course of action.
+
+# Scenario note (for scenario authors and evaluators):
+# This is a novel scenario not directly from the competency map.
+# Most similar to: d02-audit-find-the-tiering-violation (both are Domain 2 Level 2 audit
+# exercises testing over-privilege identification).
+# How the reasoning challenge differs: the tiering violation scenario tests whether candidates
+# recognize excessive privilege in an on-prem AD tier structure where the misconfiguration is
+# visible in group memberships and account settings. This scenario tests a different reasoning
+# posture: whether candidates recognize that a control gap created for a legitimate operational
+# reason can outlive its justification, and whether they can use sign-in log evidence to make
+# that case. The hybrid/cloud IAM context (Conditional Access, Entra sign-in logs) tests the
+# specific gap identified in the competency map: "the integration layer... where most mid-size
+# organizations actually live." A candidate who can read AD group memberships fluently may
+# still fail this scenario if they do not know how to read a sign-in log as evidence for or
+# against a stated operational justification.
+
+rubric:
+  critical_findings:
+    - id: exception_outlived_justification
+      description: >
+        The exclusion group CA-MFA-LegacyAuthExceptions was created on 2024-09-14 with the
+        stated purpose of accommodating legacy auth clients that do not support modern
+        authentication. The sign-in logs for the 180 days ending 2026-03-20 show zero legacy
+        authentication sign-ins across all 31 accounts in the group. The CorpMail Legacy
+        Gateway — the most plausible reason for the exclusion — was decommissioned on
+        2025-11-18 per CHG-2025-0841, over four months ago. The exclusion is still active,
+        still covers 31 accounts, and still exempts all of them from MFA across all cloud
+        applications, with no remaining operational justification.
+      severity: critical
+      miss_signal: >
+        Candidate accepts the exclusion as legitimately maintained because it was created by
+        an admin and carries an explanatory note. Does not interrogate the sign-in log data
+        to assess whether the stated justification is still operative. Or: reads the logs but
+        focuses on the 4,847 modern auth sign-ins as evidence of normal activity, rather than
+        treating the 0 legacy auth sign-ins as the disconfirming data point that undermines
+        the exclusion's rationale. Or: identifies the exclusion as potentially outdated but
+        rates the risk as low because "the migration seems complete."
+
+    - id: mfa_gap_scope
+      description: >
+        With 31 accounts excluded from MFA across all cloud applications, a single successful
+        credential compromise — via phishing, password spray, or credential stuffing — gives
+        an attacker authenticated access to every cloud application in scope with no MFA
+        challenge. The policy applies to all cloud apps with no conditions, so the blast radius
+        of any account in this group being compromised is the full cloud application surface.
+        This is not a theoretical risk: password spray attacks specifically target accounts
+        without MFA because they are the path of least resistance.
+      severity: critical
+      miss_signal: >
+        Candidate identifies the exclusion as a risk but rates it as low or moderate because
+        "these are probably just regular users" or "the accounts are likely low-privilege."
+        Does not connect the absence of MFA to the concrete attack scenario (password spray,
+        phishing) or assess the blast radius. Or: recommends "reviewing the group membership"
+        without recommending removal of the exclusion.
+
+  secondary_findings:
+    - id: process_failure_no_review_on_decommission
+      description: >
+        The change ticket CHG-2025-0841 for the CorpMail Legacy Gateway decommission was
+        closed with no action taken on the CA exclusion. The policy note on CA-policy-007
+        says "review with application owners before removing any accounts from this group"
+        but there is no evidence that the decommission triggered a CA policy review. This
+        is a process failure: a change management closure should have generated a follow-up
+        task to remove the corresponding CA exclusion. The four-month gap between
+        decommission (2025-11-18) and this review (2026-03-20) represents four months of
+        unnecessary MFA exposure.
+      severity: high
+
+  level_indicators:
+    level_1: >
+      Notes that 31 accounts are excluded from the MFA policy and flags this as something to
+      investigate. Cannot assess whether the exclusion is still operationally justified, and
+      does not read the sign-in log table as evidence bearing on that question. May recommend
+      "reviewing the group" or "asking the account owners" without identifying a specific
+      risk or recommending a concrete action. Does not connect the decommission note to the
+      exclusion's rationale.
+    level_2: >
+      Uses the sign-in log data to construct the argument that the exclusion is no longer
+      justified: zero legacy auth sign-ins in 180 days, combined with the decommission of the
+      CorpMail Legacy Gateway four months ago, means the stated reason for the exclusion no
+      longer applies. Identifies the MFA gap as a critical risk (31 accounts, all cloud apps,
+      no MFA). Recommends removing the CA-MFA-LegacyAuthExceptions group from the exclusion.
+    level_3: >
+      All of the above plus identifies the process failure: the decommission change ticket
+      was closed without triggering a CA policy review, and the policy note about reviewing
+      with application owners was not followed. Recognizes that the right fix is not just to
+      remove the exclusion now, but to ensure that future decommission tickets generate CA
+      policy review tasks. Recommends a compensating control during the removal process —
+      specifically, monitoring for authentication failures in the days following removal to
+      catch any client that is actually still using legacy auth.
+    level_4: >
+      All of the above plus notes that removing the exclusion requires operational care:
+      31 accounts suddenly subject to MFA will generate support tickets if any accounts
+      have not registered MFA methods, are shared accounts without a registered authenticator,
+      or are service accounts that were included in the group for reasons not documented in
+      the policy note. Recommends a three-step removal process: (1) verify all 31 accounts
+      have at least one MFA method registered in Entra ID before removing the exclusion —
+      any that do not should be remediated first; (2) remove the exclusion during a
+      low-traffic window and monitor sign-in logs and helpdesk queue for the following 48
+      hours; (3) close the loop by adding a CA policy review step to the decommission
+      runbook so that future migrations automatically trigger exclusion cleanup. Notes that
+      the four-month gap is itself a reportable finding: this exclusion should have appeared
+      on the previous quarterly review and did not.

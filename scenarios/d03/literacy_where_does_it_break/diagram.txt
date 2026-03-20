@@ -1,0 +1,30 @@
+
+  WS-ACCT-04
+  IP: 10.10.20.45
+  DNS: 10.10.0.10
+       |
+       | (VLAN 20 — Accounting)
+       |
+  ACCESS-SW-02
+  (Access switch, VLAN 20 — Accounting)
+       |
+       |
+  DIST-SW-01
+  (Distribution switch — inter-VLAN routing)
+  (Routes between VLAN 20 — Accounting and VLAN 10 — Servers)
+       |
+       |
+  CORE-ROUTER-01
+       |
+       +-------------------------+
+       |                         |
+  FILESERVER01              LABDC01
+  IP: 10.10.10.22           IP: 10.10.0.10
+  (VLAN 10 — Servers)       (VLAN 10 — Servers)
+                            DNS / Domain Controller
+
+
+Reported symptom:
+
+User: Sandra Chen (WS-ACCT-04) reports: "I can't open the shared drive. It says the
+path \\FILESERVER01\Accounting cannot be found."

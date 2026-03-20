@@ -1,0 +1,28 @@
+FROM:    Alex Petrova (IT-Vendor-Integrations)
+TO:      Security & Infrastructure Team
+SUBJECT: Trust Store Addition Request — VendorConnect PKI
+TICKET:  ITREQ-9421
+
+Hi team,
+
+We're onboarding VendorConnect's document management platform. Their support team has
+asked us to add their root CA to our internal Windows trust store so that their
+application's TLS certificates will be trusted without browser warnings.
+
+The CA certificate is attached (CA cert would be attached in production). Details per
+their documentation:
+
+  CA Subject:           CN=VendorConnect-Internal-CA, O=VendorConnect Solutions Ltd, C=GB
+  CA Type:              Private/Internal (not a public CA)
+  Certificate Validity: 10 years (expires 2033)
+  CRL Distribution:     http://pki.vendorconnect.internal/crl
+                        (internal to their network, not accessible from ours)
+
+The vendor says this is "standard practice" for their platform. They've asked us to
+deploy via GPO to all domain computers.
+
+Please advise on the process and timeline. The project is scheduled to go live in
+2 weeks.
+
+Thanks,
+Alex

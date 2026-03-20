@@ -1,0 +1,38 @@
+Credentials cache: API:F3A2B1C4-7E89-4D2A-9B56-E1F0C3D8A247
+
+Principal: jsmith@CORP.EXAMPLE.COM
+
+  Issued                Expires               Renew until           Flags                         Etype (skey, tkt)
+  ----                  -------               -----------           -----                         -----------------
+
+Credentials information:
+
+#0>     Client: jsmith @ CORP.EXAMPLE.COM
+        Server: krbtgt/CORP.EXAMPLE.COM @ CORP.EXAMPLE.COM
+        KDC Called: LABDC01.corp.example.com
+        Ticket Etype: AES-256-CTS-HMAC-SHA1-96
+        Session Key: AES-256-CTS-HMAC-SHA1-96
+        Start Time: 3/20/2026 8:03:22 (local)
+        End Time:   3/20/2026 18:03:22 (local)
+        Renew Time: 3/27/2026 8:03:22 (local)
+        Ticket Flags: 0x40e10000 -> forwardable renewable initial pre-authent name-canonicalize
+
+#1>     Client: jsmith @ CORP.EXAMPLE.COM
+        Server: cifs/FILESERVER01.corp.example.com @ CORP.EXAMPLE.COM
+        KDC Called: LABDC01.corp.example.com
+        Ticket Etype: AES-256-CTS-HMAC-SHA1-96
+        Session Key: AES-256-CTS-HMAC-SHA1-96
+        Start Time: 3/20/2026 8:03:22 (local)
+        End Time:   3/20/2026 18:03:22 (local)
+        Renew Time: 3/27/2026 8:03:22 (local)
+        Ticket Flags: 0x40a50000 -> forwardable renewable pre-authent ok-as-delegate name-canonicalize
+
+#2>     Client: jsmith @ CORP.EXAMPLE.COM
+        Server: ldap/LABDC01.corp.example.com @ CORP.EXAMPLE.COM
+        KDC Called: LABDC01.corp.example.com
+        Ticket Etype: AES-256-CTS-HMAC-SHA1-96
+        Session Key: AES-256-CTS-HMAC-SHA1-96
+        Start Time: 3/20/2026 8:03:22 (local)
+        End Time:   3/20/2026 18:03:22 (local)
+        Renew Time: 3/27/2026 8:03:22 (local)
+        Ticket Flags: 0x40a10000 -> forwardable renewable pre-authent name-canonicalize

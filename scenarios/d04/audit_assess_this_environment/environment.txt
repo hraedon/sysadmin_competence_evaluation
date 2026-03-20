@@ -1,0 +1,54 @@
+CERTIFICATE ENVIRONMENT SUMMARY — Internal Audit Notes
+Organization: Mid-size company (~400 employees, ~300 domain-joined computers)
+
+
+TLS CERTIFICATE MANAGEMENT
+  Volume:          47 certificates in scope (internal and external-facing services)
+  Renewal process: Manual. All renewals handled by one person: Jenny Wu (Senior
+                   Sysadmin). No automated renewal tooling in place.
+  Expiry tracking: Excel spreadsheet maintained by Jenny. Last updated 8 months ago.
+                   No alerting configured. Expiry awareness depends on Jenny reviewing
+                   the spreadsheet proactively.
+
+
+INTERNAL PKI ARCHITECTURE
+  Topology:        Single-tier PKI. The root CA is also the issuing CA — there is no
+                   separate intermediate/issuing CA.
+  Root CA status:  Online at all times. Hosted as a VM on the primary production
+                   cluster. Reachable over the internal network.
+  CA software:     Windows Server 2019, Active Directory Certificate Services.
+
+
+CRL (CERTIFICATE REVOCATION LIST)
+  CRL validity:    180 days per issuance.
+  Current CRL:     Published 164 days ago. Valid for 16 more days.
+  OCSP:            Not configured. Revocation checking relies solely on CRL.
+  CRL distribution point: Published in AD and accessible to domain computers.
+
+
+AUTOENROLLMENT
+  Status:          Enabled.
+  Template:        "Workstation" certificate template.
+  Scope:           All computers in the domain (no OU restriction).
+  Certificate validity: 1 year, auto-renewed.
+  Purpose:         Machine authentication certificates for domain-joined computers.
+
+
+CODE SIGNING
+  Inventory:       None. No formal code signing certificate policy exists.
+  Current practice: Developers report signing scripts with "whatever cert is
+                   available" — no standardized template or controlled issuance
+                   process.
+  Audit trail:     Not available. No logging of code signing certificate usage.
+
+
+RECENT INCIDENT
+  Date:            Three weeks ago.
+  Description:     Jenny renewed the wrong certificate. A development server
+                   certificate was renewed instead of the production load balancer
+                   certificate, which had already expired. The production load
+                   balancer was down for 4 hours before the error was discovered
+                   and corrected.
+  Root cause:      Stale spreadsheet did not clearly distinguish dev vs. production
+                   certificates. Manual process with no verification step.
+  Post-incident action: None documented.

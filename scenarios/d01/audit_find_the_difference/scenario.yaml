@@ -1,0 +1,77 @@
+id: d01-audit-find-the-difference
+domain: 1
+domain_name: "Scripting & Automation"
+level: 2
+title: "Find the Difference"
+delivery_mode: A
+
+presentation:
+  type: script
+  artifact_file: "scenarios/d01/audit_find_the_difference/scripts.ps1"
+  context: |
+    Your team has received two versions of a script to disable inactive staff
+    accounts, submitted by two different teams for change management review. Both
+    are labeled "Disable-InactiveStaffAccounts.ps1." You have 10 minutes before
+    the change window opens. Which version is safe to run, and why? What would
+    the unsafe version actually do if it ran?
+
+rubric:
+  critical_findings:
+    - id: searchbase_scope_difference
+      description: >
+        Script B's SearchBase default value is DC=corp,DC=example,DC=com — the
+        domain root — rather than the Staff OU used in Script A. Running Script B
+        would query every enabled user account in the entire domain with a
+        LastLogonDate older than 90 days, not only staff accounts in the designated
+        OU. This includes accounts in all OUs: service accounts, admin accounts,
+        shared mailboxes, resource accounts, and any other user objects outside the
+        Staff OU. Every qualifying account across the entire domain would be
+        disabled in a single run.
+      severity: critical
+      miss_signal: >
+        Candidate identifies both scripts as "disable inactive accounts" and approves
+        one without reading the SearchBase parameter value. Candidate focuses on
+        the filter logic or the disable operation and treats both scripts as
+        functionally equivalent. Candidate approves Script B because it is
+        syntactically correct and the logic appears sound.
+
+  secondary_findings:
+    - id: service_account_risk_in_both_versions
+      description: >
+        Both scripts filter on Enabled -eq $true and LastLogonDate -lt $cutoffDate.
+        Service accounts frequently have no interactive logon history and may have
+        a very old or null LastLogonDate even while actively in use by running
+        services. Neither script excludes service accounts, computer accounts used
+        as service principals, or accounts with specific descriptions or group
+        memberships that indicate non-human use. Script A's narrower SearchBase
+        limits the blast radius of this omission; Script B's domain-wide scope makes
+        it significantly more dangerous.
+      severity: moderate
+
+  level_indicators:
+    level_1: >
+      Identifies that both scripts disable user accounts. Cannot identify which
+      version is safe, or selects one arbitrarily based on which team submitted it
+      or which appears first, without reading the parameter values.
+    level_2: >
+      Identifies the SearchBase difference and correctly identifies Script B as
+      unsafe. Can explain that DC=corp,DC=example,DC=com is the domain root and
+      scopes the operation to all user accounts in the domain rather than the
+      Staff OU.
+    level_3: >
+      Identifies the SearchBase difference and explains the blast radius of running
+      Script B: every active user account in the domain with a LastLogonDate older
+      than 90 days would be disabled simultaneously, which would include service
+      accounts, administrator accounts outside the Staff OU, and any other user
+      objects across all OUs. Also notes the service account risk present in both
+      versions.
+    level_4: >
+      All of the above, plus articulates the review pattern: when two scripts appear
+      nearly identical, the dangerous differences are almost always in scope
+      parameters — SearchBase, Filter, Path, Target — rather than in the operational
+      logic. The logic can look correct while the scope parameter silently multiplies
+      the impact by orders of magnitude. Proposes a pre-run verification step: run
+      Get-ADUser with the same -Filter and -SearchBase values used in each script
+      to count and inspect the affected accounts before any disable operation
+      executes. Dry-run verification before destructive operations on user accounts
+      is standard practice.

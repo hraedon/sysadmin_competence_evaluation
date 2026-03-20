@@ -1,0 +1,120 @@
+id: d01-audit-ai-gave-you-this
+domain: 1
+domain_name: "Scripting & Automation"
+level: 2
+title: "The AI Gave You This"
+delivery_mode: A
+
+presentation:
+  type: script
+  artifact_file: "scenarios/d01/ai_gave_you_this/script.ps1"
+  context: |
+    Your team uses a managed service account (svc_invoicing) for the company's
+    invoicing application. The account's password has not been rotated in
+    over a year and your security team has flagged it during a quarterly
+    access review.
+
+    A colleague asked an AI assistant to generate a PowerShell script to
+    handle the rotation. The script is attached. They want to run it in
+    the production environment this afternoon.
+
+    Your task: review the script before it runs. Identify anything that
+    concerns you, explain why each concern is a risk, and describe what
+    you would change or what questions you would ask before approving it.
+
+rubric:
+  critical_findings:
+    - id: credential_in_log
+      description: >
+        The script calls Write-OperationLog with the plaintext value of
+        $newPassword embedded in the log message (Step 2, the "AD password reset
+        completed" entry). This writes the new credential to a plain text file at
+        the default log path C:\Temp\credential_rotation.log.
+      severity: critical
+      miss_signal: >
+        Candidate approves the script or asks only functional questions (does it
+        work? does it need Domain Admin?). The script looks professional and
+        well-structured; candidates who scan for shape rather than tracking variable
+        state will miss that $newPassword propagates into the log output.
+
+  secondary_findings:
+    - id: log_path_access_control
+      description: >
+        The default log path is C:\Temp, which is typically world-readable on
+        Windows systems and is not an appropriate location for security-sensitive
+        operation logs. Even if the password were not written, operation logs for
+        credential rotation should be in an access-controlled path.
+      severity: moderate
+
+    - id: plaintext_in_config
+      description: >
+        The config file update writes the new password as a plaintext string
+        replacement. Depending on the application, this may be unavoidable, but
+        the candidate should name it explicitly and note that plaintext credentials
+        in config files are a risk if the config is accessible beyond the service
+        account's own context.
+      severity: moderate
+
+    - id: no_dry_run
+      description: >
+        The script has no -WhatIf or dry-run mode. A reviewer has no way to
+        confirm what it will touch without running it. This limits pre-run
+        verification.
+      severity: low
+
+    - id: no_post_rotation_verification
+      description: >
+        The script does not verify that the application can successfully
+        authenticate using the new credential after the config is updated. A
+        rotation that breaks the application would not be caught until the
+        application is next used. This finding becomes higher-priority in the
+        context of the credential_in_log fix: the log message that must be
+        corrected ("new credential: $newPassword") was inadvertently serving as
+        the only confirmation that a specific credential was successfully set.
+        Removing the password from the log message removes that evidence.
+        A corrected script needs an alternative verification method — confirming
+        the AD account accepts the new credential, or that the application
+        authenticates successfully — to preserve the operational assurance the
+        original log entry was accidentally providing.
+      severity: moderate
+
+  level_indicators:
+    level_1: >
+      Describes what the script does: generates a password, resets the AD
+      account, updates a config file, writes to a log. Can identify that it
+      requires AD permissions to run. Does not identify the credential exposure
+      in the log or any other risk. May describe the script as "looks safe" or
+      "looks well-written."
+
+    level_2: >
+      Identifies the credential exposure in the log — specifically that
+      $newPassword is written in plaintext to C:\Temp\credential_rotation.log as
+      part of the Step 2 completion message. Rates this as a high or critical
+      risk and explains why (credential in plaintext log, log in a world-readable
+      location). May identify one or more secondary findings. Correctly
+      prioritizes the credential exposure as the primary concern.
+
+    level_3: >
+      Identifies the credential exposure and explains what a corrected log entry
+      should contain (confirmation of completion without the credential value).
+      Can articulate why the other exposure vectors (log path, plaintext config)
+      are risks even if the log message is corrected. Can specify what changes
+      are required and what verification would confirm the fix is complete. Notes
+      the broader pattern: AI-generated scripts should be reviewed for what else
+      they do, not only for whether they do the intended thing.
+
+    level_4: >
+      All of the above, plus: can propose the minimal targeted changes to the
+      script (remove $newPassword from the log message; change or parameterize
+      the log path) with explicit reasoning for each change and an explanation
+      of why each change is sufficient and does not introduce new risks.
+      Critically, recognizes that removing the credential from the log also
+      removes the only record that a specific credential was successfully set —
+      and proposes an alternative verification method to preserve that
+      assurance (e.g., confirming the AD account accepts the new credential via
+      a test bind, or verifying the application authenticates successfully before
+      the script exits). This is the "full understanding of side effects"
+      that distinguishes adaptation from correction: the fix is correct, but
+      it changes what the script proves about itself, and a Level 4 candidate
+      notices that. Does not over-engineer — does not propose rewriting the
+      script from scratch or adding features not relevant to the identified risks.

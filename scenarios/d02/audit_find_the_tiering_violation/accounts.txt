@@ -1,0 +1,79 @@
+QUARTERLY ACCESS REVIEW — SERVICE AND ADMINISTRATIVE ACCOUNTS
+Generated: 2026-03-20
+Reviewer: (your name)
+
+================================================================================
+ACCOUNT 1: SVC-MONITORING
+================================================================================
+Type:               Service account
+Purpose:            Network monitoring agent for "InfraPulse" infrastructure
+                    monitoring platform (polling, SNMP collection, WMI queries)
+Account Status:     Enabled
+Password Last Set:  2023-10-22  (847 days ago)
+Password Never Expires: Yes
+Interactive Logon:  Allowed (no logon restriction configured)
+Group Memberships:
+  - Domain Admins
+  - InfraPulse-ServiceAccounts
+AD Notes:           "Domain Admins added per ticket #4892 — required for WMI
+                    access during initial deployment."
+Ticket #4892 Date:  2025-09-15  (six months ago)
+Last ticket update: No follow-up ticket found. Ticket #4892 status: Closed.
+
+================================================================================
+ACCOUNT 2: CORP\TIER0-ADMIN-RWALSH
+================================================================================
+Type:               Tier 0 privileged administrative account
+Purpose:            Domain administration for Richard Walsh (IT Manager)
+Account Status:     Enabled
+Password Last Set:  2026-01-10  (69 days ago)
+Interactive Logon:  Allowed
+Recent Logon Activity:
+  - Last interactive logon: 2026-03-19 14:42:07
+  - Last logon workstation: WS-RWALSH-01
+  - WS-RWALSH-01 classification: Standard user workstation (Tier 2)
+Group Memberships:
+  - Domain Admins
+  - Schema Admins
+  - Enterprise Admins
+AD Notes:           "Shared admin Outlook profile configured on WS-RWALSH-01
+                    for convenience — allows Richard to read admin alias
+                    mailbox without switching sessions."
+
+================================================================================
+ACCOUNT 3: HELPDESK-LEAD
+================================================================================
+Type:               Standard user account with delegated permissions
+Purpose:            Helpdesk lead — Level 2 support tasks, user account
+                    management, password resets
+Account Status:     Enabled
+Password Last Set:  2026-02-14  (34 days ago)
+Interactive Logon:  Allowed (workstations and member servers only)
+Group Memberships:
+  - HelpDesk-Staff
+  - HelpDesk-L2
+AD Delegated Permissions:
+  - "Reset Password" — delegated on ALL Organizational Units in the domain
+    (applied at domain root, inherited by all child OUs)
+  - Includes: Domain Controllers OU, AdminAccounts OU, Servers OU,
+              Users OU, Workstations OU
+AD Notes:           "Delegation set at domain root for operational convenience.
+                    HelpDesk-Lead handles all password resets."
+Server Admin Rights: None
+
+================================================================================
+ACCOUNT 4: SVC-BACKUP
+================================================================================
+Type:               Service account
+Purpose:            Backup software agent (Veeam) — backup job execution,
+                    VSS coordination, data reads
+Account Status:     Enabled
+Password Last Set:  2026-02-26  (23 days ago)
+Password Never Expires: No  (90-day rotation policy enforced via GPO)
+Interactive Logon:  Disabled
+Logon Workstation Restriction: BACKUPSRV01, BACKUPSRV02  (backup servers only)
+Group Memberships:
+  - Backup Operators
+AD Notes:           "Configured per vendor documentation. Interactive logon
+                    disabled after initial setup. Logon restricted to backup
+                    servers per security review 2025-11."

@@ -1,0 +1,81 @@
+id: d01-literacy-what-does-this-do
+domain: 1
+domain_name: "Scripting & Automation"
+level: 1
+title: "What Does This Do?"
+delivery_mode: A
+
+presentation:
+  type: script
+  artifact_file: "scenarios/d01/literacy_what_does_this_do/script.ps1"
+  context: |
+    A colleague has left the following script in the team's shared scripts folder
+    labeled "inactive account report." You are about to run it in the production
+    environment. Before you do: describe in plain English every action this script
+    takes. Be specific about what each section does, what systems it touches, and
+    what state changes it produces.
+
+rubric:
+  critical_findings:
+    - id: group_membership_removal
+      description: >
+        The script contains a second foreach loop at the bottom that removes all
+        group memberships from disabled accounts whose LastLogonDate is older than
+        the cutoff date. This is a destructive, state-changing operation on Active
+        Directory group objects — it is not a reporting action. It is not mentioned
+        anywhere in the comment block or script name.
+      severity: critical
+      miss_signal: >
+        Candidate describes the script as "exports a report" and stops. Candidates
+        who read the comment block and trust it without reading the full script body,
+        or who follow the first loop to the CSV export and do not continue to the end
+        of the script.
+
+  secondary_findings:
+    - id: no_whatif_on_removal
+      description: >
+        Remove-ADGroupMember is called with -Confirm:$false but no -WhatIf support.
+        There is no way to preview what group memberships would be removed without
+        actually running the removal. A safe version of this script would support
+        a -WhatIf switch or a -ReportOnly mode.
+      severity: high
+
+    - id: no_removal_logging
+      description: >
+        The group membership removal loop produces no log output. There is no record
+        of which accounts had memberships removed, which groups were affected, or
+        how many removals occurred. The CSV report lists GroupCount at the time of
+        export, but by the time someone reviews the report the memberships may
+        already have been removed.
+      severity: high
+
+    - id: null_lastlogondate_edge_case
+      description: >
+        The removal condition is LastLogonDate -lt $cutoffDate. For accounts that
+        have never logged in, LastLogonDate is null. In PowerShell, a null value
+        compared with -lt against a DateTime returns $false, so never-logged-in
+        accounts are excluded from the removal loop. This is an edge case worth
+        noting: accounts that have never logged in retain all group memberships
+        while accounts that logged in once long ago do not.
+      severity: moderate
+
+  level_indicators:
+    level_1: >
+      Describes the CSV export and may summarize the script as an "account report
+      script." Does not identify the group membership removal loop. May reference
+      the comment block as an accurate description of what the script does.
+    level_2: >
+      Identifies both actions — the CSV export AND the group membership removal —
+      and recognizes that the removal loop is a state-changing operation on Active
+      Directory, not a reporting action. Can explain what Remove-ADGroupMember does.
+    level_3: >
+      Identifies both actions and names the risks: no -WhatIf support, no logging
+      of removed memberships, and the null LastLogonDate edge case. Can specify what
+      a safe version of this script would require before it is run in production.
+    level_4: >
+      All of the above, plus articulates the specific gap between the script's stated
+      purpose (report) and its actual behavior (report and modification), and explains
+      why this gap is itself a risk pattern — scripts labeled as read-only operations
+      that contain write operations are a common failure mode in AI-generated or
+      lightly-reviewed automation, and the label on a script file is not a reliable
+      indicator of what the script does.

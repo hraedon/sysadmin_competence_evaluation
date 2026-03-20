@@ -1,0 +1,76 @@
+id: d03-audit-read-the-firewall
+domain: 3
+domain_name: "Networking Fundamentals"
+level: 2
+title: "Read the Firewall"
+delivery_mode: A
+subtype: null
+
+presentation:
+  type: log_extract
+  artifact_file: "scenarios/d03/audit_read_the_firewall/ruleset.txt"
+  context: |
+    An application on this server stopped reaching its HTTPS endpoint two weeks ago.
+    The firewall ruleset and symptom are attached. Is the firewall the cause? Explain
+    your reasoning. If the firewall is the cause, identify the specific problem and
+    explain what must change to fix it. If the firewall is not the cause, explain why
+    and describe what you would investigate next.
+
+rubric:
+  critical_findings:
+    - id: rule_ordering_allows_before_block
+      description: >
+        Rule 1 (Allow all outbound TCP 443 to Any, priority 100) matches traffic to
+        203.0.113.47:443 BEFORE Rule 2 (Block TCP 443 to 203.0.113.47, priority 200)
+        is evaluated. The block rule is unreachable because any outbound HTTPS traffic
+        matches Rule 1 first. This means the firewall is NOT blocking traffic to
+        203.0.113.47 — despite the block rule appearing to be in place. The application
+        timeout is NOT caused by the firewall; the block rule is effectively dead.
+      severity: critical
+      miss_signal: >
+        Candidate concludes the firewall IS blocking the traffic (pointing to Rule 2)
+        without recognizing that Rule 1 matches first and the block is unreachable.
+
+    - id: block_rule_intent
+      description: >
+        Rule 2 was presumably added to block access to the vendor endpoint, but its
+        position (priority 200) makes it ineffective. If the intent WAS to block this
+        endpoint, the rule must be moved above Rule 1 (to priority 50, for example) —
+        or Rule 1 must be made more specific. This is an audit finding independent of
+        whether the block is causing the current symptom.
+      severity: critical
+      miss_signal: >
+        Candidate identifies the rule ordering issue but does not note that the block
+        rule's intent is also not being achieved — the endpoint is currently
+        unrestricted for all outbound HTTPS.
+
+  secondary_findings:
+    - id: two_week_timeline_investigation
+      description: >
+        Since the firewall is not blocking the traffic, the cause of the connection
+        timeout is elsewhere. The application worked until two weeks ago — the candidate
+        should note that the change timeline is relevant and identify next investigation
+        steps: check for application or OS changes two weeks ago, verify the vendor
+        endpoint is still available and accepting connections (the IP may have changed),
+        check for upstream network changes.
+      severity: moderate
+
+  level_indicators:
+    level_1: >
+      Identifies Rule 2 as the likely cause of the block. Does not recognize the rule
+      ordering issue.
+    level_2: >
+      Correctly identifies that Rule 1 (priority 100) matches before Rule 2 (priority
+      200), making Rule 2 unreachable. Concludes the firewall is NOT causing the outage.
+      Identifies the block rule as misconfigured regardless.
+    level_3: >
+      All of the above plus notes that the intent of Rule 2 (blocking a deprecated
+      endpoint) is also not being achieved, and describes what a working block rule
+      would look like (higher priority than the broad allow, or the broad allow made
+      more specific). Identifies the two-week timeline as the key investigative lead.
+    level_4: >
+      All of the above plus provides the next diagnostic steps after ruling out the
+      firewall: verify vendor endpoint reachability from the server (curl/Invoke-WebRequest
+      with verbose output), check for TLS certificate changes at the vendor endpoint,
+      check for recent OS patches that may have changed TLS/cipher suite defaults,
+      check application logs for the exact error.

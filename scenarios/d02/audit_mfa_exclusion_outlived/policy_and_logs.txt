@@ -1,0 +1,55 @@
+================================================================================
+SECTION 1: CONDITIONAL ACCESS POLICY SUMMARY
+================================================================================
+
+Policy Name:        Require MFA — All Users
+State:              Enabled
+Policy ID:          ca-policy-007
+
+Assignments
+-----------
+  Users:            All users
+  Exclude:          Group "CA-MFA-LegacyAuthExceptions"  (31 members)
+  Cloud Apps:       All cloud apps
+  Conditions:       (none)
+
+Grant Controls
+--------------
+  Require:          Multi-factor authentication
+
+Metadata
+--------
+  Created:          2024-09-14 by admin@corp.example.com
+  Last Modified:    2024-09-14 by admin@corp.example.com
+  Policy Notes:     "Exceptions for users with legacy auth clients that do not
+                    support modern authentication. Group membership managed by
+                    IT Operations. Review with application owners before
+                    removing any accounts from this group."
+
+
+================================================================================
+SECTION 2: ENTRA SIGN-IN LOGS — GROUP CA-MFA-LegacyAuthExceptions
+================================================================================
+Reporting Period:   2025-09-20 to 2026-03-20  (180 days)
+Scope:              All members of CA-MFA-LegacyAuthExceptions (31 accounts)
+
++-------------------------+------------------------------+---------------+--------------+------------+
+| Date Range              | Auth Protocol                | Sign-In Count | MFA Required | MFA Result |
++-------------------------+------------------------------+---------------+--------------+------------+
+| 2025-09-20 to 2026-03-20| Modern Auth (MSAL/OAuth 2.0) |         4,847 | No (excluded)|    N/A     |
+| 2025-09-20 to 2026-03-20| Legacy Auth (Basic/NTLM)     |             0 | No           |    N/A     |
++-------------------------+------------------------------+---------------+--------------+------------+
+
+Notes:
+  - Zero legacy authentication sign-ins observed across all 31 group members
+    for the entire 180-day reporting period.
+  - No authentication failures attributable to protocol mismatch detected.
+  - All successful sign-ins used modern authentication (MSAL/OAuth 2.0).
+
+Migration Note (from Change Management System):
+  Application migration completed.
+  CorpMail Legacy Gateway decommissioned: 2025-11-18.
+  Ticket: CHG-2025-0841. Status: Closed.
+  Closure notes: "Legacy gateway removed. All mailbox clients migrated to
+  Exchange Online with Modern Auth. No further action required."
+  Assigned team: IT Operations.

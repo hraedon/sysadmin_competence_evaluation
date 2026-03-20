@@ -1,0 +1,86 @@
+id: d02-literacy-describe-the-token
+domain: 2
+domain_name: "Identity & Hybrid IAM"
+level: 1
+title: "Describe the Token"
+delivery_mode: A
+subtype: null
+
+presentation:
+  type: shell_command
+  artifact_file: "scenarios/d02/literacy_describe_the_token/klist_output.txt"
+  context: |
+    You are reviewing the cached Kerberos tickets on jsmith's workstation. The output of klist is attached.
+
+    Answer the following:
+    (1) What does ticket #1 grant access to, and what does it NOT grant?
+    (2) What system issued these tickets?
+    (3) When does the access represented by ticket #1 expire, and what happens at that time?
+    (4) Under what conditions would jsmith's workstation use NTLM instead of Kerberos to access FILESERVER01?
+
+rubric:
+  critical_findings:
+    - id: ticket_vs_authorization
+      description: >
+        The ticket grants the right to present a credential to FILESERVER01 — it does not itself
+        represent authorization. What jsmith can actually do on the file server (which shares,
+        which permissions) is determined by the file server's ACLs, not by the ticket. Similarly,
+        ticket expiry at 18:03:22 does not immediately terminate access: an existing SMB session
+        may persist after the ticket expires, because the session was authenticated at establishment
+        time. A new connection after expiry would require a new ticket.
+      severity: critical
+      miss_signal: >
+        Candidate says ticket #1 "grants access to FILESERVER01" without qualifying that the ticket
+        is a credential presentation mechanism, not an authorization grant. Or: candidate says the
+        ticket expires at 18:03 and "jsmith will lose access" without explaining that an existing
+        SMB session may persist after ticket expiry, and that a new ticket will be obtained silently
+        if the TGT is still valid.
+
+  secondary_findings:
+    - id: kdc_identification
+      description: >
+        The KDC that issued the tickets is LABDC01.corp.example.com, visible in the "KDC Called"
+        field of each ticket. This is the Domain Controller acting as the Key Distribution Center
+        for the CORP.EXAMPLE.COM Kerberos realm. Identifying this from the klist output demonstrates
+        domain architecture literacy.
+      severity: moderate
+
+    - id: ok_as_delegate_flag
+      description: >
+        The CIFS ticket for FILESERVER01 carries the ok-as-delegate flag, which is not present on
+        the LDAP ticket. This flag indicates the file server is trusted for Kerberos constrained
+        delegation — it can request service tickets on jsmith's behalf to other services. This is
+        relevant in DFS referral scenarios, SQL Server backends, or any multi-tier application
+        where FILESERVER01 acts as a front-end that needs to access another service as the user.
+      severity: moderate
+
+    - id: ntlm_fallback_conditions
+      description: >
+        NTLM is used instead of Kerberos when: the target is addressed by IP address rather than
+        FQDN (no SPN lookup possible); the SPN for the target is not registered in AD; the client
+        is not domain-joined; Kerberos port 88 (UDP/TCP) is blocked between the client and the
+        KDC; or the target is outside the Kerberos realm and no cross-realm trust exists.
+      severity: moderate
+
+  level_indicators:
+    level_1: >
+      Can identify ticket #1 as related to file access and name FILESERVER01 as the target server.
+      Can state that the ticket expires at 18:03:22. Cannot articulate the distinction between
+      ticket possession and authorization, and cannot explain what happens at expiry in terms of
+      existing versus new connections. Cannot name more than one NTLM fallback condition.
+    level_2: >
+      Articulates that the ticket authenticates jsmith to FILESERVER01 but does not itself determine
+      what jsmith can do there — share-level and file-level permissions on the server govern that.
+      Can identify at least two conditions that force NTLM fallback (e.g., IP address access,
+      missing SPN). May or may not identify LABDC01 as the issuing KDC.
+    level_3: >
+      All of the above plus correctly explains ticket expiry behavior: the OS will silently request
+      a new service ticket from the KDC if the TGT is still valid; if the TGT has also expired,
+      the user may be prompted to re-authenticate depending on application behavior. Can identify
+      LABDC01 as the issuing KDC from the "KDC Called" field.
+    level_4: >
+      All of the above plus notices the ok-as-delegate flag on the CIFS ticket and can explain its
+      implications: FILESERVER01 is trusted to impersonate jsmith when making downstream service
+      requests. Can describe a concrete scenario where this matters (e.g., a DFS namespace that
+      redirects to a backend share, or a file server that calls a SQL backend on behalf of the
+      connecting user). Notes the absence of this flag on the LDAP ticket as a meaningful contrast.

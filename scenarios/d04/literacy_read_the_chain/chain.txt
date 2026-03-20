@@ -1,0 +1,41 @@
+CERTIFICATE CHAIN DUMP — intranet.corp.example.com
+Source: TLS handshake from server at https://intranet.corp.example.com
+
+
+CERTIFICATE 1 — Root CA
+  Subject:          CN=CorpRoot-CA, O=Corp Example Inc, C=US
+  Issuer:           CN=CorpRoot-CA, O=Corp Example Inc, C=US  (self-signed)
+  Valid From:       2020-01-15
+  Valid To:         2030-01-15
+  Serial:           01
+  Key Usage:        Certificate Sign, CRL Sign
+  Basic Constraints: CA:TRUE, PathLen:1
+  Thumbprint:       A1:B2:C3:D4:E5:F6...
+
+
+CERTIFICATE 2 — Issuing CA (Intermediate)
+  Subject:          CN=CorpIssuing-CA-01, O=Corp Example Inc, C=US
+  Issuer:           CN=CorpRoot-CA, O=Corp Example Inc, C=US
+  Valid From:       2021-03-15
+  Valid To:         2026-03-23   ← expires in 3 days
+  Serial:           02
+  Key Usage:        Certificate Sign, CRL Sign
+  Basic Constraints: CA:TRUE, PathLen:0
+  Thumbprint:       B2:C3:D4:E5:F6:A1...
+
+
+CERTIFICATE 3 — Leaf Certificate (End Entity)
+  Subject:          CN=intranet.corp.example.com, O=Corp Example Inc, C=US
+  Issuer:           CN=CorpIssuing-CA-01, O=Corp Example Inc, C=US
+  Valid From:       2025-11-01
+  Valid To:         2026-11-01   ← valid for ~8 more months
+  Serial:           1A:2B
+  SANs:             intranet.corp.example.com, intranet
+  Key Usage:        Digital Signature, Key Encipherment
+  Extended Key Usage: TLS Web Server Authentication
+  Thumbprint:       C3:D4:E5:F6:A1:B2...
+
+
+Certificate chain validation status: FAILED
+Error: Certificate in certification path is not within its validity period.
+Affected certificate: CN=CorpIssuing-CA-01

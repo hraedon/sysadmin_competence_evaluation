@@ -1,0 +1,75 @@
+id: d04-audit-trust-store-addition
+domain: 4
+domain_name: "Certificate & PKI Management"
+level: 2
+title: "Trust Store Addition"
+delivery_mode: A
+subtype: null
+
+presentation:
+  type: policy_description
+  artifact_file: "scenarios/d04/audit_trust_store_addition/request.txt"
+  context: |
+    The attached request has come in from the vendor integration team. Before approving
+    or denying this request, what questions do you need answered? What are the risks of
+    approving it as described? If you were to approve it, what conditions would you
+    impose, and what monitoring would you put in place afterward?
+
+rubric:
+  critical_findings:
+    - id: trust_scope_not_limited_to_application
+      description: >
+        Adding a CA to the Windows trust store (via GPO to all domain computers) means
+        trusting that CA to issue certificates for ANY domain — not just VendorConnect's
+        application. If VendorConnect's CA issues a certificate for
+        "login.microsoftonline.com" or "corp.example.com", domain computers will trust
+        it. This is unconditional trust delegation.
+      severity: critical
+      miss_signal: >
+        Candidate treats this as a technical task (import the cert, deploy via GPO)
+        without identifying the unconditional nature of the trust delegation. Or:
+        candidate identifies it as a risk but rates it as low.
+
+    - id: crl_inaccessible
+      description: >
+        The CRL distribution point is "http://pki.vendorconnect.internal/crl" —
+        internal to the vendor's network. Domain computers cannot reach this endpoint.
+        This means revocation checking will fail for any certificate issued by this CA.
+        If a VendorConnect certificate is compromised and revoked, domain computers will
+        not be able to check the revocation status — they will either soft-fail
+        (continue trusting) or hard-fail (stop trusting everything from this CA,
+        including the application).
+      severity: critical
+      miss_signal: >
+        Candidate does not notice the CRL distribution point is an internal vendor URL.
+        Or: notices it but does not connect it to revocation checking failure.
+
+  secondary_findings:
+    - id: governance_questions
+      description: >
+        Questions the candidate should raise: What is VendorConnect's certificate
+        issuance policy? Who controls the private key for this CA? What happens to the
+        trust relationship if the vendor relationship ends? Is there a process for
+        removing the CA from the trust store? Can the trust be scoped to specific URLs
+        or applications rather than all computers?
+      severity: moderate
+
+  level_indicators:
+    level_1: >
+      Approves the request or identifies it as a technical task. Does not identify the
+      unconditional trust scope.
+    level_2: >
+      Identifies that adding a private CA to the trust store grants that CA trust for
+      any domain, not just the vendor application. Identifies the inaccessible CRL as
+      a revocation checking gap. Asks governance questions before approving.
+    level_3: >
+      All of the above plus articulates what conditions should be imposed before
+      approval: CRL/OCSP must be reachable from domain computers; deployment should be
+      to a pilot group before all computers; a removal process should be documented
+      before deployment.
+    level_4: >
+      All of the above plus identifies that GPO deployment to ALL domain computers is
+      overkill for a single vendor application — the trust should be scoped to the
+      computers that actually run the VendorConnect application, limiting blast radius
+      if the CA is compromised. Also notes the two-week timeline is too short for
+      proper governance review of this type of request.

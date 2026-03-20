@@ -1,0 +1,114 @@
+id: d02-audit-find-the-tiering-violation
+domain: 2
+domain_name: "Identity & Hybrid IAM"
+level: 2
+title: "Find the Tiering Violation"
+delivery_mode: A
+subtype: null
+
+presentation:
+  type: policy_description
+  artifact_file: "scenarios/d02/audit_find_the_tiering_violation/accounts.txt"
+  context: |
+    You are conducting a quarterly access review. The attached document describes four accounts
+    in your environment.
+
+    For each account:
+    (1) Identify any tiering violations or security risks.
+    (2) Explain what an attacker could do by exploiting each violation.
+    (3) Rate the severity (critical / high / moderate / low / none).
+
+    One of the four accounts is correctly configured — identify which one and explain why it
+    meets the standard.
+
+rubric:
+  critical_findings:
+    - id: svc_monitoring_domain_admin
+      description: >
+        SVC-MONITORING holds Domain Admin membership that was added six months ago for initial
+        deployment and never removed. A monitoring agent has broad network access by design —
+        it polls every host, queries WMI, and typically runs as a service with high uptime. If
+        the monitoring platform or the account is compromised (credential spray against an
+        847-day-old password is a realistic vector), the attacker immediately holds Domain Admin.
+        The stale password compounds the risk: 847 days without rotation on a service account
+        with Domain Admin rights is a critical misconfiguration in any environment.
+      severity: critical
+      miss_signal: >
+        Candidate identifies the Domain Admin membership as "not ideal" or "should be reviewed"
+        but rates it as moderate or high rather than critical. Or: candidate notes the stale
+        password as a separate finding without connecting it to the Domain Admin blast radius.
+        Or: candidate accepts the AD note ("required for WMI access") at face value without
+        questioning whether Domain Admin is actually necessary for WMI queries (it is not —
+        WMI access can be delegated without Domain Admin).
+
+    - id: tier0_on_workstation
+      description: >
+        TIER0-ADMIN-RWALSH has its most recent interactive logon on WS-RWALSH-01, a standard
+        Tier 2 workstation. A Tier 0 credential (Domain Admin, Schema Admin, Enterprise Admin)
+        cached on a Tier 2 device can be harvested from LSASS memory by any process running
+        with local admin rights on that workstation — a browser exploit, a phishing payload, or
+        a malicious macro is sufficient. The AD note about a shared Outlook profile on the
+        workstation makes this materially worse: the Tier 0 account is running an email client
+        on a general-purpose workstation, meaning it is exposed to every attachment and link
+        that arrives in that mailbox. This is not a configuration oversight — it is a documented
+        intentional practice that directly defeats the purpose of Tier 0 separation.
+      severity: critical
+      miss_signal: >
+        Candidate identifies the workstation logon as a risk but misses the Outlook profile as
+        a separate and significant exposure vector. Or: candidate rates this as high rather than
+        critical. Or: candidate notes the Tier 0/Tier 2 mixing without explaining the concrete
+        attack path (credential in LSASS, harvested by local admin process).
+
+  secondary_findings:
+    - id: helpdesk_lead_dc_ou_delegation
+      description: >
+        HELPDESK-LEAD has "Reset Password" delegated at the domain root, which propagates to
+        all OUs including the Domain Controllers OU. The ability to reset passwords on accounts
+        in the Domain Controllers OU — including the built-in Administrator account and the
+        DSRM account — is a Tier 0 capability. A Tier 2 helpdesk account with this delegation
+        can reset the DSRM password on any domain controller, potentially enabling offline
+        access to the AD database. This is unlikely to be exploited by a casual attacker, but
+        represents a privilege scope that far exceeds what a helpdesk lead role requires.
+      severity: high
+
+    - id: svc_backup_correctly_configured
+      description: >
+        SVC-BACKUP is the correctly configured account. It holds Backup Operators membership
+        (the least-privilege built-in group for backup software — it grants the necessary VSS
+        and file read rights without Domain Admin). Interactive logon is disabled. Logon rights
+        are scoped to backup servers only. The password was set 23 days ago with a rotation
+        policy enforced. This configuration follows the principle of least privilege and defense
+        in depth for service accounts.
+      severity: none
+
+  level_indicators:
+    level_1: >
+      Identifies one or two of the violations but cannot explain the attack path in operational
+      terms. May identify the SVC-MONITORING Domain Admin membership as a problem but rate it
+      as low or moderate. Cannot explain why a Tier 0 account on a Tier 2 workstation is
+      critical, or what LSASS harvesting means in practice. May not identify SVC-BACKUP as the
+      correctly configured account, or may identify it as having a risk (incorrectly flagging
+      Backup Operators as excessive).
+    level_2: >
+      Identifies the SVC-MONITORING Domain Admin membership and the TIER0-ADMIN-RWALSH
+      workstation logon as critical risks. Can articulate an attack path for each: compromised
+      monitoring agent equals immediate Domain Admin; Tier 0 credential on Tier 2 workstation
+      equals credential harvest via LSASS. Correctly identifies SVC-BACKUP as the
+      well-configured account and can explain why (least privilege, disabled interactive logon,
+      scoped logon rights, recent password rotation).
+    level_3: >
+      All critical findings at the correct severity, plus identifies the HELPDESK-LEAD DC OU
+      delegation as a Tier 0 capability in Tier 2 hands. Can explain the DSRM reset vector.
+      Notes the Outlook profile on the Tier 0 workstation as a distinct and documented exposure
+      vector, not just a side note. Can articulate that the AD note for SVC-MONITORING ("required
+      for WMI access") is factually incorrect — WMI access can be delegated without Domain Admin.
+    level_4: >
+      All of the above plus proposes the minimal remediations: (1) For SVC-MONITORING: remove
+      Domain Admins immediately; delegate only the specific WMI namespaces required by InfraPulse;
+      rotate the password; open a process ticket to track why the closure of ticket #4892 did not
+      trigger a follow-up review — this is a change management failure, not just a misconfiguration.
+      (2) For TIER0-ADMIN-RWALSH: require all Tier 0 activity to occur on a dedicated PAW
+      (Privileged Access Workstation); remove the shared Outlook profile from the Tier 0 account
+      immediately; use a separate standard account for email. (3) For HELPDESK-LEAD: re-scope the
+      delegation to exclude the Domain Controllers OU, AdminAccounts OU, and any other Tier 0
+      containers — delegate only on the OUs containing user and workstation accounts.

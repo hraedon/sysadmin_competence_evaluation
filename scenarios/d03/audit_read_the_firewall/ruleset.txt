@@ -1,0 +1,21 @@
+NOTE: Rules are processed in priority order (lower number = higher priority). For
+outbound traffic, the first matching rule determines the outcome.
+
+FIREWALL RULESET — Application Server (Outbound and Inbound)
+
+Rule | Priority | Direction | Action | Protocol | Port | Source          | Destination   | Description
+-----|----------|-----------|--------|----------|------|-----------------|---------------|-------------------------------------------
+1    | 100      | Outbound  | Allow  | TCP      | 443  | Any             | Any           | Allow all outbound HTTPS
+2    | 200      | Outbound  | Block  | TCP      | 443  | Any             | 203.0.113.47  | Block access to deprecated vendor endpoint
+3    | 300      | Outbound  | Allow  | TCP      | Any  | Any             | Any           | Allow established/related connections
+4    | 400      | Outbound  | Allow  | Any      | Any  | Any             | Any           | Default outbound allow (non-HTTPS)
+5    | 100      | Inbound   | Allow  | TCP      | 443  | Any             | Any           | Allow inbound HTTPS
+6    | 200      | Inbound   | Allow  | TCP      | 3389 | 10.10.0.0/24   | Any           | Allow RDP from management network
+7    | 900      | Inbound   | Block  | Any      | Any  | Any             | Any           | Default inbound deny
+
+
+Reported symptom:
+
+The application (deployed on this server) reports connection timeout when attempting
+to reach https://api.vendor-internal.corp. The application worked until two weeks ago.
+DNS resolves api.vendor-internal.corp to 203.0.113.47 correctly from this server.

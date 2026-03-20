@@ -1,0 +1,66 @@
+id: d03-literacy-where-does-it-break
+domain: 3
+domain_name: "Networking Fundamentals"
+level: 1
+title: "Where Does It Break?"
+delivery_mode: A
+subtype: null
+
+presentation:
+  type: network_diagram
+  artifact_file: "scenarios/d03/literacy_where_does_it_break/diagram.txt"
+  context: |
+    Sandra Chen cannot access a file share by name. The network diagram and her
+    reported error are attached. Walk through every component that must function
+    correctly for her to successfully connect to \\FILESERVER01\Accounting. List
+    them in order. For each component, describe its role in the connection, what
+    it would look like if that component was the failure point, and how the symptom
+    would differ if the failure was at that layer versus a different one.
+
+rubric:
+  critical_findings:
+    - id: dns_resolution_step
+      description: >
+        The candidate must identify DNS resolution as a required step BEFORE any
+        network routing or file server connection. The error message "path cannot
+        be found" is more consistent with a DNS failure (name does not resolve)
+        than a routing failure (name resolves but connection times out) or a file
+        server access failure (name resolves, connection established, but access
+        is denied).
+      severity: critical
+      miss_signal: >
+        Candidate jumps to routing (VLAN, switch, router) without identifying DNS
+        as the first point of failure. Or: candidate identifies DNS as a component
+        but does not explain why the specific error message points toward DNS
+        rather than routing.
+
+  secondary_findings:
+    - id: routing_vs_dns_masquerade
+      description: >
+        The path from WORKSTATION to LABDC01 (DNS server) goes through
+        ACCESS-SW-02, DIST-SW-01, and is on VLAN 10 (servers) while the
+        workstation is on VLAN 20 (accounting). Inter-VLAN routing must work for
+        DNS to succeed — meaning a DNS failure and a routing failure can look
+        similar. A candidate who distinguishes these failure modes is demonstrating
+        strong literacy.
+      severity: moderate
+
+  level_indicators:
+    level_1: >
+      Lists the components in order (workstation, switch, router, server) but does
+      not identify DNS resolution as a distinct step, or cannot explain the
+      difference in symptoms between a DNS failure and a routing failure.
+    level_2: >
+      Identifies DNS resolution as the first critical step, explains that the
+      "cannot be found" error is more consistent with DNS failure than routing
+      failure, and can describe what each component's failure would look like.
+    level_3: >
+      All of the above plus notes that DNS itself requires inter-VLAN routing to
+      succeed (LABDC01 is on VLAN 10, the workstation is on VLAN 20), so a routing
+      failure could masquerade as a DNS failure. Can describe how to distinguish
+      them (nslookup from the affected workstation vs. ping LABDC01 by IP).
+    level_4: >
+      All of the above plus can describe the diagnostic sequence: start with
+      nslookup FILESERVER01 from WS-ACCT-04 to test DNS; if DNS resolves, ping
+      FILESERVER01 by IP to test routing; if routing works, test the SMB connection
+      specifically. Each step narrows the failure domain.

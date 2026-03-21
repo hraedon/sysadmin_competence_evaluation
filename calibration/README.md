@@ -72,12 +72,31 @@ response actually contains enough specificity for the evaluator to identify the
 finding. The fix is usually adding a concrete specific from the artifact (an exact
 log message, a field name, a permission entry) rather than general framing.
 
+**A subtler inflation pattern: response quality signals L4 even when a finding is missed**
+
+If the `missed` array is non-empty but the evaluator still returns a higher level,
+the response's overall quality is overriding the missed finding signal. This happens
+when a lower-level response is *exhaustively* complete on the findings it does cover.
+For example: a Level 3 response that correctly lists five NTLM fallback conditions
+(all five from the rubric) may read as L4-quality prose even if the L4 finding is
+absent. Fix: trim the exhaustive coverage on lower-level findings to match the
+level indicator's expected depth — not wrong, just not exhaustive.
+
 **Rubric adjustments**
 
 Adding "Does NOT [L4 criterion]" to the level_3 indicator helps distinguish L3
 from L4 when the distinction is about reasoning depth and there is no separate
 finding to miss. This is a secondary tool — synthetic response content is the
 primary lever.
+
+**Parse failures (`returned: undefined` in the results JSON)**
+
+Occasionally the evaluator returns a response that doesn't parse to a level number.
+This appears in results as `deviation: NaN` and `pass: false` with `returned: undefined`.
+These are transient API errors, not calibration failures. If a scenario shows a parse
+failure in one run but passes cleanly in another, it is not a calibration problem —
+re-run the scenario to confirm. If parse failures are frequent, check for API rate
+limiting or unusually long responses exceeding context.
 
 See `orchestration_design.md` (Evaluation Quality Control) for the full
 calibration procedure.

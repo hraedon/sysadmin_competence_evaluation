@@ -6,4 +6,4 @@
 - If the TGT (Ticket Granting Ticket, not shown here but present in the cache) is still valid, the OS will automatically request a new CIFS service ticket from LABDC01 without any user prompt. The renewal is transparent.
 - If the TGT has also expired, the OS will need jsmith to re-authenticate depending on application behavior.
 
-(4) NTLM fallback conditions: accessing FILESERVER01 by IP address instead of hostname (no SPN lookup is possible without a hostname); the CIFS/FILESERVER01 SPN not registered in AD; the client is not domain-joined; Kerberos port 88 (UDP/TCP) is blocked between WS-ACCT-04 and LABDC01; the target is outside the Kerberos realm with no cross-realm trust configured.
+(4) NTLM fallback conditions: accessing FILESERVER01 by IP address instead of hostname (no SPN lookup is possible); the CIFS/FILESERVER01 SPN not registered in AD; the client workstation is not domain-joined.

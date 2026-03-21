@@ -57,8 +57,9 @@ rubric:
     level_3: >
       All of the above plus notes that DNS itself requires inter-VLAN routing to
       succeed (LABDC01 is on VLAN 10, the workstation is on VLAN 20), so a routing
-      failure could masquerade as a DNS failure. Can describe how to distinguish
-      them (nslookup from the affected workstation vs. ping LABDC01 by IP).
+      failure could masquerade as a DNS failure. Identifies this as a complicating
+      factor worth investigating. Does NOT describe a step-by-step ordered diagnostic
+      protocol — that specificity is the distinguishing criterion for Level 4.
     level_4: >
       All of the above plus can describe the diagnostic sequence: start with
       nslookup FILESERVER01 from WS-ACCT-04 to test DNS; if DNS resolves, ping

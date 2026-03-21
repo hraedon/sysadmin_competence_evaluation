@@ -1,0 +1,14 @@
+The exclusion has outlived its justification and should be removed. The removal requires operational care, and the process failure that allowed it to persist four months past the relevant decommission should be addressed structurally.
+
+The evidence: zero legacy authentication sign-ins in 180 days across 31 accounts, combined with the decommission of the CorpMail Legacy Gateway on 2025-11-18 (CHG-2025-0841). The exclusion was created to protect legacy auth clients. There are no legacy auth sign-ins. The primary system that required the exclusion is gone. The operational justification is absent.
+
+The risk: 31 accounts exempt from MFA across all cloud applications. A single successful credential compromise — phishing, password spray, credential stuffing — grants full cloud application access with no MFA challenge. Accounts without MFA are the primary target for spray attacks precisely because they require only a valid password. This isn't theoretical; MFA-exempt accounts are routinely the first accounts compromised in spray campaigns.
+
+Operational care required for removal: removing MFA exemption from 31 accounts simultaneously creates a risk of support impact. Before removing the exclusion:
+1. Verify all 31 accounts have at least one registered MFA method in Entra ID. Any account without a registered authenticator will be unable to authenticate after the exclusion is removed. Shared accounts or service-adjacent accounts may have been included in the group without completing MFA registration.
+2. Remove the exclusion during a low-traffic window. Monitor sign-in logs and the helpdesk queue for the following 48 hours for authentication failures — to catch any client still using legacy auth that didn't appear in the sampled 180-day log window.
+3. If legacy auth sign-ins do appear post-removal, re-add specific accounts temporarily while the client is remediated, rather than restoring the group-wide exclusion.
+
+Process failure: CHG-2025-0841 was closed with no action on the CA policy. The decommission of the primary system justifying an MFA exclusion should have generated a follow-up review task. It didn't. The four-month gap between decommission (2025-11-18) and this quarterly review (2026-03-20) is a reportable finding: this exclusion should have appeared on the previous quarterly review and been flagged then. If it didn't appear, either the quarterly review process doesn't include CA exclusion audits, or the exclusion isn't being tracked against its justification. Either gap needs to close.
+
+Structural fix: add a CA policy review step to the decommission runbook so that future migration changes automatically generate a task to identify and remove CA exclusions whose justification was the decommissioned system. This is the change that prevents the next four-month gap.

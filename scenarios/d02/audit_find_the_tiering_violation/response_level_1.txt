@@ -1,0 +1,11 @@
+Reviewing the four accounts:
+
+SVC-MONITORING: This account has Domain Admin membership, which seems like it might be more than necessary for a monitoring agent. The password is also over 800 days old, which is a concern. I'd rate this as moderate — it should probably be reviewed to see if Domain Admin is still needed.
+
+TIER0-ADMIN-RWALSH: This is an admin account used for domain administration. The recent logon on a workstation is a bit concerning — admin accounts ideally should be used only from jump servers or PAWs. I'd rate this as moderate.
+
+HELPDESK-LEAD: Has password reset delegation. The scope seems broad (domain root) but this is common for helpdesk accounts that need to reset passwords across the organization. Probably low risk.
+
+SVC-BACKUP: Backup Operators membership is appropriate for a backup service account. Password rotation policy is enforced. This looks correctly configured.
+
+Overall, SVC-BACKUP is the cleanest account. SVC-MONITORING and TIER0-ADMIN-RWALSH should both be reviewed.

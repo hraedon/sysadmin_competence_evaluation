@@ -1,0 +1,30 @@
+Specification: Automated AD Account Termination Script
+
+PURPOSE
+Process the nightly HR termination export and disable the corresponding Active Directory user accounts.
+
+INPUT
+- CSV file at $CsvPath (required parameter). Required columns: SamAccountName, TerminationDate. Additional columns are ignored.
+- The script searches the entire domain (no OU scope restriction) to handle accounts that may reside in any OU. This is explicitly chosen over OU-scoped search to avoid missing accounts that have been moved.
+
+ACTIVE DIRECTORY OPERATION
+For each row, the script performs exactly one AD operation: Set-ADUser -Identity $SamAccountName -Enabled $false.
+
+VERIFICATION
+After each Set-ADUser call, the script calls Get-ADUser -Identity $SamAccountName -Properties Enabled and confirms Enabled is $false before recording success in the log. This confirms the AD write was accepted, not just that the cmdlet returned without error.
+
+EDGE CASES
+- Account not found in AD: log a WARNING with SamAccountName and TerminationDate, continue to next row. Not treated as a fatal error.
+- AD disable operation fails for a found account: log an ERROR with the exception message and SamAccountName, continue to next row. The script does not stop on a single account failure.
+- Empty CSV: log a WARNING ("no termination records to process"), exit with code 0.
+
+OUTPUT
+- Log file at $LogPath (required parameter). Each log entry includes timestamp, SamAccountName, TerminationDate, and result (SUCCESS / WARNING / ERROR / NOTICE).
+- Exit code 0 if all accounts were processed without ERROR-level entries. Exit code 1 if any ERROR-level entries were logged. WARNING and NOTICE entries do not affect the exit code.
+- Console summary on completion: total rows, disabled successfully, already disabled, not found, errors.
+
+REQUIRED AD PERMISSIONS
+The service account running this script needs Write permissions on the Enabled attribute for user objects in the search scope. Domain Admin is not required.
+
+SCHEDULER NOTE
+The script is designed to run unattended. Exit code propagates to the scheduler for alerting on failure.

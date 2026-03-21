@@ -77,7 +77,9 @@ rubric:
       All of the above plus correctly explains ticket expiry behavior: the OS will silently request
       a new service ticket from the KDC if the TGT is still valid; if the TGT has also expired,
       the user may be prompted to re-authenticate depending on application behavior. Can identify
-      LABDC01 as the issuing KDC from the "KDC Called" field.
+      LABDC01 as the issuing KDC from the "KDC Called" field. Does NOT notice the ok-as-delegate
+      flag on the CIFS ticket or discuss its implications — that observation is the specific
+      distinguishing criterion for Level 4.
     level_4: >
       All of the above plus notices the ok-as-delegate flag on the CIFS ticket and can explain its
       implications: FILESERVER01 is trusted to impersonate jsmith when making downstream service

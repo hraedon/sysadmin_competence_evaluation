@@ -1,0 +1,5 @@
+Two risks stand out above the spreadsheet issue.
+
+First, the CRL expires in 16 days. When a CRL expires, revocation checking fails. Depending on whether clients are configured for hard-fail or soft-fail, this either breaks all certificate validation in the domain or silently stops enforcing revocation. Both outcomes are bad. 16 days is operationally immediate — this needs to be addressed before it causes a domain-wide issue. The CRL expiry is more urgent than the tracking spreadsheet: the spreadsheet is a process gap, but certificates don't expire faster because the spreadsheet is stale.
+
+Second, the root CA is online — it's a VM running on the main cluster. Best practice is that the root CA should be offline except when signing intermediate CA certificates. An online root CA is continuously exposed to network-based attack. If the root CA is compromised, the entire PKI is compromised.

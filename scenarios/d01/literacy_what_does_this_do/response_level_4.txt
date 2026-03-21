@@ -1,0 +1,15 @@
+This script does two things. The name and comment block describe one of them.
+
+The first foreach loop queries disabled accounts with LastLogonDate older than the cutoff and exports a CSV. That's the report the name promises. The second foreach loop runs Remove-ADGroupMember with -Confirm:$false against the same account set and removes all group memberships. That's the undisclosed modification.
+
+The immediate operational problems with the second loop:
+
+No -WhatIf support. Remove-ADGroupMember is called with -Confirm:$false and the script exposes no -WhatIf or -ReportOnly mode. There is no way to preview scope before running. Any pre-run review requires actually running it or reading the loop carefully — the script provides no assistance here.
+
+No removal logging. The CSV records GroupCount at export time. After the script runs, GroupCount reflects the state at the moment of query, not the state after removal. There is no record of which groups were stripped from which accounts. A post-run audit would require comparing AD state before and after, which this script does nothing to facilitate.
+
+Null LastLogonDate exclusion. Accounts that have never logged in have a null LastLogonDate. The -lt comparison returns $false for null, so never-logged-in accounts are excluded from the removal loop while accounts with a single ancient login are not. This is probably unintentional and should be made explicit.
+
+The deeper issue, beyond the specific flaws: this script's label does not match its behavior. A script labeled "inactive account report" that also removes group memberships is a specific and common failure mode — it shows up in AI-generated scripts, in lightly-reviewed automation, and in scripts where the original author added functionality without updating the documentation. The label on a script file is not a reliable indicator of what the script does. Reading the comment block and stopping is insufficient. This script is a good example of why the only safe review process is to simulate execution mentally, section by section, before running anything in production.
+
+Minimum requirements before approval: a -ReportOnly switch, per-removal logging, documented null LastLogonDate behavior, and an updated script name and comment block that accurately describes both operations.

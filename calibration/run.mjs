@@ -1,0 +1,307 @@
+#!/usr/bin/env node
+/**
+ * Calibration harness for the sysadmin competency assessment evaluator.
+ *
+ * For each scenario that has synthetic response files (response_level_1.txt
+ * through response_level_4.txt), this script calls the AI evaluator and checks
+ * whether the returned level matches the expected level.
+ *
+ * Usage:
+ *   ANTHROPIC_API_KEY=sk-ant-... node calibration/run.mjs
+ *   ANTHROPIC_API_KEY=sk-ant-... node calibration/run.mjs --scenario d01-audit-ai-gave-you-this
+ *   ANTHROPIC_API_KEY=sk-ant-... node calibration/run.mjs --domain 1
+ *
+ * Exit codes:
+ *   0 — all calibrated scenarios passed (level match within tolerance)
+ *   1 — one or more scenarios failed calibration
+ *   2 — configuration error (no API key, no scenarios found)
+ */
+
+import Anthropic from '@anthropic-ai/sdk'
+import { readFileSync, existsSync, writeFileSync, mkdirSync } from 'fs'
+import { join, dirname, resolve } from 'path'
+import { fileURLToPath } from 'url'
+import { load as parseYaml } from 'js-yaml'
+import { glob } from 'glob'
+
+const __dirname = dirname(fileURLToPath(import.meta.url))
+const REPO_ROOT = resolve(__dirname, '..')
+const SCENARIOS_DIR = join(REPO_ROOT, 'scenarios')
+const RESULTS_DIR = join(__dirname, 'results')
+const EXPECTED_LEVELS = [1, 2, 3, 4]
+
+// A level estimate is a "pass" if it matches within this tolerance.
+// Per calibration spec: flag if "off by more than 0.5 levels consistently."
+// For a single run, we treat exact match as pass and flag any deviation.
+const PASS_TOLERANCE = 0.5
+
+// --- CLI args ---
+const args = process.argv.slice(2)
+const scenarioFilter = args.includes('--scenario') ? args[args.indexOf('--scenario') + 1] : null
+const domainFilter = args.includes('--domain') ? parseInt(args[args.indexOf('--domain') + 1]) : null
+
+// --- API key ---
+const apiKey = process.env.ANTHROPIC_API_KEY
+if (!apiKey) {
+  console.error('Error: ANTHROPIC_API_KEY environment variable is not set.')
+  process.exit(2)
+}
+
+const client = new Anthropic({ apiKey })
+const MODEL = 'claude-sonnet-4-6'
+
+// --- Prompt assembly (mirrors evaluator.js, adapted for Node.js) ---
+function buildSystemPrompt(scenario, artifactContent) {
+  const { domain_name, level, title, delivery_mode, presentation, rubric } = scenario
+
+  const criticalBlock = (rubric.critical_findings ?? []).map(f =>
+    `[${f.id}] ${f.description.trim()}\n  Severity: ${f.severity}\n  Miss signal: ${(f.miss_signal ?? '').trim()}`
+  ).join('\n\n')
+
+  const secondaryBlock = (rubric.secondary_findings ?? []).map(f =>
+    `[${f.id}] ${f.description.trim()}\n  Severity: ${f.severity}`
+  ).join('\n\n')
+
+  const levelBlock = Object.entries(rubric.level_indicators ?? {}).map(([k, v]) =>
+    `${k.replace('level_', 'Level ')}: ${v.trim()}`
+  ).join('\n\n')
+
+  const modeNote = delivery_mode === 'B'
+    ? `This is a Commission exercise (Mode B). The candidate has been asked to produce a specification or document — not to analyse a given artifact. Evaluate the completeness and quality of what they produced against the rubric findings, which represent required elements of a correct specification.`
+    : `This is an Audit/Literacy exercise (Mode ${delivery_mode}). The candidate has been asked to analyse the provided artifact and identify findings.`
+
+  const artifactSection = artifactContent
+    ? `ARTIFACT (${presentation.type}):\n\`\`\`\n${artifactContent}\n\`\`\``
+    : '(No artifact — Mode B commission exercise)'
+
+  return `ROLE: You are an assessment evaluator for the Modern Systems Administration Competency Framework. You are evaluating a candidate's response to a scenario exercise. Do not provide the correct answer or reveal findings the candidate missed.
+
+${modeNote}
+
+DOMAIN: ${domain_name} (Level ${level})
+EXERCISE: ${title}
+
+SCENARIO CONTEXT:
+${presentation.context?.trim() ?? ''}
+
+${artifactSection}
+
+RUBRIC
+
+Critical findings:
+${criticalBlock || 'None'}
+
+Secondary findings:
+${secondaryBlock || 'None'}
+
+Level indicators:
+${levelBlock || 'Not specified'}
+
+EVALUATION INSTRUCTIONS:
+1. Assess the candidate's response against the rubric.
+2. Identify which finding IDs were caught (clearly addressed) and which were missed.
+3. Assess severity calibration — did they rate critical findings as critical?
+4. Credit legitimate findings not in the rubric (note them as "unlisted_N").
+5. Produce a level estimate (1–4) with specific evidence from the response.
+6. If the candidate is between levels, describe the specific gap.
+7. Do NOT reveal what was missed or provide the correct answer.
+
+Respond with a single JSON object — no prose before or after it:
+{
+  "level": <1|2|3|4>,
+  "confidence": <"high"|"medium"|"low">,
+  "caught": [<finding id strings>],
+  "missed": [<finding id strings>],
+  "unlisted": [<brief descriptions of valid unlisted findings>],
+  "severity_calibration": <"accurate"|"understated"|"overstated"|"mixed">,
+  "gap": <"prose description of what separates this response from the next level, or null if clearly at a level">,
+  "narrative": <"1–2 paragraph assessment of the response, suitable for the candidate to read. Do not reveal missed findings or the correct answer.">
+}`
+}
+
+async function callEvaluator(scenario, artifactContent, responseText) {
+  const systemPrompt = buildSystemPrompt(scenario, artifactContent)
+
+  const message = await client.messages.create({
+    model: MODEL,
+    max_tokens: 2048,
+    system: systemPrompt,
+    messages: [{ role: 'user', content: responseText }],
+  })
+
+  const raw = message.content[0]?.text ?? ''
+  const jsonMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/) ?? raw.match(/(\{[\s\S]*\})/)
+  const jsonStr = jsonMatch ? (jsonMatch[1] ?? jsonMatch[0]) : raw
+
+  try {
+    return JSON.parse(jsonStr.trim())
+  } catch {
+    return { _parse_error: true, _raw: raw }
+  }
+}
+
+// --- Scenario loading ---
+function loadScenario(scenarioYamlPath) {
+  const content = readFileSync(scenarioYamlPath, 'utf-8')
+  // Strip comment lines that start with # but are outside YAML block scalars
+  // (scenario notes are stored as YAML comments)
+  return parseYaml(content)
+}
+
+function loadArtifact(scenario, scenarioDir) {
+  const artifactFile = scenario.presentation?.artifact_file
+  if (!artifactFile) return null
+  // artifact_file is a relative path from the repo root
+  const artifactPath = join(REPO_ROOT, artifactFile)
+  if (!existsSync(artifactPath)) return null
+  return readFileSync(artifactPath, 'utf-8')
+}
+
+// --- Main ---
+async function main() {
+  const yamlPaths = await glob('**/scenario.yaml', { cwd: SCENARIOS_DIR, absolute: true })
+
+  if (yamlPaths.length === 0) {
+    console.error(`No scenario.yaml files found in ${SCENARIOS_DIR}`)
+    process.exit(2)
+  }
+
+  // Apply filters
+  const filteredPaths = yamlPaths.filter(p => {
+    const scenario = loadScenario(p)
+    if (scenarioFilter && scenario.id !== scenarioFilter) return false
+    if (domainFilter && scenario.domain !== domainFilter) return false
+    return true
+  })
+
+  if (filteredPaths.length === 0) {
+    console.error('No scenarios match the specified filter.')
+    process.exit(2)
+  }
+
+  console.log(`\nCalibration harness — ${new Date().toISOString()}`)
+  console.log(`Model: ${MODEL}`)
+  console.log(`Scenarios to process: ${filteredPaths.length}\n`)
+
+  const results = []
+  let totalRuns = 0
+  let passed = 0
+  let failed = 0
+  let skipped = 0
+
+  for (const yamlPath of filteredPaths.sort()) {
+    const scenarioDir = dirname(yamlPath)
+    const scenario = loadScenario(yamlPath)
+    const artifactContent = loadArtifact(scenario, scenarioDir)
+    const scenarioResults = { id: scenario.id, domain: scenario.domain, level: scenario.level, mode: scenario.delivery_mode, runs: [] }
+
+    console.log(`Scenario: ${scenario.id} (Domain ${scenario.domain}, Level ${scenario.level}, Mode ${scenario.delivery_mode})`)
+
+    for (const expectedLevel of EXPECTED_LEVELS) {
+      const responseFile = join(scenarioDir, `response_level_${expectedLevel}.txt`)
+      if (!existsSync(responseFile)) {
+        console.log(`  L${expectedLevel}: [SKIP] response_level_${expectedLevel}.txt not found`)
+        skipped++
+        scenarioResults.runs.push({ expected: expectedLevel, status: 'skip' })
+        continue
+      }
+
+      const responseText = readFileSync(responseFile, 'utf-8')
+
+      process.stdout.write(`  L${expectedLevel}: calling evaluator... `)
+      try {
+        const result = await callEvaluator(scenario, artifactContent, responseText)
+        totalRuns++
+
+        if (result._parse_error) {
+          console.log(`[ERROR] JSON parse failed`)
+          console.log(`        Raw: ${result._raw.slice(0, 200)}`)
+          failed++
+          scenarioResults.runs.push({ expected: expectedLevel, status: 'error', raw: result._raw })
+          continue
+        }
+
+        const returnedLevel = result.level
+        const deviation = Math.abs(returnedLevel - expectedLevel)
+        const pass = deviation <= PASS_TOLERANCE
+
+        if (pass) {
+          passed++
+          console.log(`[PASS] returned L${returnedLevel} (expected L${expectedLevel})`)
+        } else {
+          failed++
+          console.log(`[FAIL] returned L${returnedLevel} (expected L${expectedLevel}, deviation ${deviation.toFixed(1)})`)
+          console.log(`        Gap: ${result.gap ?? 'none'}`)
+          console.log(`        Caught: ${(result.caught ?? []).join(', ') || '(none)'}`)
+          console.log(`        Missed: ${(result.missed ?? []).join(', ') || '(none)'}`)
+        }
+
+        scenarioResults.runs.push({
+          expected: expectedLevel,
+          returned: returnedLevel,
+          confidence: result.confidence,
+          deviation,
+          pass,
+          caught: result.caught ?? [],
+          missed: result.missed ?? [],
+          gap: result.gap,
+          narrative: result.narrative,
+          status: pass ? 'pass' : 'fail',
+        })
+      } catch (err) {
+        console.log(`[ERROR] API call failed: ${err.message}`)
+        failed++
+        scenarioResults.runs.push({ expected: expectedLevel, status: 'error', error: err.message })
+      }
+    }
+
+    results.push(scenarioResults)
+    console.log()
+  }
+
+  // Summary
+  const totalAttempted = passed + failed
+  console.log('─'.repeat(60))
+  console.log(`Results: ${passed} passed / ${failed} failed / ${skipped} skipped`)
+  if (totalAttempted > 0) {
+    console.log(`Pass rate: ${((passed / totalAttempted) * 100).toFixed(0)}%`)
+  }
+  console.log()
+
+  // Flag scenarios needing rubric adjustment
+  const needsAdjustment = results.filter(s =>
+    s.runs.filter(r => r.status === 'fail').length >= 2
+  )
+  if (needsAdjustment.length > 0) {
+    console.log('Scenarios with systematic calibration issues (≥2 level mismatches):')
+    for (const s of needsAdjustment) {
+      const failures = s.runs.filter(r => r.status === 'fail')
+      console.log(`  ${s.id}`)
+      for (const f of failures) {
+        console.log(`    L${f.expected} → returned L${f.returned}: ${f.gap ?? 'no gap note'}`)
+      }
+    }
+    console.log()
+    console.log('Action: Adjust miss_signal specificity in the rubric for these scenarios.')
+    console.log('See orchestration_design.md (Evaluation Quality Control) for the adjustment procedure.\n')
+  }
+
+  // Write JSON results
+  mkdirSync(RESULTS_DIR, { recursive: true })
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
+  const resultsFile = join(RESULTS_DIR, `calibration_${timestamp}.json`)
+  writeFileSync(resultsFile, JSON.stringify({
+    timestamp: new Date().toISOString(),
+    model: MODEL,
+    summary: { total_runs: totalAttempted, passed, failed, skipped },
+    scenarios: results,
+  }, null, 2))
+  console.log(`Full results written to: ${resultsFile}`)
+
+  process.exit(failed > 0 ? 1 : 0)
+}
+
+main().catch(err => {
+  console.error('Fatal error:', err)
+  process.exit(2)
+})

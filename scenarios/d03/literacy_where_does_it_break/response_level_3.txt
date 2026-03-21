@@ -1,0 +1,11 @@
+The "path cannot be found" error is most consistent with DNS failure. Here's the component chain and why.
+
+DNS resolution is the first required step. The client must resolve FILESERVER01 to an IP address before any network routing to the file server is attempted. DNS failure produces exactly the error Sandra is seeing: the name doesn't resolve, so from the client's perspective the path doesn't exist. A routing failure looks different — the name resolves, a connection is attempted, and then it times out or returns "network path not found."
+
+One complication: DNS itself requires network access to LABDC01, which is on VLAN 10 (servers), while WS-ACCT-04 is on VLAN 20 (accounting). A routing failure between VLAN 20 and VLAN 10 could masquerade as a DNS failure — both would prevent DNS resolution from succeeding. The investigation needs to account for this.
+
+Component chain:
+1. DNS resolution (name → IP) — requires inter-VLAN routing to LABDC01
+2. Inter-VLAN routing from VLAN 20 to VLAN 10 (for both DNS and for the file server connection)
+3. FILESERVER01 availability and SMB service
+4. Share existence and permissions (failure here produces "access denied," not "path cannot be found")

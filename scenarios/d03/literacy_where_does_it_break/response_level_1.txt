@@ -1,0 +1,10 @@
+For Sandra to connect to \\FILESERVER01\Accounting, these components need to work:
+
+1. Her workstation (WS-ACCT-04) needs to be running and connected to the network
+2. The switch she's connected to (ACCESS-SW-02) needs to be functioning
+3. The distribution switch (DIST-SW-01) needs to be forwarding traffic
+4. The core switch or router needs to handle traffic between VLANs
+5. FILESERVER01 needs to be running and accessible
+6. The Accounting share needs to exist and Sandra needs permission to access it
+
+The error "path cannot be found" suggests one of these components isn't working. I'd start by checking if she can ping FILESERVER01 by IP address to rule out network connectivity issues, then check if the file server is online.

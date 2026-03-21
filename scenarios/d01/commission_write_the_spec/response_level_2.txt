@@ -1,0 +1,12 @@
+Specification: Automated Account Termination Script
+
+Input: CSV file exported by the HR system. Required fields: SamAccountName, TerminationDate.
+
+Core operation: For each row in the CSV, locate the AD account by SamAccountName and set Enabled = $false.
+
+The script should log what it does and produce a summary at the end.
+
+Open questions I'd need answered before finalizing:
+- What OU scope should the search use — entire domain or a specific OU?
+- What should happen if an account is not found in AD? Stop or continue?
+- What should happen if an account is already disabled?

@@ -1,0 +1,61 @@
+Specification: Automated AD Account Termination Script
+
+PURPOSE
+Process the nightly HR termination export and disable the corresponding Active Directory user accounts.
+
+IN SCOPE
+- Reading the HR CSV and identifying the corresponding AD accounts
+- Setting Enabled = $false on each identified account
+- Logging the result of each operation
+- Returning an exit code suitable for unattended scheduling
+
+OUT OF SCOPE (not part of this specification; handled by other processes)
+- Moving accounts to a disabled-accounts OU
+- Removing group memberships
+- Revoking licenses or deprovisioning cloud services
+- Notifying the terminated employee's manager
+- Updating the Description attribute on the account
+- Audit logging to the Windows Event Log
+- Sending email notifications on failure
+
+These items are explicitly excluded. A developer implementing this specification should not add them.
+
+INPUT
+- $CsvPath (required): path to the HR termination CSV. Required columns: SamAccountName, TerminationDate. Additional columns are ignored and do not cause errors.
+- $LogPath (required): path for the output log file. File is appended if it exists.
+- $SearchBase (optional, default: entire domain): OU path for Get-ADUser. Defaults to domain-wide search to handle accounts that may reside in any OU.
+
+ACTIVE DIRECTORY OPERATION
+For each row: Get-ADUser -Identity $SamAccountName -Properties Enabled (domain-wide search). If found and enabled, call Set-ADUser -Identity $SamAccountName -Enabled $false. Verify with a second Get-ADUser that Enabled is now $false before recording success.
+
+The only AD attribute modified is Enabled. No other attributes are touched.
+
+EDGE CASES
+- Account not found in AD: log WARNING. Continue. Not fatal.
+- Account already disabled: log NOTICE. Count as processed. No AD write performed. Script is idempotent — running twice on the same CSV produces no errors on the second run.
+- AD disable fails for a found account: log ERROR with $_.Exception.Message. Continue to next row. Do not stop the run.
+- Empty CSV: log WARNING, exit 0.
+
+VERIFICATION
+After each successful Set-ADUser call: re-query with Get-ADUser and confirm Enabled = $false. Record the confirmed state in the log. This distinguishes "cmdlet returned without error" from "account is demonstrably disabled in AD."
+
+OUTPUT
+- Log file: one entry per account processed, format: [timestamp] [level] [SamAccountName] [TerminationDate] [result/message]
+- Exit codes: 0 = all rows processed with no ERROR entries; 1 = one or more ERROR entries logged
+- Console summary: total rows, disabled, already disabled, not found, errors
+
+IDEMPOTENCY REQUIREMENT
+Running this script twice against the same CSV must produce identical final AD state with no ERROR-level log entries on the second run. Already-disabled accounts must be handled as NOTICE, not ERROR or WARNING.
+
+REQUIRED PERMISSIONS
+Write access to the Enabled attribute on user objects in the search scope. Domain Admin is not required and must not be used as a workaround for permission issues.
+
+ACCEPTANCE CRITERIA
+A reviewer can evaluate whether a delivered script meets this specification by checking:
+1. Set-ADUser is called only to set Enabled = $false (no other attributes modified)
+2. Verification Get-ADUser follows each Set-ADUser call
+3. Missing accounts log WARNING and do not stop execution
+4. Already-disabled accounts log NOTICE with no AD write
+5. Single-account failures log ERROR with exception message and do not stop execution
+6. Running the script twice on the same CSV produces no ERROR entries on the second run
+7. Exit code 1 when any ERROR entries are present; 0 otherwise

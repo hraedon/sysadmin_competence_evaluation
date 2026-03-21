@@ -1,0 +1,7 @@
+Looking at the firewall ruleset, Rule 2 is blocking outbound TCP 443 to 203.0.113.47. The application stopped reaching its HTTPS endpoint two weeks ago, and 203.0.113.47:443 is the endpoint in question.
+
+The firewall is the cause. Rule 2 explicitly blocks TCP 443 to 203.0.113.47, which matches exactly what the application is trying to do.
+
+To fix it: either remove Rule 2, or modify it to allow the traffic. If the block was intentional for security reasons, then the application access needs to go through an approved path. If it was added by mistake, remove it.
+
+I'd check the change log to find out when Rule 2 was added and who added it, which might explain why the application stopped working two weeks ago.

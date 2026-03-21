@@ -1,0 +1,7 @@
+Script B is not safe to run. The difference is in the SearchBase parameter default.
+
+Script A defaults to SearchBase = "OU=Staff,DC=corp,DC=example,DC=com" — the Staff OU specifically. Script B defaults to SearchBase = "DC=corp,DC=example,DC=com" — the domain root.
+
+Running Script B would not query only staff accounts. It would query every enabled user account in the entire domain with a LastLogonDate older than 90 days. Every qualifying account across all OUs would be disabled in a single run.
+
+Script A is safe to run because it scopes to the Staff OU. Script B would be a domain-wide disable operation. I would use Script A and not run Script B.

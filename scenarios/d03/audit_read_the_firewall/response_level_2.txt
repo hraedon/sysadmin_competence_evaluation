@@ -1,0 +1,7 @@
+The firewall is not blocking the traffic. Rule ordering is the key.
+
+Rule 1 (priority 100) allows all outbound TCP 443 to Any. Rule 2 (priority 200) blocks TCP 443 to 203.0.113.47. Firewall rules are evaluated in priority order — lower number = higher priority = evaluated first. Traffic to 203.0.113.47:443 matches Rule 1 before it ever reaches Rule 2. Rule 2 is effectively dead. The application's HTTPS traffic to the vendor endpoint is passing through the firewall.
+
+So the firewall is not the cause of the application timeout. The symptom needs a different explanation.
+
+The firewall is not the cause of the application outage. The root cause of the connection failure lies elsewhere.

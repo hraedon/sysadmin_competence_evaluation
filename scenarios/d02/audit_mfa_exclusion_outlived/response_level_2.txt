@@ -1,0 +1,9 @@
+The exclusion should be removed. The sign-in logs make the case clearly.
+
+The CA-MFA-LegacyAuthExceptions exclusion was created to accommodate legacy authentication clients that don't support modern authentication. Looking at the sign-in log summary: over 180 days, across all 31 accounts, there are 4,847 modern authentication sign-ins and zero legacy authentication sign-ins. The exclusion exists to protect legacy auth clients; there are no legacy auth sign-ins. Additionally, the CorpMail Legacy Gateway — the most plausible reason this exclusion was created — was decommissioned on 2025-11-18, over four months ago per CHG-2025-0841.
+
+The operational justification for the exclusion is gone. The stated reason (legacy auth clients) doesn't apply because there is no legacy auth traffic. The primary system that needed it (CorpMail Legacy Gateway) is decommissioned.
+
+The risk: 31 accounts are exempt from MFA across all cloud applications with no remaining justification. A successful credential compromise of any account in this group — via phishing, password spray, or credential stuffing — grants authenticated access to every cloud application in scope with no MFA challenge. Accounts without MFA are the preferred target for password spray attacks specifically because they're the path of least resistance.
+
+Recommendation: remove the CA-MFA-LegacyAuthExceptions group from the MFA policy exclusion. The log evidence supports this.

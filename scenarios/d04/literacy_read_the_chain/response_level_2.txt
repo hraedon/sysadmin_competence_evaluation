@@ -1,0 +1,3 @@
+The failing certificate is Certificate 2 — the intermediate CA (CorpIssuing-CA-01). It expires in 3 days (2026-03-23). The leaf certificate's expiry date is not relevant here.
+
+The leaf certificate is valid until 2026-11-01 — 8 months away. The problem is the intermediate CA, not the leaf. The leaf looks fine but the intermediate that signed it is the one expiring.

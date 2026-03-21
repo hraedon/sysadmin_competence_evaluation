@@ -1,0 +1,5 @@
+This script has two problems that need to be addressed before it goes into the automated pipeline.
+
+The most critical issue is -Force on Remove-Item. Combined with -Recurse, this flag suppresses every protection Windows has on files — read-only attributes, hidden files, system-attributed files — with no confirmation and no recoverable error. On a production server running as administrator, there is no safety net. This is rated critical.
+
+The second issue is the catch block. The script logs "Cleanup completed successfully." in both the success path and the exception path. If Remove-Item throws — access denied, locked file, anything — the log records success. Silent failures in automated pipelines can go undetected for a long time. I would not add this to the pipeline without addressing both issues.

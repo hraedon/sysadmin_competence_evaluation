@@ -1,0 +1,12 @@
+Two critical findings and several conditions that would need to be met before any approval.
+
+Critical finding 1: unconditional trust scope. Adding this CA to the Windows trust store via GPO grants that CA trust for any domain, not just VendorConnect's application. If VendorConnect's CA issues a certificate for "login.microsoftonline.com" or "internal.corp.example.com" or any other domain, every computer receiving this GPO will trust it. The request frames this as a single-application integration; the actual result is an organization-wide trust delegation to an external CA. These are not equivalent.
+
+Critical finding 2: inaccessible CRL. The CRL distribution point is "http://pki.vendorconnect.internal/crl" — an internal VendorConnect network path our computers cannot reach. When clients try to validate revocation status for any certificate issued by this CA, the CRL check will fail. Soft-fail configuration means clients continue trusting silently (revocation enforcement is disabled in practice). Hard-fail configuration means clients refuse the connection entirely. In the compromise scenario where VendorConnect revokes a certificate, our clients won't know it's been revoked.
+
+Conditions I'd impose before approving:
+1. VendorConnect must provide a CRL and/or OCSP endpoint accessible from our domain computers. This is a hard requirement.
+2. Deployment should be to a pilot group before all domain computers.
+3. A removal process must be documented before deployment — what happens to this trust when the vendor relationship ends or if the vendor's CA is compromised.
+
+Governance questions I need answered: who controls the private key for this CA, and what is their certificate issuance policy?

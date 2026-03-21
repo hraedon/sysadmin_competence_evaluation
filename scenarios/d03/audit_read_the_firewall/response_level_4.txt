@@ -1,0 +1,15 @@
+The firewall is not blocking the traffic. The application timeout has a different cause.
+
+Rule 1 (priority 100) allows all outbound TCP 443 to Any. Rule 2 (priority 200) blocks TCP 443 to 203.0.113.47. Firewall rules evaluate in priority order. Traffic to 203.0.113.47:443 matches Rule 1 at priority 100 and is allowed before Rule 2 at priority 200 is evaluated. Rule 2 is unreachable. The block is not in effect.
+
+Additionally, Rule 2's intent is not being achieved. If it was added to block access to this endpoint, it has never worked. 203.0.113.47 currently has unrestricted outbound HTTPS from this server. If the block was intentional, Rule 2 needs to be repositioned to a priority lower than 100, or Rule 1 needs to be restricted to exclude this destination. This is an audit finding independent of the current outage: a security control that appears to be in place but has no effect is worse than no control, because it creates false confidence.
+
+Since the firewall is not the cause, the application timeout requires investigation elsewhere. The two-week timeline is the key lead — something changed. Diagnostic sequence:
+
+1. Verify the vendor endpoint is currently reachable: `Invoke-WebRequest -Uri https://203.0.113.47/ -UseBasicParsing -Verbose` or curl equivalent. The vendor may have changed the IP address, the service may be down, or the TLS certificate at that endpoint may have changed in a way the application doesn't accept.
+
+2. Check for TLS/cipher suite changes: a recent OS patch or application update may have changed what TLS versions or cipher suites the application negotiates, and the vendor endpoint may no longer match.
+
+3. Check application logs for the exact error message. "Timeout" and "TLS handshake failure" and "certificate validation error" look similar at the symptom level but point to completely different causes.
+
+4. Review the change log for the two-week window: application deployments, OS patches, network configuration changes on this server or upstream. The endpoint worked before two weeks ago; something changed.

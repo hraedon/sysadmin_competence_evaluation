@@ -1,0 +1,7 @@
+This script has two core findings, and they need to be assessed in the right order because the ordering matters.
+
+Critical: -Force on Remove-Item -Recurse. The -Force flag suppresses all prompts and bypasses every file protection Windows provides — read-only, hidden, system attributes. Combined with -Recurse, it silently deletes everything under $cleanupPath with no friction and no recoverable error on a production server running with administrator credentials. This is rated critical because -Force removes the last chance to abort before data loss. If $cleanupPath resolves incorrectly for any reason, -Force ensures maximum damage with no opportunity to stop it.
+
+High: Silent failure in the catch block. The catch block logs "Cleanup completed successfully." — the exact string as the success path. Any exception during execution — access denied, locked file, path not found after the initial check, unexpected error — is recorded as success. Automated alerting that parses this log for errors will produce no alert. This is rated high rather than critical because it is a detection failure rather than a damage amplifier — it operates after the fact. -Force operates before, removing the mechanism that could otherwise interrupt a catastrophic path resolution. Both are severe; the ordering reflects causation.
+
+This script should not go into the automated pipeline without addressing both issues. -Force is the higher priority because it is the root cause of the irreversible-damage scenario.

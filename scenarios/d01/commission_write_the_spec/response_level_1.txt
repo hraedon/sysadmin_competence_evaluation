@@ -1,0 +1,5 @@
+Here is the specification for the account termination script:
+
+The script should read the HR CSV file from the specified path. For each row in the CSV, it should find the corresponding Active Directory account using the employee's information and disable the account. If an account cannot be found, the script should log a warning. The script should log what it does so there is a record of which accounts were disabled.
+
+The script should run on a schedule after the HR export is available, probably nightly. It needs sufficient AD permissions to disable accounts.

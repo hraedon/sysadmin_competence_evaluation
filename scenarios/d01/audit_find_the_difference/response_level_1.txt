@@ -1,0 +1,5 @@
+Both scripts disable inactive staff accounts — accounts where Enabled is $true and LastLogonDate is older than 90 days. The difference is mostly in parameter defaults and some minor structural cleanup.
+
+Script A was submitted by Team Alpha and Script B by Team Beta. Both use the same core logic: query AD with Get-ADUser, filter on the LastLogonDate cutoff, then run Set-ADUser -Enabled $false on each result. The filter and disable logic look identical.
+
+I'd go with Script A since it was submitted by Team Alpha and has been in use longer. Both appear syntactically correct and the logic is sound. The 10-minute window is tight — I'd approve Script A and proceed with the change window.

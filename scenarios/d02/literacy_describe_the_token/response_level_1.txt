@@ -1,0 +1,9 @@
+Looking at the klist output, jsmith has two Kerberos tickets cached.
+
+(1) Ticket #1 grants access to FILESERVER01. Once it expires at 18:03:22, jsmith will lose access to FILESERVER01 and will need to re-authenticate.
+
+(2) The tickets were issued by LABDC01.corp.example.com, which is the domain controller.
+
+(3) The ticket expires at 18:03:22 on the current date. At that point jsmith will be disconnected from any file share sessions.
+
+(4) NTLM would be used instead of Kerberos if the domain controller isn't available, or if there's a problem with the Kerberos service.

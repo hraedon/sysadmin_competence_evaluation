@@ -1,0 +1,14 @@
+Certificate 2 (CorpIssuing-CA-01, the intermediate CA) is the failure. It expires in 3 days on 2026-03-23.
+
+The leaf certificate's expiry is not the diagnostic question. The leaf is valid until 2026-11-01. But chain validation checks every certificate above the leaf, not just the leaf itself. The intermediate signed the leaf. If the intermediate is expired, clients cannot trust the intermediate's signature on the leaf — the cryptographic trust chain is broken at that point. A valid leaf certificate with an expired intermediate is an invalid chain.
+
+The browser displays "Certificate in certification path is not within its validity period." The user sees a generic connection security error pointing at intranet.corp.example.com, which misleads first-pass diagnosis toward the leaf certificate. The error is in the intermediate.
+
+Remediation before 2026-03-23:
+1. Renew CorpIssuing-CA-01 by requesting a new certificate from the root CA (CorpRoot-CA-01). This extends the intermediate's validity period.
+2. Distribute the renewed intermediate certificate to all clients and servers that need to validate the chain.
+3. Re-issue the leaf certificate for intranet.corp.example.com from the renewed intermediate. The old leaf references the old intermediate; clients need a leaf that chains to the renewed intermediate's certificate.
+
+The critical operational dimension: CorpIssuing-CA-01 is the issuing CA for the entire organization, not just for intranet.corp.example.com. Every certificate issued by CorpIssuing-CA-01 — every web server certificate, every code signing certificate, every user or device certificate in this PKI — will fail validation when the intermediate expires. This is not a single-service outage. It is an organization-wide PKI failure. The blast radius is every certificate in this chain, across every system that trusts CorpIssuing-CA-01.
+
+This needs to be treated as a P1 remediation with a deadline of 2026-03-23 and awareness that the impact, if not fixed, affects every service, device, and user relying on this PKI.

@@ -1,0 +1,9 @@
+(1) Ticket #1 is a CIFS service ticket for FILESERVER01. It authenticates jsmith's identity to the file server — it does not grant authorization. What jsmith can do on the file server (share access, file permissions) is controlled by ACLs on the server, entirely separate from ticket possession. The ticket says "this is jsmith"; the ACLs determine what jsmith is allowed to do once recognized.
+
+(2) The issuing KDC is identifiable from the "KDC Called" field in the klist output — it would be the domain controller acting as the KDC for the CORP.EXAMPLE.COM realm.
+
+(3) The service ticket expires at 18:03:22. At that point:
+- If the TGT (Ticket Granting Ticket, not shown here but present in the cache) is still valid, the OS will automatically request a new CIFS service ticket from LABDC01 without any user prompt. The renewal is transparent.
+- If the TGT has also expired, the OS will need jsmith to re-authenticate depending on application behavior.
+
+(4) NTLM fallback conditions: accessing FILESERVER01 by IP address instead of hostname (no SPN lookup is possible without a hostname); the CIFS/FILESERVER01 SPN not registered in AD; the client is not domain-joined; Kerberos port 88 (UDP/TCP) is blocked between WS-ACCT-04 and LABDC01; the target is outside the Kerberos realm with no cross-realm trust configured.

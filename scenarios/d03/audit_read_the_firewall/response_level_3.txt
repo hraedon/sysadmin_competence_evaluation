@@ -1,0 +1,7 @@
+The firewall is not blocking the traffic, for two reasons related to rule ordering.
+
+Rule 1 (priority 100) allows all outbound TCP 443 to Any. Rule 2 (priority 200) blocks TCP 443 to 203.0.113.47. Firewall rules are evaluated in priority order — lower number is evaluated first. Any outbound HTTPS traffic, including traffic to 203.0.113.47, matches Rule 1 before Rule 2 is reached. Rule 2 is unreachable. The application's traffic is not being blocked.
+
+The second finding: Rule 2's intent is also not being achieved. If Rule 2 was added to block access to the vendor endpoint — perhaps as part of a decommission process or security control — it is failing silently. 203.0.113.47 currently has completely unrestricted outbound HTTPS access from this server because Rule 1 allows it first. Whatever the block was supposed to prevent is still happening. If the intent was to enforce the block, Rule 2 needs to be moved to a priority lower than 100 (e.g., priority 50), or Rule 1 needs to be scoped to exclude this destination.
+
+Since the firewall isn't the cause of the application timeout, the two-week timeline is the relevant investigative thread. Something changed two weeks ago and that change is the starting point for the next investigation.

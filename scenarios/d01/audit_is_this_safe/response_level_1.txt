@@ -1,0 +1,10 @@
+This script removes temporary deployment files from a configurable cleanup path on application servers. It takes an $ApplicationName parameter, constructs the path to the temp folder, checks if it exists, and if so, removes it recursively.
+
+The script looks reasonable for post-deployment cleanup automation. A few things to verify:
+- The $ApplicationName value needs to be set correctly — if it's wrong, you'd delete the wrong directory.
+- The script should have been tested on a non-production server before adding it to the pipeline.
+- Make sure the C:\ProgramData\ base path actually contains temp files you want removed, not application data you need.
+
+The error handling is there — the catch block logs completion and the script returns a 0 exit code on success. Running with administrator credentials means it will have permission to remove files, which is what you want for a cleanup operation.
+
+One consideration: the -Force flag on Remove-Item is standard for cleanup scripts where you don't want interactive prompts blocking an automated pipeline. The -Recurse flag is necessary since we're removing a directory tree. These are expected for this use case.

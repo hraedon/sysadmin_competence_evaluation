@@ -1,0 +1,7 @@
+Two significant problems with this request.
+
+First, trust scope. Adding VendorConnect's CA to the Windows trust store via GPO does not create trust for VendorConnect's application specifically. It creates unconditional trust in VendorConnect's CA to issue certificates for any domain. If VendorConnect's CA issues a certificate for "login.microsoftonline.com" or "corp.example.com", every computer in our organization will trust it. This is an unconditional trust delegation to an external party's CA, not a scoped application integration.
+
+Second, revocation. The CRL distribution point is "http://pki.vendorconnect.internal/crl" — an internal VendorConnect network path our computers cannot reach. When clients try to validate revocation status for any certificate from this CA, the check will fail. If a VendorConnect certificate is compromised and revoked, our clients won't be able to detect that.
+
+I would not approve this request as described.

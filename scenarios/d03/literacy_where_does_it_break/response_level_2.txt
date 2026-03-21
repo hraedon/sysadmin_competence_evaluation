@@ -1,0 +1,15 @@
+Before we get to routing, switches, or FILESERVER01, DNS has to work. "\\FILESERVER01\Accounting" requires the client to resolve the name FILESERVER01 to an IP address first. If DNS fails, the path fails at the name resolution step.
+
+The error "path cannot be found" is more consistent with DNS failure than routing failure. If routing was failing, the name would resolve and then the connection would time out or return "network path not found." "Path cannot be found" is what you get when the name doesn't resolve at all.
+
+Components in order:
+
+1. DNS resolution: FILESERVER01 must resolve to an IP. Failure here produces "path cannot be found."
+
+2. Network routing: WS-ACCT-04 must be able to reach FILESERVER01's IP. Failure here produces a timeout after the name resolves.
+
+3. FILESERVER01 availability and SMB service: server must be running and listening. Failure here produces a connection refused.
+
+4. Share and permissions: the Accounting share must exist and Sandra must have access. Failure here produces "access denied."
+
+Given the symptom, DNS resolution is the first thing to test.

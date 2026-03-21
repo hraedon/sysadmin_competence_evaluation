@@ -1,0 +1,18 @@
+The "path cannot be found" error points to DNS, not routing or server availability. Here's the full component chain and a diagnostic sequence.
+
+DNS is the first required step, before anything else. The UNC path \\FILESERVER01\Accounting requires name resolution to an IP address before any connection attempt is made. If DNS fails, the path fails immediately with this exact error — the client has no idea where FILESERVER01 is. If routing were the problem, the name would resolve but the connection would fail with a timeout or "network path not found." "Path cannot be found" is the DNS failure signature.
+
+The complication: DNS resolution requires reaching LABDC01 (the DNS server on VLAN 10) from WS-ACCT-04 (on VLAN 20). Inter-VLAN routing must succeed before DNS can succeed. A routing failure between VLAN 20 and VLAN 10 could therefore produce the same symptom as a DNS service failure — in both cases, the name doesn't resolve.
+
+Component chain:
+1. WS-ACCT-04 → ACCESS-SW-02 → DIST-SW-01 → CORE-RTR-01 (inter-VLAN routing) → LABDC01: DNS query and response
+2. CORE-RTR-01 → FILESERVER01: TCP/445 (SMB) for the actual connection
+3. FILESERVER01 SMB service accepting connections
+4. Accounting share exists and Sandra has permissions (failure here: "access denied," not this error)
+
+Diagnostic sequence:
+Step 1: nslookup FILESERVER01 from WS-ACCT-04. If it returns an IP, DNS is working — skip to step 3.
+Step 2: If nslookup fails, ping LABDC01 by IP address from WS-ACCT-04. If ping fails by IP, the failure is routing between VLAN 20 and VLAN 10 (DIST-SW-01 or CORE-RTR-01). If ping succeeds by IP but nslookup fails, the failure is in LABDC01's DNS service.
+Step 3: If DNS resolves FILESERVER01, ping FILESERVER01 by IP. Failure here is routing to VLAN 10 (file server side). Success here means the network path is fine — test the SMB connection specifically (Test-NetConnection -ComputerName FILESERVER01 -Port 445).
+
+Each step narrows the failure domain. Don't start at the switch; start at the first required component in the chain and work forward.

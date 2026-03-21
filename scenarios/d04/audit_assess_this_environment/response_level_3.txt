@@ -1,0 +1,11 @@
+Three risks, in priority order.
+
+Immediate: CRL expires in 16 days. This is operationally critical and time-bounded. When a CRL expires, revocation checking fails. Hard-fail clients stop trusting all certificates from this PKI; soft-fail clients silently stop enforcing revocation. Either outcome is bad. 16 days is not a planning horizon — publish a new CRL now. The correct immediate action is to publish a new CRL from the issuing CA. Deploying OCSP is a valid medium-term improvement but is not the answer to "CRL expires in 16 days." The answer to that is: publish a new CRL.
+
+High priority structural: root CA is online. The root CA is a VM on the main cluster — it has network exposure continuously. The root CA should be offline (powered off, disconnected from the network) except during the rare occasions when it signs a new intermediate CA certificate. An online root CA is an attack surface. If it is compromised, the attacker can issue certificates trusted by every client in the organization. This doesn't need to be fixed today, but it needs a plan and a timeline. Offline root CA migration is a standard PKI hardening practice.
+
+Process gap (lower urgency): tracking spreadsheet is 8 months out of date. This is how the load balancer incident happened. The spreadsheet is a symptom of missing automation. But stale spreadsheets don't cause certificates to expire faster — they just mean you don't see expiry coming. This should be addressed after the CRL and root CA issues, not before.
+
+Minimal intervention to meaningfully reduce risk: publish a new CRL this week; plan the offline root CA migration with a 90-day target; implement automated certificate expiry monitoring to replace the spreadsheet.
+
+Blast radius of the root CA being compromised: every certificate in this PKI, every client that trusts this root. Full PKI replacement with client re-provisioning. It is the highest-consequence risk even if not the most immediate.

@@ -1,0 +1,22 @@
+The script has a critical credential exposure that must be fixed before it runs anywhere.
+
+Step 2's Write-OperationLog call includes $newPassword directly in the log message: "AD password reset completed. New credential: $newPassword". This writes the rotated credential in plaintext to C:\Temp\credential_rotation.log. C:\Temp is world-readable. The rotation physically succeeds, but the credential is immediately accessible to any local user or process on the system after the script runs. The script is well-structured, which makes this easy to miss — it looks professional, the steps are labeled, the error handling is present. That's exactly the failure mode for AI-generated scripts: correctness of structure does not guarantee safety of behavior.
+
+The fix for the log message: remove $newPassword from the string and replace with a completion timestamp or confirmation status. "AD password reset completed. Rotation ID: [guid] at [datetime]" records the operation without recording the value.
+
+Secondary issues to address:
+
+The log path (C:\Temp) is inappropriate for security-sensitive operation logs regardless of whether the password is removed. Change $LogPath to a parameterized value defaulting to a path with restricted ACLs.
+
+The config file update writes the new password as plaintext. This may be unavoidable depending on the application. It should be explicitly documented as an accepted risk, and the config file's ACLs should be verified before deployment.
+
+No -WhatIf or -DryRun mode. For a script that resets a production service account password and modifies an application config, being able to verify scope before committing is standard practice.
+
+The side effect that needs explicit attention: fixing the credential_in_log finding removes the only record that confirms which specific credential was set. The log message "New credential: $newPassword" was inadvertently functioning as a rotation confirmation — proof that the AD account was set to a specific value at a specific time. Once that line is corrected, the script needs a replacement verification mechanism. Options: perform a test authentication against the AD account using the new credential before the script exits (a lightweight LDAP bind or Set-ADAccountPassword verify step), or confirm the application authenticates successfully post-rotation. The fix is required; the side effect needs to be compensated before the fix is complete.
+
+The targeted changes to propose:
+1. Remove $newPassword from the Write-OperationLog call in Step 2. Replace with a non-sensitive confirmation string.
+2. Add a parameterized $LogPath with a default pointing to an access-controlled directory.
+3. Add a Step 5: test-bind or application authentication check that confirms the new credential works and logs the outcome (pass/fail, timestamp) — this replaces the operational assurance the original log entry was accidentally providing.
+
+These three changes are sufficient. The rest of the script is sound and does not need rewriting.

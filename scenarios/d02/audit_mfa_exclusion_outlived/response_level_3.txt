@@ -1,0 +1,12 @@
+The exclusion has outlived its justification. It should be removed, and the process failure that allowed it to persist should be addressed.
+
+The evidence: zero legacy authentication sign-ins in 180 days across 31 accounts, combined with the decommission of the CorpMail Legacy Gateway on 2025-11-18 (CHG-2025-0841). The exclusion was created to accommodate legacy auth clients; those clients generated zero sign-ins in six months. The primary system that required the exclusion was decommissioned four months ago. The stated justification no longer applies.
+
+The risk is material: 31 accounts without MFA, all cloud applications in scope, no conditions. A single compromised account in this group gives an attacker full cloud application access with no MFA challenge. Password spray attacks specifically target MFA-exempt accounts because they require only a valid password. This is not a theoretical risk; it's an active exposure that grows with time.
+
+Beyond removing the exclusion, there's a process failure worth calling out: CHG-2025-0841 was closed with no action taken on the CA policy. The decommission of a system that was the primary justification for an MFA exclusion should have triggered a review of that exclusion. It didn't. The four-month gap between decommission and this quarterly review is four months of unnecessary exposure.
+
+Recommended actions:
+1. Remove CA-MFA-LegacyAuthExceptions from the exclusion in CA-policy-007.
+2. Monitor sign-in logs and the helpdesk queue for the 48 hours following removal for any authentication failures — to catch any client that is actually still using legacy auth and was not visible in the sampled log period.
+3. Add a CA policy review task to the decommission runbook so future migration change tickets automatically generate a follow-up to check for affected CA exclusions.

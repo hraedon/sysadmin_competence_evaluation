@@ -1,0 +1,15 @@
+This script does two things.
+
+The first part queries Active Directory for disabled accounts with a LastLogonDate older than the cutoff (default 90 days) and exports them to a CSV.
+
+The second part runs a second foreach loop over those same accounts and calls Remove-ADGroupMember to strip all group memberships from each account. This is a destructive, state-changing operation on Active Directory group objects. If you run this script in production, it will modify AD group membership for every disabled account that meets the age criteria.
+
+The script touches:
+- Active Directory (read queries via Get-ADUser, then write operations via Remove-ADGroupMember)
+- The local filesystem (CSV export)
+
+State changes:
+- Creates or overwrites a CSV file at $ReportPath
+- Removes all group memberships from disabled accounts with LastLogonDate older than $DaysSinceLogin days
+
+This needs write permissions on AD group objects to run Remove-ADGroupMember. I would not run this in production without understanding what the second loop will affect.

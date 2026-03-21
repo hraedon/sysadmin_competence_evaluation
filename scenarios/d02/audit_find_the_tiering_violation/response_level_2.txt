@@ -1,0 +1,7 @@
+SVC-MONITORING — Critical. This account holds Domain Admin membership that was added six months ago for initial deployment and never removed. Domain Admin on a monitoring service account is a critical misconfiguration: monitoring agents have broad network access by design (they poll every host, query WMI, run with high uptime). If the monitoring platform or the account's credentials are compromised, the attacker immediately holds Domain Admin. The password is 847 days old, making credential spray a realistic attack vector.
+
+TIER0-ADMIN-RWALSH — Critical. The most recent interactive logon is on WS-RWALSH-01, a standard Tier 2 workstation. A Tier 0 credential cached on a Tier 2 device can be harvested from LSASS memory by any process with local admin rights — a browser exploit, a phishing payload, or malicious macro is sufficient. This directly defeats the purpose of Tier 0 separation.
+
+HELPDESK-LEAD — The delegation scope should be verified; password reset delegated at the domain root is broader than necessary for a helpdesk role.
+
+SVC-BACKUP — Correctly configured. Backup Operators is the least-privilege built-in group for backup software. Interactive logon is disabled. Logon rights are scoped to backup servers only. Password was rotated 23 days ago with an enforced policy.

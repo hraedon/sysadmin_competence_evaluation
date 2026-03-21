@@ -1,0 +1,7 @@
+(1) Ticket #1 is a service ticket for CIFS/FILESERVER01 — it authenticates jsmith to the file server. What it does NOT grant: authorization. The ticket tells FILESERVER01 "this is jsmith." What jsmith can actually do on the file server — which shares, which folders, which files — is determined by the ACLs on FILESERVER01, not by the ticket. Possessing the ticket doesn't mean jsmith has any particular file access.
+
+(2) I would need to check the klist output more carefully to identify the issuing KDC.
+
+(3) The ticket expires at 18:03:22. At that point, jsmith will need to re-authenticate to obtain a new service ticket to access FILESERVER01.
+
+(4) NTLM is used instead of Kerberos when: the target is accessed by IP address instead of hostname (no SPN lookup is possible); the client is not domain-joined.

@@ -1,0 +1,9 @@
+The most obvious risk in this environment is the tracking spreadsheet. It's 8 months old and this is apparently why the load balancer certificate incident happened — they didn't know the certificate was about to expire. If the spreadsheet had been current, they would have caught it before it caused an outage.
+
+I'd recommend implementing a proper certificate management tool that can automatically track certificate expiry dates and send alerts before they expire. Tools like DigiCert CertCentral, Let's Encrypt with automation, or even a simple PowerShell script that scans for expiring certificates would be better than a spreadsheet.
+
+For code signing, "whatever cert is available" is informal but it's a question of what their process is for approving certificate usage.
+
+The root CA being a VM is probably fine for a mid-size company. They're not running financial infrastructure.
+
+Priority: fix the tracking process and the certificate inventory before the next incident.

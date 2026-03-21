@@ -1,0 +1,11 @@
+To approve this request, I'd need to verify a few things:
+
+1. Is VendorConnect a trusted vendor? What's the security review process for their CA?
+2. Has this been tested in a non-production environment?
+3. What application specifically requires this CA?
+
+The process for adding a CA to the Windows trust store via GPO is straightforward — export the CA certificate, add it to the Trusted Root Certification Authorities via Group Policy. Deploying to all domain computers ensures the VendorConnect application will work from any machine.
+
+I'd want the vendor to provide the CA certificate in a signed format and to confirm the certificate thumbprint out of band before deploying, to make sure the correct certificate is being imported.
+
+The two-week timeline is tight but feasible if the vendor provides the certificate promptly and testing goes smoothly.

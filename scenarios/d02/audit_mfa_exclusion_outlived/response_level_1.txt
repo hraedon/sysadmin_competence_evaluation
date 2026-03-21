@@ -1,0 +1,7 @@
+Looking at the CA policy, there are 31 accounts excluded from the MFA requirement. This is something worth reviewing — exclusions like this can accumulate over time.
+
+The policy note says the exclusion is for legacy authentication clients, and there's an explanatory note from when it was created. The admin who created it had a reason for it.
+
+I'd recommend reviewing the group membership to confirm all 31 accounts still need the exclusion, and checking with the account owners to see if legacy authentication is still being used. If any accounts no longer need the exclusion, they should be removed from the group.
+
+The sign-in activity looks normal — thousands of successful sign-ins, no unusual patterns. The exclusion may still be necessary for some of these accounts.

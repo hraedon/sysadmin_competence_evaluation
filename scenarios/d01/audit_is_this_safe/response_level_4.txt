@@ -1,0 +1,14 @@
+Three findings, in severity order.
+
+Critical: Remove-Item -Recurse -Force. The -Force flag suppresses all file system protections — read-only, hidden, system attributes — and removes every remaining safeguard before the delete executes. Combined with -Recurse and administrator credentials, this will silently destroy everything under $cleanupPath if the path resolves incorrectly, with no prompt and no possibility of intervention. This is the top-severity finding because it is the active damage mechanism: it removes the friction that would otherwise limit the blast radius of the other findings.
+
+High: Silent failure catch block. The catch block writes "Cleanup completed successfully." — the same string as the success path. Any exception — access denied, locked file, path not found, unexpected error — produces a success log entry. Automated monitoring, alerting, and post-deployment reports will show no failure indication. This is rated high because it is a detection failure, not a damage enabler, but it means that -Force's damage would not be caught after the fact either.
+
+Moderate: Path traversal via string concatenation. $cleanupPath is constructed from user-supplied $ApplicationName with no sanitization. In an automated pipeline, that variable comes from a build system or deployment manifest — a compromised build variable or pipeline misconfiguration can supply a traversal payload. This is a real injection surface in CI/CD contexts, not a theoretical one.
+
+Targeted fixes:
+1. Remove -Force from Remove-Item. Add -ErrorAction Stop so exceptions propagate to the catch block instead of being silently handled.
+2. Fix the catch block to log $_.Exception.Message so the actual error is recorded and observable.
+3. Validate $ApplicationName before constructing $cleanupPath: match against an allowlist of known application names, or at minimum reject strings containing backslash, forward slash, "..", or ":" before concatenation.
+
+These three changes are sufficient. The intent of the script — clean up a temp directory in an automated pipeline — is legitimate. The changes make it safe without rewriting it.

@@ -1,0 +1,9 @@
+Script A is safe. Script B would be a domain-wide disable operation.
+
+The difference: Script A's SearchBase defaults to "OU=Staff,DC=corp,DC=example,DC=com". Script B's SearchBase defaults to "DC=corp,DC=example,DC=com" — the domain root.
+
+What Script B would actually do if run: Get-ADUser with SearchBase at the domain root returns every enabled user account in AD, across every OU. Filtered to LastLogonDate older than 90 days, the result would include service accounts (which may have very old or null LastLogonDate while actively in use), administrator accounts in the AdminAccounts or Tier0 OUs, shared mailbox accounts, resource accounts, and any other user objects that don't have a recent interactive logon. Set-ADUser -Enabled $false on all of them would be a domain-wide disable event.
+
+There's a secondary risk present in both scripts: neither one excludes service accounts. Service accounts typically authenticate as a service rather than interactively, so their LastLogonDate may be months or years old even when the account is actively in use. Script A limits the blast radius of this omission to the Staff OU; Script B makes it catastrophic.
+
+Decision: use Script A. Do not run Script B.

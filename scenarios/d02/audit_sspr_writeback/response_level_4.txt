@@ -1,0 +1,13 @@
+The root cause is missing AD delegation. The AD DS Connector account MSOL_8f4a2c91b3d0 currently has Reset password scoped to OU=ServiceAccounts only. The three permissions required for writeback on user objects — Reset password, Write lockoutTime, and Write pwdLastSet on OU=Users,DC=corp,DC=local and child OUs — are listed in the artifact as "not currently delegated." Password Writeback was enabled in Entra Connect on 2026-02-01 by S. Ramirez, but enabling the toggle doesn't grant AD write permissions — that's a separate manual delegation step in Active Directory that was never completed.
+
+On the audit log: the first failure is 2026-02-03, two days after writeback was enabled. There are 23 failures and zero successes. Writeback has never worked since enablement — this is not intermittent, it is broken from day one.
+
+The fix sequence matters here:
+
+1. Delegate the three missing permissions to MSOL_8f4a2c91b3d0 on OU=Users,DC=corp,DC=local and its child OUs using AD delegation. This can be done via the Delegation of Control Wizard or Set-ADUser/Set-Acl via PowerShell.
+
+2. Verify writeback is working using a test account before notifying anyone. Perform a test SSPR reset on a non-production account and confirm the on-premises AD password is updated within the expected sync interval.
+
+3. Address the split-state users. All 23 users who "successfully" reset their passwords through SSPR during the outage period now have mismatched passwords: their Entra password is the new one they set; their on-premises AD password is still the old one. After writeback is fixed, these passwords will not automatically reconcile — the passwords only sync in one direction (on-premises → Entra for PHS, or writeback path for SSPR). Each affected user needs to either perform another SSPR reset (which will now succeed end-to-end) or have their AD password reset manually. A targeted communication to the 23 affected users explaining that one more reset is required is the right path, not a mass announcement.
+
+4. Add a post-enablement test to the SSPR configuration runbook. The seven-week detection gap is entirely attributable to the absence of a functional test after enablement.

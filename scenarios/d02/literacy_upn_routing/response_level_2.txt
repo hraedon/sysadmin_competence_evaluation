@@ -1,0 +1,7 @@
+The 47 accounts are failing because their UPN suffix is @corp.local, and corp.local is a non-routable TLD. The .local TLD is reserved for private use and cannot be registered as a public internet domain, which means it can never be verified in Entra ID. The sync report confirms this — corp.local is listed as "Not registered. The .local TLD cannot be verified in Entra ID; it is a reserved, non-routable TLD (RFC 2606)."
+
+You can't fix this by adding corp.local to the Entra tenant — that option doesn't exist for .local domains. The fix requires changing the UPN suffix for the affected users.
+
+The tenant already has contoso.com as a verified domain (the default for new accounts). The fix is to update the UserPrincipalName attribute for the 47 affected AD accounts to use @contoso.com instead of @corp.local, and then let the next sync cycle run.
+
+Users affected by the UPN change will have a new sign-in name for Microsoft 365 — jdavis@corp.local becomes jdavis@contoso.com.

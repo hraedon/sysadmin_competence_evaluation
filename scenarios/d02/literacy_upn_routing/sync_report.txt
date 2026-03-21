@@ -1,0 +1,64 @@
+=== Entra Connect Synchronization Report ===
+Generated: 2026-03-21 06:00:12 UTC
+Connector Server: SYNCSRV01.corp.local
+Entra Tenant: contoso.onmicrosoft.com
+
+LAST SYNC CYCLE SUMMARY
+------------------------
+Last Full Import (AD):     2026-03-21 05:45:01 UTC   [OK]
+Last Full Import (Entra):  2026-03-21 05:45:44 UTC   [OK]
+Last Delta Sync:           2026-03-21 06:00:01 UTC   [Completed with errors]
+
+EXPORT RESULTS (Entra connector — last delta cycle)
+----------------------------------------------------
+  Exported (Add):       0
+  Exported (Modify):   12
+  Exported (Delete):    0
+  Export Errors:       47
+
+EXPORT ERRORS — UPN SUFFIX VALIDATION FAILURES
+-----------------------------------------------
+  Error class:       export-attribute-error-invalid-upn
+  Affected objects:  47 user accounts
+  Common attribute:  UserPrincipalName suffix = @corp.local
+
+  Sample error records:
+
+    Object:  CN=Davis\, Jennifer,OU=Users,OU=Corporate,DC=corp,DC=local
+    UPN:     jdavis@corp.local
+    Error:   export-attribute-error-invalid-upn
+    Detail:  The domain portion of the UserPrincipalName attribute ('corp.local')
+             does not match any verified domain in this Entra tenant.
+             Unverified UPN suffixes cannot be used to provision cloud accounts.
+
+    Object:  CN=Williams\, Marcus,OU=Users,OU=Corporate,DC=corp,DC=local
+    UPN:     mwilliams@corp.local
+    Error:   export-attribute-error-invalid-upn
+    Detail:  The domain portion of the UserPrincipalName attribute ('corp.local')
+             does not match any verified domain in this Entra tenant.
+             Unverified UPN suffixes cannot be used to provision cloud accounts.
+
+    [45 additional accounts with identical error — all @corp.local suffix]
+
+TENANT DOMAIN CONFIGURATION
+----------------------------
+  Tenant:  contoso.onmicrosoft.com
+
+  Verified domains:
+    contoso.com              [Verified]  [Default for new accounts]
+    contoso.onmicrosoft.com  [Verified]  [Initial domain — cannot be removed]
+    hr.contoso.com           [Verified]
+
+  Not present in tenant:
+    corp.local               — Not registered. The .local TLD cannot be verified in
+                               Entra ID; it is a reserved, non-routable TLD (RFC 2606).
+
+AD UPN SUFFIX INVENTORY (current sync scope)
+---------------------------------------------
+  @contoso.com      →  365 accounts  →  Syncing successfully
+  @corp.local       →   47 accounts  →  Export error (see above)
+  @hr.contoso.com   →    0 accounts  →  Suffix registered in AD; no users assigned
+
+  Total in sync scope:  412
+  Successfully synced:  365
+  Export errors:         47

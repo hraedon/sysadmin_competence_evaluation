@@ -1,0 +1,15 @@
+The 47 accounts are failing because their UPN suffix is @corp.local, which is a non-routable TLD that cannot be verified in any Entra tenant. The sync report is explicit: "The .local TLD cannot be verified in Entra ID; it is a reserved, non-routable TLD (RFC 2606)." This is not a transient error — every sync cycle will fail until the on-premises UPN attribute is changed.
+
+The fix must be made in on-premises AD, in sequence:
+
+1. Register a routable UPN suffix in the AD forest. The tenant already has contoso.com verified and designated as the default — this is the right choice. Use Active Directory Domains and Trusts or Set-ADForest to add contoso.com as an available UPN suffix in the forest.
+
+2. Update the UserPrincipalName attribute for the 47 affected accounts (e.g., jdavis@corp.local → jdavis@contoso.com). Bulk update via PowerShell using Get-ADUser filtered on the corp.local suffix, piped to Set-ADUser.
+
+3. Trigger a manual delta sync on SYNCSRV01 or wait for the next scheduled cycle. The accounts will then export to Entra successfully.
+
+Before executing step 2, there's a risk specific to this environment that needs to be checked: if the organization has Exchange Online in use, Entra ID sets the user's primary SMTP address to match the UPN by default for cloud-provisioned mailboxes. Changing jdavis@corp.local to jdavis@contoso.com may also change jdavis's primary SMTP address, breaking delivery to any address that was routing to the old value. The mitigation is to explicitly set the primary SMTP address before changing the UPN, or to ensure the ProxyAddresses attribute in AD includes the intended email addresses so Entra Connect preserves them.
+
+One additional observation: the sync report shows @hr.contoso.com is registered as a UPN suffix in AD with zero users assigned. This is worth noting — it suggests a prior domain configuration effort. If some of the 47 users should have @hr.contoso.com addresses rather than @contoso.com (e.g., employees in the HR department), the bulk update should account for that before running, rather than assigning everyone to the same suffix.
+
+User communication is required: the 47 accounts will have new Microsoft 365 sign-in names. Since none have successfully provisioned yet, there's no established cloud sign-in to break, but users need to know their new sign-in address before they try to log in.

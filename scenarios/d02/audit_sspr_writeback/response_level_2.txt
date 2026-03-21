@@ -1,0 +1,7 @@
+The root cause is in the AD DS Connector account section at the bottom of the document. The Entra Connect connector account, MSOL_8f4a2c91b3d0, is missing the permissions required for password writeback on the user OUs.
+
+The artifact spells it out: the required permissions for Password Writeback — Reset password, Write lockoutTime, and Write pwdLastSet on OU=Users,DC=corp,DC=local and its child OUs — are listed as "not currently delegated." What's currently delegated is only a Reset password permission on OU=ServiceAccounts, which is scoped to service accounts and doesn't cover regular users.
+
+The "Password Writeback: Enabled" status in Entra Connect shows the feature toggle is on, but enabling the toggle doesn't automatically grant the underlying AD write permissions. That's a separate step — delegating the permissions in Active Directory to the MSOL_ connector account on the correct OUs. Whoever enabled writeback on 2026-02-01 turned on the feature but didn't complete the AD delegation.
+
+The fix: delegate the three missing permissions (Reset password, Write lockoutTime, Write pwdLastSet) to MSOL_8f4a2c91b3d0 on OU=Users,DC=corp,DC=local and child OUs. After that, writeback should start working.

@@ -1,0 +1,5 @@
+Looking at the sync report, 47 accounts are failing to export to Entra with an error about an unverified UPN suffix. The accounts all have @corp.local as their UPN, and corp.local is not listed as a verified domain in the tenant.
+
+To fix this, you would need to verify corp.local as a domain in the Entra tenant. That would require adding it through the Entra admin center under Custom domain names and completing the TXT record verification process. Once corp.local is verified, the sync should pick up these accounts on the next cycle.
+
+The 365 accounts with @contoso.com are syncing fine, so the issue is specific to the corp.local suffix.

@@ -1,0 +1,75 @@
+== ENTRA ID — SSPR AUDIT LOG ==
+Period: 2026-02-01 to 2026-03-21
+Filtered to: Password reset (self-service) — Failures only
+
+Timestamp            User                  Activity                          Result   Error Code
+-------------------  --------------------  --------------------------------  -------  -----------------------------------
+2026-02-03 09:14:22  lbaker@contoso.com    Reset password (self-service)     Failure  OnPremisesPasswordResetFailed
+2026-02-07 11:02:44  tpatel@contoso.com    Reset password (self-service)     Failure  OnPremisesPasswordResetFailed
+2026-02-11 14:38:17  rchen@contoso.com     Reset password (self-service)     Failure  OnPremisesPasswordResetFailed
+2026-02-14 08:55:03  agarcia@contoso.com   Reset password (self-service)     Failure  OnPremisesPasswordResetFailed
+2026-02-19 10:21:56  lbaker@contoso.com    Reset password (self-service)     Failure  OnPremisesPasswordResetFailed
+2026-02-25 15:44:30  jsmith@contoso.com    Reset password (self-service)     Failure  OnPremisesPasswordResetFailed
+2026-03-01 09:03:11  mwilliams@contoso.com Reset password (self-service)     Failure  OnPremisesPasswordResetFailed
+2026-03-04 13:27:44  tpatel@contoso.com    Reset password (self-service)     Failure  OnPremisesPasswordResetFailed
+2026-03-08 08:49:22  dkim@contoso.com      Reset password (self-service)     Failure  OnPremisesPasswordResetFailed
+2026-03-11 11:14:03  rchen@contoso.com     Reset password (self-service)     Failure  OnPremisesPasswordResetFailed
+2026-03-14 14:02:37  agarcia@contoso.com   Reset password (self-service)     Failure  OnPremisesPasswordResetFailed
+2026-03-18 09:33:19  srao@contoso.com      Reset password (self-service)     Failure  OnPremisesPasswordResetFailed
+2026-03-20 16:22:08  lbaker@contoso.com    Reset password (self-service)     Failure  OnPremisesPasswordResetFailed
+[+10 additional records with identical error code — all OnPremisesPasswordResetFailed]
+
+Total failures this period: 23
+Total successes this period: 0
+
+Error detail (OnPremisesPasswordResetFailed):
+  "Password writeback to on-premises Active Directory failed. The service account
+   used to perform password writeback does not have the required permissions to
+   set or reset passwords on the target user objects."
+
+  Affected users report seeing: "Your password was reset, but we couldn't update
+  it in your company's on-premises environment. Please contact your IT administrator."
+
+== ENTRA CONNECT HEALTH — FEATURE STATUS ==
+
+Connector Server: SYNCSRV01.corp.local
+Health Status: Healthy
+Last sync: 2026-03-21 06:00:01 UTC [OK]
+
+Feature                             Status      Configured By       Date
+----------------------------------  ----------  ------------------  ------------
+Directory sync (AD → Entra)         Enabled     M. Harker           2025-08-14
+Password Hash Sync                  Disabled    —                   —
+Pass-Through Authentication         Enabled     M. Harker           2025-08-14
+Password Writeback                  Enabled     S. Ramirez          2026-02-01
+Group Writeback                     Disabled    —                   —
+
+== ENTRA ID — SSPR POLICY ==
+
+Policy: SSPR-All-Users
+Scope: All users
+Status: Enabled
+
+Authentication Methods:
+  Methods required: 1
+  Enabled: Mobile app notification, Mobile app code, Email, Security questions
+
+Write back passwords to your on-premises directory: Enabled (configured 2026-02-01)
+Notify users on password reset: Yes
+Notify all admins when other admins reset password: Yes
+
+== AD DS CONNECTOR ACCOUNT ==
+
+Account used by Entra Connect for AD operations: MSOL_8f4a2c91b3d0
+Domain: CORP
+Last password rotation: 2025-08-14
+
+Delegated permissions (as configured at initial Entra Connect setup):
+  - Read all user attributes (applied at domain root, inherited)
+  - Create/delete users (applied at OU=ServiceAccounts,DC=corp,DC=local)
+  - Reset password on OU=ServiceAccounts,DC=corp,DC=local [scoped to service accounts only]
+
+Required permissions for Password Writeback (not currently delegated):
+  - Reset password on OU=Users,DC=corp,DC=local and child OUs
+  - Write lockoutTime on OU=Users,DC=corp,DC=local and child OUs
+  - Write pwdLastSet on OU=Users,DC=corp,DC=local and child OUs

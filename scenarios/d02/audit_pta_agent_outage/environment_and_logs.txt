@@ -1,0 +1,58 @@
+== ENVIRONMENT: HYBRID IDENTITY CONFIGURATION ==
+
+Organization: Contoso Corp
+Entra Tenant: contoso.onmicrosoft.com
+Entra Connect Version: 2.3.6.0 (installed on SYNCSRV01.corp.local)
+Authentication Method: Pass-Through Authentication (PTA)
+  Configured: 2025-08-14
+  Configured by: M. Harker (IT Infrastructure Lead)
+
+Pass-Through Authentication Agent Registrations:
+  Agent ID: pta-agent-001
+    Host:      SYNCSRV01.corp.local (192.168.10.45)
+    Status:    Offline (last heartbeat: 2026-03-21 02:14:08 UTC)
+    Installed: 2025-08-14
+
+  Agent ID: pta-agent-002
+    Host:      SYNCSRV01.corp.local (192.168.10.45)
+    Status:    Offline (last heartbeat: 2026-03-21 02:14:11 UTC)
+    Installed: 2025-08-14
+
+  Active agents available for authentication: 0 of 2
+
+SYNCSRV01 Status: OFFLINE
+  Reason: Emergency kernel patch applied 2026-03-21 02:15 UTC (CVE-2026-0847)
+  Estimated return to service: 2026-03-21 08:00 UTC (5.5 hours from now)
+
+== SIGN-IN LOG EXTRACT (2026-03-21 02:15 UTC — 03:30 UTC) ==
+
+Timestamp            User                  Application       Result    Error Code
+-------------------  --------------------  ----------------  --------  --------------------------
+2026-03-21 02:17:43  agarcia@contoso.com   Microsoft Teams   Failure   PassThroughAuthFailed
+2026-03-21 02:18:02  bthompson@contoso.com SharePoint Online Failure   PassThroughAuthFailed
+2026-03-21 02:18:29  jsmith@contoso.com    Exchange Online   Failure   PassThroughAuthFailed
+2026-03-21 02:19:44  rchen@contoso.com     Microsoft Teams   Failure   PassThroughAuthFailed
+2026-03-21 02:21:03  agarcia@contoso.com   Microsoft Teams   Success   (session refresh — no auth)
+2026-03-21 02:23:18  lmartinez@contoso.com SharePoint Online Failure   PassThroughAuthFailed
+2026-03-21 02:24:45  dkim@contoso.com      Azure Portal      Failure   PassThroughAuthFailed
+[...]
+2026-03-21 03:28:12  jsmith@contoso.com    Exchange Online   Success   (session refresh — no auth)
+2026-03-21 03:29:55  srao@contoso.com      Microsoft Teams   Failure   PassThroughAuthFailed
+
+Error detail (PassThroughAuthFailed):
+  "No Pass-Through Authentication Agents are available to handle this request.
+   All registered agents are currently offline or unreachable."
+
+Note on successful sign-ins above: These are token refresh operations that do not
+require a fresh authentication against the PTA agent. Users with valid active sessions
+(access tokens < 1 hour old, or valid refresh tokens) can continue working until
+their tokens expire. New sign-in attempts (or requests to applications requiring
+fresh auth) are failing.
+
+== PRIOR INCIDENT CONTEXT ==
+
+IT ticket #INC-2025-0917 (2025-09-03):
+  Title: "Add second PTA agent for redundancy"
+  Resolution note: "Installed second PTA agent (pta-agent-002) on SYNCSRV01. Two
+  agents now registered. Redundancy requirement met."
+  Ticket status: Closed

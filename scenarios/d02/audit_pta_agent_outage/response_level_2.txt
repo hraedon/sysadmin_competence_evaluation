@@ -1,0 +1,7 @@
+The authentication failures are caused by both PTA agents going offline when SYNCSRV01 went offline for emergency patching.
+
+The architectural mistake is that both agents — pta-agent-001 and pta-agent-002 — are installed on the same server, SYNCSRV01. The prior incident ticket INC-2025-0917 closed with "Two agents now registered. Redundancy requirement met." But two agents on the same host don't provide redundancy against host failure. When SYNCSRV01 went offline, both agents lost their heartbeat within 3 seconds of each other. The second agent was never actually adding resilience — it only protected against one of the two agent processes crashing, not against the host going down.
+
+PTA requires at least one agent to be online and reachable to authenticate users. If all agents are down, every fresh authentication attempt fails — there's no cloud-side fallback. This is the core difference from Password Hash Sync: PHS stores a password hash in Entra and can authenticate users even when on-premises infrastructure is completely offline. PTA can't do that because the authentication has to reach an on-premises agent.
+
+To prevent this from happening again: install PTA agents on separate servers. The agents need to be on different hosts — not just different processes on the same machine.

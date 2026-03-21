@@ -1,0 +1,5 @@
+The sign-in failures are happening because the PTA agents are offline. Both pta-agent-001 and pta-agent-002 are showing as offline, and SYNCSRV01 is offline due to emergency patching that started at 02:15 UTC.
+
+The error message in the sign-in log says "No Pass-Through Authentication Agents are available to handle this request." So users are failing to authenticate because there are no agents available.
+
+The fix is to get SYNCSRV01 back online. The server is expected back at 08:00 UTC. Once it comes back, the PTA agents should reconnect and authentication should resume. Users who need to sign in before 08:00 will need to wait or use a different method if available.

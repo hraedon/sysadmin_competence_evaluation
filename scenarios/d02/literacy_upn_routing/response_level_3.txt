@@ -1,0 +1,11 @@
+The 47 accounts are failing because their UPN suffix is @corp.local, which is a non-routable TLD reserved for private networks. The .local TLD cannot be verified in any Entra tenant — it's structurally excluded, not just unconfigured. The sync report's domain table makes this explicit: "The .local TLD cannot be verified in Entra ID; it is a reserved, non-routable TLD (RFC 2606)." Entra Connect requires the UPN suffix to match a verified domain, so these accounts will fail on every sync cycle until the on-premises UPN is corrected.
+
+The fix must happen in on-premises AD — the source of authority for UPN. Three steps, in order:
+
+1. Add a routable UPN suffix to the AD forest. The tenant already has contoso.com verified as the default, so that's the natural choice. This step uses the Active Directory Domains and Trusts console (or Set-ADForest via PowerShell) to register contoso.com as an available suffix.
+
+2. Update the UserPrincipalName attribute on the 47 affected AD accounts to use the new suffix (e.g., jdavis@corp.local → jdavis@contoso.com). This should be done in bulk via PowerShell, not manually per account.
+
+3. Allow the next Entra Connect delta sync to complete, or trigger a manual delta sync. The corrected accounts will then export to Entra successfully.
+
+The operational impact on affected users: their Microsoft 365 sign-in name changes from @corp.local to @contoso.com. Since these accounts haven't successfully provisioned to Entra yet (they've been failing since they were added to the sync scope), users have no established cloud sign-in, but they still need to be told their new sign-in address. Communication before the fix goes live will prevent helpdesk tickets from users who receive a "your account is ready" provisioning email and don't know what to sign in with.

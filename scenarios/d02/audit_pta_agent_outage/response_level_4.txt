@@ -1,0 +1,13 @@
+The authentication failures are caused by both PTA agents being co-located on SYNCSRV01, which went offline for emergency patching at 02:15 UTC. Both agents lost their heartbeat at 02:14 — within 3 seconds of each other — leaving zero agents available.
+
+The architectural mistake: pta-agent-001 and pta-agent-002 are both on SYNCSRV01 (192.168.10.45). Incident INC-2025-0917 closed with "Two agents now registered. Redundancy requirement met." — but co-locating both agents on the same host makes the second agent useless for host-level failures. It only provides resilience against a single agent process crashing, which is a much less common and less impactful failure mode than a host reboot. The ticket closure was a process failure: "two agents" was accepted as sufficient without validating agent placement across separate hosts.
+
+Microsoft's guidance is to deploy at least 3 PTA agents on separate servers, ideally in different physical locations or availability zones. Two agents on one server is effectively one agent from a resilience standpoint.
+
+The PTA availability model is why this is so severe: PTA requires on-premises agent connectivity for every fresh authentication. Entra cannot authenticate users independently — it proxies the request to the agent, which validates it against on-premises AD. Password Hash Sync avoids this dependency by storing a derived hash in Entra and authenticating cloud-side during outages. The PTA vs PHS tradeoff is availability versus credential locality: PTA never puts credentials in the cloud; PHS does (in derived hash form). Neither is wrong, but choosing PTA means accepting the on-prem availability dependency, and the architecture must account for it.
+
+The blast radius is partial, not total. The sign-in log shows session refreshes succeeding for agarcia (02:21) and jsmith (03:28) — these are token refreshes that don't require a fresh PTA authentication. Users with valid access tokens (up to 1 hour) or refresh tokens (up to 90 days for persistent sessions) can continue working. The outage affects new sign-in attempts and applications requiring fresh credentials.
+
+For immediate recovery: installing a PTA agent on any available server in the environment takes roughly 20-30 minutes and would restore authentication without waiting for SYNCSRV01. That's a faster path than the estimated 08:00 return.
+
+Two process recommendations: (1) Add agent placement requirements to the configuration standard — "three or more agents on separate hosts" rather than just "two agents." (2) Add PTA agent host validation to the change closure checklist for any future agent-related tickets.

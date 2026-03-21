@@ -1,0 +1,8 @@
+The SSPR audit log shows that password reset attempts are all failing with "OnPremisesPasswordResetFailed." The error message users see is "Your password was reset, but we couldn't update it in your company's on-premises environment."
+
+Looking at the Entra Connect health, the connector is showing as Healthy and Password Writeback is listed as Enabled. The SSPR policy also shows "Write back passwords to your on-premises directory: Enabled." The configuration looks correct on the surface.
+
+This could be an intermittent issue with the connection between Entra and the on-premises AD. I would recommend:
+- Restarting the Entra Connect sync service on SYNCSRV01
+- Re-enabling the Password Writeback toggle in Entra Connect (disable and re-enable)
+- Opening a support case with Microsoft to investigate the error code

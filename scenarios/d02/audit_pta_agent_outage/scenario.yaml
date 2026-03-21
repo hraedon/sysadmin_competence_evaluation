@@ -1,0 +1,131 @@
+id: d02-audit-pta-agent-outage
+domain: 2
+domain_name: "Identity & Hybrid IAM"
+level: 2
+title: "Both Agents Are on the Same Server"
+delivery_mode: A
+subtype: null
+
+# Scenario note (for scenario authors and evaluators):
+# Most similar to: d02-audit-mfa-exclusion-outlived (both are Domain 2 Level 2 audit
+# exercises that test whether candidates correctly interpret an operational failure
+# against its underlying architectural cause rather than the surface-level symptom).
+# How the reasoning challenge differs: the MFA exclusion scenario tests whether
+# candidates can use log evidence to challenge a stated justification (the exclusion
+# outlived its purpose). This scenario tests a different reasoning posture: whether
+# candidates recognize that a "redundancy" configuration that co-locates components
+# on the same host provides no actual redundancy — and connect that architectural
+# mistake to the current outage. The PHS vs PTA tradeoff is the specific hybrid IAM
+# knowledge that the competency map identifies as underserved: neither AZ-104 nor
+# Server+ covers the availability implications of choosing PTA over PHS with any depth.
+
+presentation:
+  type: environment_description
+  artifact_file: "scenarios/d02/audit_pta_agent_outage/environment_and_logs.txt"
+  context: |
+    It is 03:30 UTC. You have been paged: users are reporting that they cannot sign in to
+    Microsoft 365. The attached document shows the current state of your hybrid identity
+    configuration and a sample of the sign-in log activity since the outage began.
+
+    Assess the situation:
+    (1) What is causing the authentication failures?
+    (2) What is the architectural mistake that led to this?
+    (3) What would have prevented this outage at the design level?
+
+rubric:
+  critical_findings:
+    - id: both_agents_same_host
+      description: >
+        Both PTA agents — pta-agent-001 and pta-agent-002 — are installed on the same
+        physical host, SYNCSRV01 (192.168.10.45). When SYNCSRV01 went offline for
+        emergency patching, both agents lost their heartbeat at the same time (02:14:08
+        and 02:14:11 UTC respectively — 3 seconds apart). Incident ticket INC-2025-0917
+        shows this was a deliberate choice: the second agent was added for "redundancy"
+        and the ticket was closed as resolved. The organization believed it had met its
+        redundancy requirement, but two agents on the same host provide no host-level
+        redundancy — they only protect against a single agent process failure. Any
+        host-level event (patch, reboot, hardware failure, network isolation) takes both
+        agents offline simultaneously.
+      severity: critical
+      miss_signal: >
+        Candidate identifies the agents as offline but accepts the two-agent configuration
+        as sufficient redundancy without noting that both agents are on the same host. Or:
+        candidate focuses entirely on the immediate fix (bring SYNCSRV01 back online) without
+        identifying the architectural mistake. Or: candidate identifies the same-host problem
+        but rates it as a low or moderate concern because "the server came back online quickly
+        this time."
+
+    - id: pta_availability_model
+      description: >
+        Pass-Through Authentication routes every fresh authentication request to an
+        on-premises PTA agent. If no agents are available, authentication fails — there is
+        no cloud-side fallback. The sign-in log confirms this: "No Pass-Through Authentication
+        Agents are available to handle this request. All registered agents are currently
+        offline or unreachable." This is the fundamental availability tradeoff of choosing
+        PTA over Password Hash Sync: PHS stores a hash in Entra ID and can authenticate
+        users even when on-premises infrastructure is fully offline, while PTA requires
+        on-premises connectivity for every fresh authentication. The organization accepted
+        this tradeoff when PTA was configured in August 2025, but the architecture did not
+        account for host-level failures of the agent server.
+      severity: critical
+      miss_signal: >
+        Candidate identifies the authentication failure but does not connect it to the PTA
+        availability model — i.e., does not explain why PTA specifically (vs other auth
+        methods) creates this dependency on on-premises agent availability. Or: candidate
+        recommends switching to PHS as an immediate fix during the outage, without recognizing
+        that changing authentication methods requires a deliberate Entra Connect configuration
+        change and sync cycle, not a real-time failover.
+
+  secondary_findings:
+    - id: session_continuity_partial
+      description: >
+        Users with valid existing sessions can continue working. The sign-in log shows
+        "session refresh — no auth" events succeeding for agarcia and jsmith after the
+        outage began. Users whose access tokens are still valid (< 1 hour) or whose
+        refresh tokens are still valid (up to 90 days for persistent sessions) do not
+        require a fresh PTA authentication. The blast radius of the outage is not
+        all users — it is users attempting new sign-ins or accessing applications that
+        require fresh authentication (e.g., after token expiry, or applications configured
+        to require MFA re-prompt on each session). Users who were already signed in and
+        actively working are unaffected until their tokens expire.
+      severity: moderate
+
+  level_indicators:
+    level_1: >
+      Identifies that authentication is failing because the PTA agents are offline and
+      SYNCSRV01 is offline. Recommends waiting for SYNCSRV01 to come back online, or
+      contacting someone to restart the server. Does not identify the architectural problem
+      (both agents on the same host), does not articulate why PTA depends on agent
+      availability, and does not distinguish between users with valid sessions and those
+      attempting fresh authentication.
+    level_2: >
+      Identifies both the immediate cause (SYNCSRV01 offline, taking both agents with it)
+      and the architectural mistake (pta-agent-001 and pta-agent-002 are both on the same
+      host, so "two agents" provides no host-level redundancy). Notes that PTA requires
+      on-premises agent availability for fresh authentication and that Password Hash Sync
+      would not have had this outage, because PHS can authenticate users from the
+      cloud-stored hash without on-premises connectivity. Recommends distributing agents
+      across separate servers to prevent recurrence.
+    level_3: >
+      All of the above plus correctly describes the PHS vs PTA availability tradeoff: PHS
+      stores a password hash in Entra ID and authenticates from the cloud even during
+      on-premises outages; PTA never stores credentials in the cloud but requires
+      on-premises agent availability for every fresh authentication. Notes the session
+      continuity behavior: users with valid existing tokens are still working, so the
+      visible blast radius is new sign-in attempts and applications requiring fresh auth,
+      not all users simultaneously. Identifies that switching to PHS is a deliberate
+      architecture change that must go through a change process — not an emergency fix
+      that can be made during the outage.
+    level_4: >
+      All of the above plus notes that Microsoft's guidance for PTA recommends at least
+      3 agents on different servers (ideally in different physical sites or availability
+      zones), not 2 on the same server. Notes that the INC-2025-0917 closure — "Two
+      agents now registered. Redundancy requirement met." — is an example of a process
+      failure: the ticket was closed as resolved when the requirement was actually not met,
+      because "two agents" was interpreted as sufficient without specifying agent placement.
+      Recommends adding the agent placement requirement (separate hosts, separate sites)
+      to the runbook or configuration standard so future implementations are validated
+      against the correct criteria. Also notes that the immediate recovery path — beyond
+      waiting for SYNCSRV01 — is to install a PTA agent on any other available
+      server in the environment, which takes approximately 20-30 minutes and would
+      restore authentication without bringing SYNCSRV01 back.

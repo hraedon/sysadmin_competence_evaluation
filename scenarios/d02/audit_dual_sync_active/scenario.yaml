@@ -1,0 +1,129 @@
+id: d02-audit-dual-sync-active
+domain: 2
+domain_name: "Identity & Hybrid IAM"
+level: 2
+title: "Two Senders, One Tenant"
+delivery_mode: A
+subtype: null
+
+# Scenario note (for scenario authors and evaluators):
+# Most similar to: d02-audit-pta-agent-outage (both are Domain 2 Level 2 audit exercises
+# where the visible symptom — authentication failure / attributes reverting — traces back
+# to a deployment architecture mistake made when a second server was added).
+# How the reasoning challenge differs: the PTA scenario tests whether candidates recognize
+# that "two agents" on the same host provides no redundancy. This scenario tests a
+# different and less intuitive architectural constraint: that two Entra Connect instances
+# in Active mode writing to the same tenant will not cooperate — they will fight. The
+# acquisition context (SYNCSRV02 stood up to sync an acquired forest) is a realistic
+# trigger. The key diagnostic step is reading the actor field in the audit log and
+# recognizing two distinct sync accounts as evidence of two active instances. The fix
+# is not "stop one instance" — it is to either put the second instance in staging mode
+# or (for multi-forest scenarios) redesign which instance owns which objects.
+
+presentation:
+  type: log_extract
+  artifact_file: "scenarios/d02/audit_dual_sync_active/audit_log_and_escalation.txt"
+  context: |
+    Multiple users are reporting that their attributes in Microsoft 365 keep reverting
+    to incorrect values. The attached document contains the helpdesk escalation, a
+    sample of the Entra audit log for the affected period, the Entra Connect Health
+    server list, and background notes from the infrastructure admin.
+
+    Identify:
+    (1) What is causing the attributes to revert?
+    (2) Why is this happening and what was the deployment mistake?
+    (3) What needs to happen to stop it, and what complication does the J. Reyes
+        case introduce?
+
+rubric:
+  critical_findings:
+    - id: two_active_sync_instances
+      description: >
+        Two Entra Connect instances — SYNCSRV01 and SYNCSRV02 — are both in Active
+        sync mode writing to the same Entra tenant (contoso.onmicrosoft.com). The
+        Entra Connect Health server list explicitly shows both as "Active." The audit
+        log confirms the conflict: attributes on jreyes@contoso.com are being written
+        every ~2 minutes, alternating between Sync_SYNCSRV01_8f4a2c and
+        Sync_SYNCSRV02_3b7e19, each overwriting the other's changes. Entra Connect
+        requires exactly one instance in Active mode per tenant at a time. Having two
+        Active instances does not create redundancy — each instance writes from its own
+        AD source on its own schedule, so they continuously overwrite each other.
+      severity: critical
+      miss_signal: >
+        Candidate identifies that attributes are reverting but attributes the cause to
+        a sync loop, a broken write-back configuration, or a script that is resetting
+        values — without reading the actor field in the audit log to identify two
+        distinct sync accounts. Or: candidate identifies the two servers but treats
+        the problem as a conflict between the two AD forests' source data rather than
+        as an architecture constraint violation (two Active instances is not a supported
+        configuration, regardless of whether the source data matches).
+
+  secondary_findings:
+    - id: duplicate_object_complication
+      description: >
+        J. Reyes has user objects in both corp.local and acquired.local with different
+        attribute values for department (Finance vs Operations) and telephoneNumber.
+        The background notes confirm she transferred to the acquired entity before the
+        acquisition closed. This means that for J. Reyes specifically — and potentially
+        other employees who moved between entities — the conflict is not simply a timing
+        race between two instances writing the same source value. The two instances are
+        writing genuinely different values from different source objects. Stopping
+        SYNCSRV02 alone will leave the corp.local values in place, which may not be
+        the correct canonical record for a former acquired.local employee. The duplicate
+        object must be resolved — typically by soft-matching or hard-matching to merge
+        the two objects, with a deliberate decision about which AD source is authoritative
+        for each attribute.
+      severity: high
+
+    - id: staging_mode_architecture
+      description: >
+        The correct architecture for multi-forest sync into a single Entra tenant is
+        a single Entra Connect instance configured to sync from multiple forests, not
+        two separate instances in Active mode. Alternatively, one instance can be
+        designated as Active and the other placed in Staging mode (which syncs locally
+        but does not write to Entra), serving as a warm standby. SYNCSRV02 should have
+        been deployed in Staging mode for validation and then either: (a) promoted to
+        Active after SYNCSRV01 was disabled, or (b) configured as an additional forest
+        connector on the existing SYNCSRV01 instance rather than as a separate Active
+        server.
+      severity: moderate
+
+  level_indicators:
+    level_1: >
+      Identifies that attributes are reverting and that the audit log shows repeated
+      modify events. Cannot identify the cause from the actor field — may attribute
+      the problem to a runaway script, a sync loop, or a broken write-back policy.
+      Does not read the Entra Connect Health server list or notice that both servers
+      are listed as Active.
+    level_2: >
+      Reads the actor field in the audit log and identifies two distinct sync accounts
+      (Sync_SYNCSRV01_8f4a2c and Sync_SYNCSRV02_3b7e19) alternating writes on the
+      same objects. Connects this to the Entra Connect Health server list showing both
+      SYNCSRV01 and SYNCSRV02 as Active. Correctly identifies that two Active instances
+      are not a supported configuration and that they are overwriting each other's
+      changes on every sync cycle. Recommends putting one instance in Staging mode.
+      Does NOT identify the J. Reyes duplicate object complication.
+    level_3: >
+      All of the above plus identifies the J. Reyes complication: she has objects in
+      both forests with different attribute values, meaning the conflict is not just a
+      timing race — SYNCSRV01 and SYNCSRV02 are writing different source data. Simply
+      stopping one instance will leave the values from the other in place, which may
+      not be correct for users who have objects in both forests. The duplicate object
+      problem requires a deliberate resolution decision, not just stopping the second
+      sync server. Does NOT articulate the correct multi-forest architecture alternative
+      — that design guidance is the distinguishing criterion for Level 4.
+    level_4: >
+      All of the above plus articulates the correct architectural options for multi-forest
+      sync into a single tenant: (1) a single Entra Connect instance with multiple forest
+      connectors — the supported design for merging two AD forests into one Entra tenant,
+      with precedence rules to determine which forest's attributes win for objects that
+      exist in both; (2) one Active instance and one Staging instance — valid for
+      redundancy but not for syncing two different forests simultaneously. Notes that
+      the immediate fix (put SYNCSRV02 in Staging mode) stops the conflict but does
+      not solve the underlying acquisition sync design. The long-term solution is to
+      configure a single instance (likely SYNCSRV01) to also connect to acquired.local
+      as an additional forest, with explicit attribute precedence rules to handle
+      employees like J. Reyes who exist in both. Also notes that before changing
+      anything, the admin should determine which server's values are currently correct
+      in Entra for affected users, so they know what state to preserve rather than
+      accidentally locking in the wrong forest's data.

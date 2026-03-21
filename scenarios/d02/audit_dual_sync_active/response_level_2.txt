@@ -1,0 +1,7 @@
+The audit log identifies the cause: two distinct Entra Connect sync accounts are alternating writes on the same user objects. The entries show Sync_SYNCSRV01_8f4a2c@contoso.onmicrosoft writing the Finance/+1-555-0198 values, then Sync_SYNCSRV02_3b7e19@contoso.onmicrosoft overwriting them with Operations/+1-555-0142, on a ~2 minute delay, repeating every sync cycle.
+
+The Entra Connect Health server list confirms what the audit log implies: both SYNCSRV01 and SYNCSRV02 are listed as Active. Two Active instances is not a supported configuration. Entra Connect requires exactly one Active instance writing to the tenant at a time. When two are Active, each writes from its own AD source on its own schedule and continuously overwrites the other's changes.
+
+SYNCSRV02 was stood up three days ago during the Meridian acquisition. It was deployed as an Active instance rather than a Staging instance, which is the mistake.
+
+The fix: put SYNCSRV02 in Staging mode. In Staging mode it continues to sync from acquired.local locally but does not write to Entra. This stops the attribute reversions immediately.

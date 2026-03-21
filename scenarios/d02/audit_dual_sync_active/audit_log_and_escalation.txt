@@ -1,0 +1,56 @@
+== HELPDESK ESCALATION — INC-2026-0312 ==
+Opened: 2026-03-19 09:14
+Priority: High
+Title: "User attributes reverting to incorrect values — multiple reports"
+
+Summary from helpdesk lead (T. Okafor):
+  Seven users have opened separate tickets in the past 72 hours reporting that their
+  phone number, department, or office location in Microsoft 365 and Teams reverts to
+  an old or incorrect value within minutes of being corrected. One user (J. Reyes)
+  has had her department changed from "Finance" back to "Operations" four times in
+  two days. Affected users include accounts in both the Corporate and Acquired OUs.
+
+  Initial investigation: IT admin M. Harker confirmed the values are correct in
+  on-premises AD. The changes are happening in Entra, not in AD. AD has not been
+  touched. Harker suspects a sync issue but cannot identify the cause.
+
+  Escalated to you for investigation.
+
+== ENTRA AUDIT LOG — USER OBJECT MODIFICATIONS ==
+Period: 2026-03-17 00:00 UTC to 2026-03-19 12:00 UTC
+Filter: Activity = "Update user", Actor = Entra Connect sync accounts
+User: jreyes@contoso.com (J. Reyes)
+
+Timestamp            Actor                                    Modified Attribute  Old Value     New Value
+-------------------  ---------------------------------------  ------------------  ------------  ---------------------
+2026-03-17 02:01:33  Sync_SYNCSRV01_8f4a2c@contoso.onmicro  department          Operations    Finance
+2026-03-17 02:01:33  Sync_SYNCSRV01_8f4a2c@contoso.onmicro  telephoneNumber     +1-555-0142   +1-555-0198
+2026-03-17 02:03:47  Sync_SYNCSRV02_3b7e19@contoso.onmicro  department          Finance       Operations
+2026-03-17 02:03:47  Sync_SYNCSRV02_3b7e19@contoso.onmicro  telephoneNumber     +1-555-0198   +1-555-0142
+2026-03-17 04:01:31  Sync_SYNCSRV01_8f4a2c@contoso.onmicro  department          Operations    Finance
+2026-03-17 04:01:31  Sync_SYNCSRV01_8f4a2c@contoso.onmicro  telephoneNumber     +1-555-0142   +1-555-0198
+2026-03-17 04:03:49  Sync_SYNCSRV02_3b7e19@contoso.onmicro  department          Finance       Operations
+2026-03-17 04:03:49  Sync_SYNCSRV02_3b7e19@contoso.onmicro  telephoneNumber     +1-555-0198   +1-555-0142
+[pattern repeats every ~2 hours across all 7 affected users]
+
+Most recent entry for jreyes@contoso.com:
+2026-03-19 10:03:52  Sync_SYNCSRV02_3b7e19@contoso.onmicro  department          Finance       Operations
+
+== ENTRA CONNECT HEALTH — REGISTERED SYNC SERVERS ==
+
+Server                    Mode      Version       Last Sync              Sync Account
+------------------------  --------  ------------  ---------------------  -----------------------------------------
+SYNCSRV01.corp.local      Active    2.3.6.0       2026-03-19 10:01 UTC  Sync_SYNCSRV01_8f4a2c@contoso.onmicrosoft
+SYNCSRV02.acquired.local  Active    2.3.6.0       2026-03-19 10:03 UTC  Sync_SYNCSRV02_3b7e19@contoso.onmicrosoft
+
+== BACKGROUND (from infrastructure notes, added by M. Harker) ==
+
+SYNCSRV02 was stood up three days ago (2026-03-16) when Contoso acquired
+Meridian Corp. The Meridian IT team configured a new Entra Connect instance
+to sync Meridian's acquired.local AD forest into the contoso.onmicrosoft.com
+tenant. The intent was to provision Meridian users into the shared tenant.
+SYNCSRV02 is configured to sync a different set of OUs from acquired.local.
+
+J. Reyes was a Contoso employee who transferred to the acquired entity before
+the acquisition closed. She has user objects in both corp.local and acquired.local,
+with different attribute values in each.

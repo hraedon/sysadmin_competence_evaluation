@@ -1,0 +1,5 @@
+The audit log shows that J. Reyes's attributes are being modified repeatedly — department and telephoneNumber are changing back and forth every couple of hours. This looks like a sync loop where something keeps resetting the values.
+
+Looking at the log, the modifications are coming from what appears to be an Entra Connect sync account. This could be a misconfigured write-back policy that keeps overwriting values, or possibly a script that is running on a schedule and resetting user attributes to old values.
+
+I would recommend checking whether there are any scheduled tasks or scripts running against the affected user accounts, reviewing the write-back settings in the SSPR configuration, and checking whether the Entra Connect sync is configured to overwrite manually-changed attributes.

@@ -44,17 +44,40 @@ rubric is trying to detect, not merely an incomplete answer.
 
 ## What to do when calibration fails
 
-1. Read the failing scenario's level indicators again carefully.
-2. Read the failing synthetic response.
-3. Read the evaluator's returned JSON (in the results file) — specifically
-   the `caught`, `missed`, and `gap` fields.
-4. If the evaluator is catching findings it shouldn't (false positives at L1):
-   the L1 synthetic response is too complete — revise it to more specifically
-   exhibit the miss_signal.
-5. If the evaluator is missing findings it should catch (false negatives at L3/L4):
-   the rubric's miss_signal may be too vague — add specificity to help the
-   evaluator distinguish L2 from L3 reasoning in that scenario.
-6. Re-run after adjusting. Repeat until consistent.
+The evaluator's primary calibration signal is what is MISSING (`missed` array),
+not reasoning quality. A response with an empty `missed` array will almost always
+receive an L4 rating regardless of level indicator prose.
+
+**The most common failure: level inflation (L2 rated L3, or L3 rated L4)**
+
+The synthetic response is catching too many findings — including findings intended
+for the next level up. Causes and fixes:
+
+1. Read the evaluator's returned `caught` array. Identify which finding should NOT
+   have been caught at this level.
+2. Check whether the synthetic response states that finding explicitly. If yes,
+   remove it.
+3. If the finding is not stated but the evaluator still catches it, the response
+   contains content that makes the finding an obvious inference. Identify and remove
+   the inference-triggering sentence — not just the explicit claim.
+4. As a last resort, restructure the rubric: remove the finding as a separate rubric
+   entry and fold it into the level indicator as explicit scope language
+   ("Does NOT explain X"). This removes it from the `caught`/`missed` comparison
+   entirely.
+
+**The less common failure: level deflation (L3 rated L2)**
+
+The synthetic response is missing a finding it should catch. Check whether the
+response actually contains enough specificity for the evaluator to identify the
+finding. The fix is usually adding a concrete specific from the artifact (an exact
+log message, a field name, a permission entry) rather than general framing.
+
+**Rubric adjustments**
+
+Adding "Does NOT [L4 criterion]" to the level_3 indicator helps distinguish L3
+from L4 when the distinction is about reasoning depth and there is no separate
+finding to miss. This is a secondary tool — synthetic response content is the
+primary lever.
 
 See `orchestration_design.md` (Evaluation Quality Control) for the full
 calibration procedure.

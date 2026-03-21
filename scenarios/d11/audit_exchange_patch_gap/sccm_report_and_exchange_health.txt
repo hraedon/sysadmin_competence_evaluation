@@ -1,0 +1,79 @@
+== SCCM SOFTWARE UPDATES — COMPLIANCE REPORT ==
+Report: All Updates Compliance by Device
+Generated: 2026-03-21 08:00
+Device: EXSRV01.corp.local
+Collection: All Windows Servers
+
+Overall compliance status: COMPLIANT
+
+Deployment: "Monthly Security Updates — Server 2022" (deadline 2026-03-15)
+  Compliance: 100% (47/47 updates installed)
+
+Updates installed (selected):
+  KB5034770  2026-02-13  Windows Server 2022 Cumulative Update              Installed
+  KB5035857  2026-03-12  Windows Server 2022 Cumulative Update              Installed
+  KB5034439  2026-02-13  .NET Framework 3.5/4.8 Security Update             Installed
+  KB5035849  2026-03-12  .NET Framework 3.5/4.8 Security Update             Installed
+  KB5032303  2026-01-09  Visual C++ 2015-2022 Redistributable Update        Installed
+  KB5033375  2026-02-13  Windows Defender Definition Update                  Installed
+  [42 additional Windows/component updates — all Installed]
+
+No updates in non-compliant status.
+No updates in error status.
+
+Note: SCCM Software Updates manages only patches distributed through
+WSUS (Windows Server Update Services). This report covers the
+update categories configured in WSUS: Security Updates, Critical
+Updates, Update Rollups, and Service Packs for Windows components,
+.NET Framework, and Visual C++ Redistributables.
+
+== EXCHANGE SERVER VERSION ==
+Server: EXSRV01.corp.local
+Role: Mailbox, Hub Transport, Client Access (combined)
+Product: Microsoft Exchange Server 2019
+Build: 15.2.986.14
+Build name: Exchange 2019 Cumulative Update 9
+Build date: 2021-09-28
+Installed: 2025-09-14
+
+Exchange Server 2019 current release: CU15 (15.2.1544.4, released 2026-02-11)
+Releases behind current: 6 cumulative updates
+
+== EXCHANGE HEALTH MANAGER — EXSRV01 ==
+Status summary (as of 2026-03-21 08:00):
+
+  Service Health:
+    MSExchangeTransport            Running   [OK]
+    MSExchangeIS                   Running   [OK]
+    MSExchangeRPC                  Running   [OK]
+    MSExchangeADTopology           Running   [OK]
+    IIS (OWA/EAS/EWS)             Running   [OK]
+    MSExchangeEdgeSync             Running   [OK]
+
+  DAG Health:          N/A (standalone server)
+  Certificate expiry:  OK (expires 2027-01-14)
+  Database status:     Mounted [OK]
+
+  Overall health: HEALTHY
+
+== MAIL TRANSPORT METRICS ==
+Source: Exchange Admin Center → Mail flow → Queues
+
+  Date              Queue depth   NDR count (24h)   Delivery success rate
+  ----------------  -----------   ---------------   --------------------
+  2025-09-21            12              2               99.8%
+  2025-11-21            28              9               99.4%
+  2026-01-21           147             44               97.6%
+  2026-02-21           612            198               94.1%
+  2026-03-14          2,847           831               87.3%
+  2026-03-21          5,103         1,402               81.2%
+
+External recipients reporting delivery failures in the last 7 days: 38 organizations
+Most common NDR reason logged in transport: 550 5.4.1 / TLS negotiation failure
+
+== BACKGROUND ==
+The previous exchange administrator (B. Santos) left the organization
+on 2025-09-01. EXSRV01 was added to the "All Windows Servers" SCCM
+collection by B. Santos in 2024. No dedicated exchange update process
+or documentation was left by B. Santos. SCCM has been used to manage
+all server updates since 2023.

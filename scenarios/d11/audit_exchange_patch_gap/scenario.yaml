@@ -1,0 +1,123 @@
+id: d11-audit-exchange-patch-gap
+domain: 11
+domain_name: "Log Reading & Diagnosis"
+level: 2
+title: "Compliant Is Not the Same as Patched"
+delivery_mode: A
+subtype: null
+
+# Scenario note (for scenario authors and evaluators):
+# Most similar to: d02-audit-mfa-exclusion-outlived (both test whether candidates
+# read evidence critically against a stated status, rather than accepting the status
+# at face value).
+# How the reasoning challenge differs: the MFA exclusion scenario tests whether
+# candidates use sign-in log data to challenge a policy's ongoing justification.
+# This scenario tests a Domain 11 skill: recognizing when a compliance report is
+# incomplete because a category of events that should be present is entirely absent.
+# The SCCM report says "Compliant" and the Exchange Health Manager says "Healthy."
+# The diagnostic skill being tested is reading the SCCM report and noticing that
+# Exchange updates are not in it at all — not non-compliant, not failed, simply
+# absent. This is the D11 Level 2 skill: "Can recognize when a log extract is
+# incomplete because events are missing that should be present given the system
+# configuration." The Exchange-specific knowledge (CUs are not distributed via
+# WSUS) explains WHY they're absent, but candidates can identify the gap first
+# just by observing that a server running Exchange has no Exchange updates in its
+# patch history — that observation alone is sufficient for Level 2.
+
+presentation:
+  type: log_extract
+  artifact_file: "scenarios/d11/audit_exchange_patch_gap/sccm_report_and_exchange_health.txt"
+  context: |
+    The previous Exchange administrator left in September 2025. Since then, the
+    helpdesk has tracked a steady increase in mail delivery failures and NDR counts.
+    Exchange Health Manager reports the server as healthy. A colleague points to the
+    SCCM compliance report as evidence that patching is current. The attached document
+    contains the SCCM Software Updates compliance report, the Exchange server version
+    information, the Exchange Health Manager status, and six months of mail transport
+    metrics.
+
+    Assess the situation:
+    (1) Is the server's patch state actually current? What does the evidence show?
+    (2) Why does the SCCM report show "Compliant" if the server is not fully patched?
+    (3) What is the most likely connection between the patch state and the mail
+        delivery trend?
+
+rubric:
+  critical_findings:
+    - id: exchange_absent_from_patch_report
+      description: >
+        The SCCM Software Updates compliance report for EXSRV01 lists 47 Windows
+        component updates (cumulative updates, .NET, Visual C++, Defender definitions)
+        and shows 100% compliance. Exchange is not mentioned anywhere in the report —
+        not as installed, not as non-compliant, not as errored. The Exchange server
+        version shows build 15.2.986.14 (Exchange 2019 CU9, installed 2025-09-14),
+        six releases behind the current CU15 (15.2.1544.4, released 2026-02-11). The
+        SCCM report's silence on Exchange is not a finding of compliance — it means
+        SCCM's Software Updates feature has no visibility into Exchange patch state.
+        Exchange Cumulative Updates are not distributed through WSUS; they are standalone
+        installers that must be deployed separately. SCCM's "Compliant" status confirms
+        Windows patches are current, nothing more.
+      severity: critical
+      miss_signal: >
+        Candidate reads the SCCM report, sees "Compliant," and concludes the server
+        is fully patched, treating Exchange Health Manager's "Healthy" status as
+        corroboration. Or: candidate notes that Exchange is not in the SCCM report
+        but interprets this as expected behavior without identifying it as a coverage
+        gap — i.e., treats absence as neutral rather than as missing information.
+        Or: candidate focuses only on the mail transport metrics and recommends
+        investigating TLS configuration without first identifying the patch gap as
+        the probable root cause.
+
+  secondary_findings:
+    - id: delivery_trend_correlates_to_patch_age
+      description: >
+        The mail transport metrics show a consistent degradation trajectory that began
+        approximately at the time the previous administrator left: queue depth has grown
+        from 12 (2025-09-21) to 5,103 (2026-03-21); NDR count has grown from 2/day to
+        1,402/day; delivery success rate has dropped from 99.8% to 81.2%. The most
+        common NDR reason is "550 5.4.1 / TLS negotiation failure." Exchange CUs
+        frequently include transport fixes and TLS compatibility updates. Being six
+        cumulative updates behind — spanning approximately 18 months of releases — on
+        a server handling external mail flow creates increasing risk of TLS handshake
+        failures with remote servers that have updated their minimum TLS requirements.
+        The timeline and NDR type are consistent with an Exchange server falling behind
+        external TLS expectations over time.
+      severity: high
+
+  level_indicators:
+    level_1: >
+      Can read both reports and describe what each shows. Notes that SCCM says
+      "Compliant" and Exchange Health Manager says "Healthy." Can identify that the
+      Exchange build (15.2.986.14, installed 2025-09-14) is not current. Cannot identify
+      why Exchange does not appear in the SCCM report, or articulate the difference
+      between Windows patch compliance and Exchange patch currency. May recommend
+      "checking for Exchange updates in SCCM" without understanding why they are absent.
+    level_2: >
+      Identifies that Exchange is entirely absent from the SCCM Software Updates report —
+      not non-compliant, not failed, not present at all — and reads this absence as a
+      coverage gap: SCCM's compliance status applies only to WSUS-managed Windows
+      updates and does not include Exchange. Notes the version gap: Exchange 2019 CU9
+      (installed 2025-09-14) vs. current CU15 (released 2026-02-11) — six updates behind.
+      Does NOT connect the patch gap to the delivery failure trend or explain why Exchange
+      CUs are absent from WSUS.
+    level_3: >
+      All of the above plus explains why Exchange is absent from the SCCM report:
+      Exchange Cumulative Updates are standalone installers, not WSUS-distributed
+      packages, so SCCM Software Updates has no mechanism to track or deploy them.
+      The "Compliant" status is accurate within SCCM's scope — but that scope does not
+      include Exchange. Connects the six-CU gap to the delivery trend: queue depth growing
+      from 12 to 5,103 messages, NDRs from 2 to 1,402/day, with TLS negotiation failure
+      as the predominant reason — consistent with Exchange falling behind external TLS
+      requirements that CU releases address. Does NOT note the Exchange Health Manager
+      blind spot or propose the remediation path for deploying Exchange CUs outside WSUS.
+    level_4: >
+      All of the above plus notes the Exchange Health Manager "Healthy" status is a
+      separate blind spot: operational health (services running, database mounted,
+      certificate valid) does not assess software currency. Proposes the remediation
+      path: Exchange CUs must be deployed outside SCCM Software Updates — via manual
+      staged installation, SCCM Application Deployment with a custom package, or a
+      dedicated runbook. Recommends documenting the SCCM compliance report's coverage
+      boundary explicitly so future administrators understand what "Compliant" does
+      and does not mean. Notes the six-CU gap represents approximately 18 months of
+      accumulated security and transport fixes and should be treated as a critical
+      remediation, not routine catch-up.

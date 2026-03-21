@@ -1,0 +1,9 @@
+The SQL Server service appears to be running but users are getting "Cannot generate SSPI context" errors. This is an authentication error that usually means there's a problem with the service account or Windows authentication.
+
+The BI team changed the service account to NT Service\MSSQLSERVER and then changed it back. The service restarted successfully both times according to the change record. I would recommend:
+
+- Verify the service account corp\svc_sql is not locked out or expired in Active Directory
+- Try restarting the SQL Server service again — sometimes authentication issues resolve after a clean restart
+- Check if the SQL Server service is actually using corp\svc_sql by looking at the current service account in SQL Server Configuration Manager
+
+K. Strand was able to connect using the IP address, which suggests the service is running and accepting connections. The issue may be with how SQLSRV01.corp.local is resolving for some users versus others.

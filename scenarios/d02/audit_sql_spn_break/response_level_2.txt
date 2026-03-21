@@ -1,0 +1,5 @@
+The root cause is missing SPNs. The setspn -L output for corp\svc_sql shows no registered entries, and setspn -Q confirms MSSQLSvc/SQLSRV01.corp.local and MSSQLSvc/SQLSRV01 are both absent from the domain. The SQL Server error log from the 15:48 restart is explicit: SPN registration for MSSQLSvc/SQLSRV01.corp.local:1433 failed with Windows return code 0x2098 — insufficient rights for corp\svc_sql to write to the servicePrincipalName attribute in Active Directory.
+
+The BI team's service account round-trip is the cause. When they switched to NT Service\MSSQLSERVER and back to corp\svc_sql, SQL Server de-registered and then failed to re-register the SPNs because corp\svc_sql doesn't have Write SPN permission in AD.
+
+The fix requires manually registering the SPNs using an account with appropriate AD rights, or granting corp\svc_sql the Write SPN permission on its own account.

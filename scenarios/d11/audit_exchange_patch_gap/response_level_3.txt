@@ -1,0 +1,7 @@
+The server is not current on Exchange patches, and the SCCM report does not show this because it cannot — Exchange Cumulative Updates are outside SCCM Software Updates' coverage.
+
+Reading the SCCM report: 47 updates installed, all Windows components, 100% compliant. Exchange is completely absent from the list. This is the diagnostic signal: on a server running Exchange, an absence of Exchange entries in the patch report is not neutral — it means the update mechanism being used has no visibility into Exchange's patch state. SCCM's Software Updates feature tracks what comes through WSUS: Windows updates, .NET, Defender, Visual C++. Exchange CUs are standalone Setup.exe installers, not WSUS-distributed packages. SCCM knows nothing about them.
+
+The Exchange version confirms the gap: build 15.2.986.14 (CU9, installed 2025-09-14) against a current release of CU15 (15.2.1544.4, released 2026-02-11). Six CUs behind, with the gap opening exactly when the previous administrator left.
+
+The delivery trend is consistent with this diagnosis. The queue depth and NDR trajectory track steadily downward from September 2025, with TLS negotiation failures as the predominant NDR reason. Exchange CUs include transport and TLS fixes. An Exchange server that has fallen six releases behind external recipients who have updated their TLS requirements will produce exactly this failure pattern — gradual rather than sudden, because different external mail systems update their TLS behavior on different schedules.

@@ -1,0 +1,5 @@
+The SCCM report shows the server is compliant and Exchange Health Manager shows it is healthy. All services are running and the database is mounted. The certificate is valid until 2027.
+
+The mail queue is definitely growing — from 12 messages in September to over 5,000 now — and NDR counts are increasing significantly. The NDR reason is TLS negotiation failure.
+
+I would recommend checking the TLS configuration on the Exchange server, specifically whether the correct TLS protocols and cipher suites are enabled. The delivery failures look like TLS handshake problems rather than a patching issue, since SCCM shows the server is compliant. You may also want to check if any external mail systems have changed their TLS requirements recently.

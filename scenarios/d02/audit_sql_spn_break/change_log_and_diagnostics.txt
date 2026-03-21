@@ -1,0 +1,66 @@
+== CHANGE RECORD — CHG-2026-0318 ==
+Title: BI team SQL Server service account test
+Performed by: BI team (lead: D. Osei)
+Date: 2026-03-20 14:00–16:30
+
+Steps performed (from BI team's post-change notes):
+  14:00  Opened SQL Server Configuration Manager on SQLSRV01
+  14:03  Changed SQL Server (MSSQLSERVER) service account from
+         corp\svc_sql to NT Service\MSSQLSERVER
+  14:05  Restarted SQL Server service — service started successfully
+  14:06–15:45  BI team performed testing (load test against local
+         connection string using hostname SQLSRV01)
+  15:46  Changed SQL Server service account back to corp\svc_sql
+  15:48  Restarted SQL Server service — service started successfully
+  15:50  BI team confirmed SQL Server responding; closed change
+
+Impact reported at close: None. Tests complete.
+
+== SQL SERVER ERROR LOG — SQLSRV01 ==
+(Extract, 2026-03-20 15:47:00–15:52:00)
+
+2026-03-20 15:48:01.22  Server   SQL Server is starting at normal priority base (=7).
+2026-03-20 15:48:01.48  Server   Detected 32 CPUs. This is an informational message; no user action is required.
+2026-03-20 15:48:02.91  Server   SQL Server is attempting to register a Service Principal Name (SPN) for the SQL Server service.
+2026-03-20 15:48:03.04  Server   The SQL Server Network Interface library could not register the Service Principal Name (SPN)
+                                  [MSSQLSvc/SQLSRV01.corp.local:1433] for the SQL Server service.
+                                  Windows return code: 0x2098, state: 15.
+                                  Failure to register a SPN might cause integrated authentication to fail
+                                  when clients connect to this server. Ensure that the service account
+                                  [corp\svc_sql] has write access to the servicePrincipalName attribute
+                                  in Active Directory.
+2026-03-20 15:48:03.05  Server   The SQL Server Network Interface library could not register the Service Principal Name (SPN)
+                                  [MSSQLSvc/SQLSRV01.corp.local] for the SQL Server service.
+                                  Windows return code: 0x2098, state: 15.
+2026-03-20 15:48:03.21  Server   SQL Server is now ready for client connections. This is an informational message; no user action is required.
+2026-03-20 15:48:03.44  spid6s   Recovery is complete. This is an informational message only. No user action is required.
+
+== SPN DIAGNOSTIC OUTPUT — run 2026-03-21 09:15 ==
+
+C:\> setspn -L corp\svc_sql
+Registered ServicePrincipalNames for CN=svc_sql,OU=ServiceAccounts,DC=corp,DC=local:
+    (none)
+
+C:\> setspn -Q MSSQLSvc/SQLSRV01.corp.local
+Checking domain DC=corp,DC=local
+No such SPN found.
+
+C:\> setspn -Q MSSQLSvc/SQLSRV01
+Checking domain DC=corp,DC=local
+No such SPN found.
+
+== USER ERROR REPORTS (2026-03-21, helpdesk tickets) ==
+
+INC-2026-0321-0041  Reporter: M. Kovacs
+  "SQL Server connection failing this morning. Connection string uses
+   SQLSRV01.corp.local,1433. Error: 'Cannot generate SSPI context.'
+   IT says service is running. Worked fine on Friday."
+
+INC-2026-0321-0044  Reporter: P. Ndiaye
+  "Cannot connect to SQL Server from Power BI Desktop. Same error
+   as yesterday when BI team was doing their test, but they said
+   they fixed everything. Using server name SQLSRV01.corp.local."
+
+Note from helpdesk: a third user (K. Strand) connected successfully
+using IP address 192.168.10.20,1433 — same server, different
+connection method. Her connection works; the FQDN connections do not.

@@ -1,0 +1,13 @@
+Root cause: missing SPNs on corp\svc_sql. The setspn diagnostics are unambiguous — no SPNs registered, and the SQL Server error log from the 15:48 restart confirms registration failed with 0x2098 (insufficient rights to write to servicePrincipalName in AD). FQDN connections trigger Kerberos, which requires the KDC to find an SPN matching MSSQLSvc/SQLSRV01.corp.local:1433 — absent that SPN, the KDC can't issue a service ticket, and clients see "Cannot generate SSPI context." IP connections use NTLM, which bypasses SPN lookup entirely, so K. Strand's connection to 192.168.10.20,1433 succeeds.
+
+The BI team didn't detect this because they tested using hostname SQLSRV01 via a local connection — short-name and local connections often fall back to NTLM and would succeed regardless of SPN state. The FQDN connection string used by production applications was never tested before the change was closed. This is a change closure failure: any service account change on a service that uses Kerberos authentication should require a post-change test using the production connection string.
+
+The fix has two steps. First, check for stale SPNs on any other account: if SPNs for MSSQLSvc/SQLSRV01 are registered on the NT Service\MSSQLSERVER account or on any stale service account, those must be removed first — duplicate SPNs on two accounts cause Kerberos to fail even after the correct SPNs are registered, because the KDC cannot determine which account to issue the ticket against. Use setspn -Q MSSQLSvc/* to find any existing registrations.
+
+Second, register both SPN forms on corp\svc_sql using an account with AD write rights:
+  setspn -A MSSQLSvc/SQLSRV01.corp.local:1433 corp\svc_sql
+  setspn -A MSSQLSvc/SQLSRV01.corp.local corp\svc_sql
+
+Both the port form (for connections specifying port 1433) and the non-port form (for connections using the default port implicitly) are needed. Confirm with setspn -L corp\svc_sql after registration. Then test an FQDN connection before declaring the incident closed.
+
+The underlying permission problem — corp\svc_sql cannot auto-register its own SPNs — should also be addressed: either grant the account Write SPN permission on its own object in AD, or document that SPN registration for this account requires manual intervention, so that future service account changes are handled with the right process rather than discovered after a production outage.

@@ -4,4 +4,3 @@ You can't fix this by adding corp.local to the Entra tenant — that option does
 
 The tenant already has contoso.com as a verified domain (the default for new accounts). The fix is to update the UserPrincipalName attribute for the 47 affected AD accounts to use @contoso.com instead of @corp.local, and then let the next sync cycle run.
 
-Users affected by the UPN change will have a new sign-in name for Microsoft 365 — jdavis@corp.local becomes jdavis@contoso.com.

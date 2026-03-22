@@ -4,4 +4,6 @@ Critical: -Force on Remove-Item -Recurse. The -Force flag suppresses all prompts
 
 High: Silent failure in the catch block. The catch block logs "Cleanup completed successfully." — the exact string as the success path. Any exception during execution — access denied, locked file, path not found after the initial check, unexpected error — is recorded as success. Automated alerting that parses this log for errors will produce no alert. This is rated high rather than critical because it is a detection failure rather than a damage amplifier — it operates after the fact. -Force operates before, removing the mechanism that could otherwise interrupt a catastrophic path resolution. Both are severe; the ordering reflects causation.
 
-This script should not go into the automated pipeline without addressing both issues. -Force is the higher priority because it is the root cause of the irreversible-damage scenario.
+Moderate: Path traversal via string concatenation. $cleanupPath is constructed by concatenating $ApplicationName without any input validation. A value like "..\Windows\System32" would resolve outside C:\ProgramData. In an automated pipeline, ApplicationName typically comes from a build variable, so this is a real injection surface even if the current caller is trusted.
+
+This script should not go into the automated pipeline without addressing all three issues. -Force is the highest priority because it enables irreversible damage; the path traversal is the second priority because it determines what -Force can reach.

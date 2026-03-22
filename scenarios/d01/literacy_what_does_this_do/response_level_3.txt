@@ -1,13 +1,11 @@
-This script does two things. The first is the CSV export the name and comments describe. The second is a destructive AD operation the name and comments do not mention at all.
+This script does two things.
 
 The first foreach loop queries for disabled accounts with LastLogonDate older than the cutoff, selects properties including a computed GroupCount, and exports to CSV. That's the report.
 
-The second foreach loop iterates the same account set and calls Remove-ADGroupMember with -Confirm:$false to strip all group memberships. This is the undisclosed operation. It runs every time the script runs, unconditionally. A production run will modify AD group objects for every account that matches the filter.
+The second foreach loop iterates the same account set and calls Remove-ADGroupMember with -Confirm:$false to strip all group memberships from those accounts. It runs every time the script runs, unconditionally.
 
 Three problems with the second loop specifically:
 
 1. No -WhatIf support. Remove-ADGroupMember is called with -Confirm:$false but the script exposes no -WhatIf parameter and makes no provision for a dry run. There is no way to see what the script would do without actually doing it. Before running anything this destructive in production, I'd want a -ReportOnly mode that shows what memberships would be removed.
 
-2. No logging of the removal operation. The script writes a CSV of accounts at the time of export, including their GroupCount. But it logs nothing about which groups were actually removed, for which accounts, or how many removal operations executed. By the time someone reviews the CSV, the memberships may already be gone.
-
-I would not run this in production as written. Minimum requirements before I'd approve it: add a -ReportOnly switch that skips the removal loop and only generates the CSV, and add logging for every Remove-ADGroupMember call so there is a record of which accounts had memberships removed.
+I would not run this in production as written. Minimum requirement before I'd approve it: add a -ReportOnly switch that skips the removal loop and only generates the CSV, so there's a way to see what would be affected before running destructively.

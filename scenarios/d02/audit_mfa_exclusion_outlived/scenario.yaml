@@ -83,6 +83,17 @@ rubric:
         unnecessary MFA exposure.
       severity: high
 
+    - id: removal_operational_care
+      description: >
+        Before removing the 31 accounts from the MFA exclusion, verify that every account
+        has at least one MFA method registered in Entra ID. Accounts with no registered
+        method will be locked out of cloud applications the moment the exclusion is removed.
+        Similarly, identify any shared accounts or service accounts in the group that cannot
+        complete interactive MFA — these require remediation before exclusion removal, not
+        after. Removing the exclusion without this check trades one risk (no MFA enforcement)
+        for another (unplanned service disruption).
+      severity: moderate
+
   level_indicators:
     level_1: >
       Notes that 31 accounts are excluded from the MFA policy and flags this as something to

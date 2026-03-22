@@ -1,13 +1,11 @@
 import { useState, useEffect } from 'react'
 import { loadManifest, groupByDomain } from './lib/scenarios.js'
-import { evaluate } from './lib/evaluator.js'
+import { evaluate, loadSettings, saveSettings } from './lib/evaluator.js'
 import { loadProfile, saveResult } from './lib/profile.js'
 import ScenarioSidebar from './components/ScenarioSidebar.jsx'
 import ScenarioPanel from './components/ScenarioPanel.jsx'
 import EvalPanel from './components/EvalPanel.jsx'
-import SettingsModal from './components/SettingsModal.jsx'
-
-const API_KEY_STORAGE = 'sysadmin_assessment_api_key'
+import SettingsPage from './components/SettingsPage.jsx'
 
 export default function App() {
   const [groups, setGroups] = useState([])
@@ -16,7 +14,7 @@ export default function App() {
   const [isEvaluating, setIsEvaluating] = useState(false)
   const [evalError, setEvalError] = useState(null)
   const [profile, setProfile] = useState(() => loadProfile())
-  const [apiKey, setApiKey] = useState(() => localStorage.getItem(API_KEY_STORAGE) ?? '')
+  const [settings, setSettings] = useState(() => loadSettings())
   const [showSettings, setShowSettings] = useState(false)
   const [loadError, setLoadError] = useState(null)
 
@@ -26,9 +24,10 @@ export default function App() {
       .catch(err => setLoadError(err.message))
   }, [])
 
-  // Show settings automatically if no API key
+  // Auto-open settings only when a key-requiring provider is configured without a key
   useEffect(() => {
-    if (!apiKey) setShowSettings(true)
+    const needsKey = (settings.provider === 'anthropic' || settings.provider === 'openai') && !settings.apiKey
+    if (needsKey) setShowSettings(true)
   }, [])
 
   function handleSelectScenario(scenario) {
@@ -38,12 +37,11 @@ export default function App() {
   }
 
   async function handleSubmit(responseText, artifactContent) {
-    if (!apiKey) { setShowSettings(true); return }
     setIsEvaluating(true)
     setEvalResult(null)
     setEvalError(null)
     try {
-      const result = await evaluate({ scenario: selected, artifactContent, responseText, apiKey })
+      const result = await evaluate({ scenario: selected, artifactContent, responseText, settings })
       setEvalResult(result)
       if (result.parsed?.level) {
         const updated = saveResult({ scenario: selected, level: result.parsed.level, confidence: result.parsed.confidence })
@@ -56,19 +54,19 @@ export default function App() {
     }
   }
 
-  function handleSaveKey(key) {
-    setApiKey(key)
-    localStorage.setItem(API_KEY_STORAGE, key)
+  function handleSaveSettings(newSettings) {
+    setSettings(newSettings)
+    saveSettings(newSettings)
     setShowSettings(false)
   }
 
   return (
     <div className="flex h-screen overflow-hidden">
       {showSettings && (
-        <SettingsModal
-          apiKey={apiKey}
-          onSave={handleSaveKey}
-          onClose={apiKey ? () => setShowSettings(false) : undefined}
+        <SettingsPage
+          settings={settings}
+          onSave={handleSaveSettings}
+          onClose={() => setShowSettings(false)}
         />
       )}
 

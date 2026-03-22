@@ -2,22 +2,34 @@
 /**
  * Calibration harness for the sysadmin competency assessment evaluator.
  *
- * For each scenario that has synthetic response files (response_level_1.txt
- * through response_level_4.txt), this script calls the AI evaluator and checks
- * whether the returned level matches the expected level.
+ * Supports multiple providers via CLI flags:
  *
- * Usage:
- *   ANTHROPIC_API_KEY=sk-ant-... node calibration/run.mjs
- *   ANTHROPIC_API_KEY=sk-ant-... node calibration/run.mjs --scenario d01-audit-ai-gave-you-this
- *   ANTHROPIC_API_KEY=sk-ant-... node calibration/run.mjs --domain 1
+ *   # Local (default — no key required):
+ *   node run.mjs
+ *   node run.mjs --provider local --endpoint http://192.168.1.28:1234/v1 --model qwen3-next-80b-a3b-instruct-mlx
+ *
+ *   # Anthropic:
+ *   ANTHROPIC_API_KEY=sk-ant-... node run.mjs --provider anthropic
+ *   ANTHROPIC_API_KEY=sk-ant-... node run.mjs --provider anthropic --model claude-opus-4-6
+ *
+ *   # OpenAI:
+ *   OPENAI_API_KEY=sk-... node run.mjs --provider openai --model gpt-4o
+ *
+ *   # Custom endpoint:
+ *   node run.mjs --provider custom --endpoint http://my-server:8080/v1 --model my-model
+ *   node run.mjs --provider custom --endpoint http://my-server:8080/v1 --api-key mykey --model my-model
+ *
+ * Filters:
+ *   --scenario d01-audit-ai-gave-you-this
+ *   --domain 1
  *
  * Exit codes:
  *   0 — all calibrated scenarios passed (level match within tolerance)
  *   1 — one or more scenarios failed calibration
- *   2 — configuration error (no API key, no scenarios found)
+ *   2 — configuration error (no scenarios found, missing required key, etc.)
  */
 
-import Anthropic from '@anthropic-ai/sdk'
+import OpenAI from 'openai'
 import { readFileSync, existsSync, writeFileSync, mkdirSync } from 'fs'
 import { join, dirname, resolve } from 'path'
 import { fileURLToPath } from 'url'
@@ -29,28 +41,73 @@ const REPO_ROOT = resolve(__dirname, '..')
 const SCENARIOS_DIR = join(REPO_ROOT, 'scenarios')
 const RESULTS_DIR = join(__dirname, 'results')
 const EXPECTED_LEVELS = [1, 2, 3, 4]
-
-// A level estimate is a "pass" if it matches within this tolerance.
-// Per calibration spec: flag if "off by more than 0.5 levels consistently."
-// For a single run, we treat exact match as pass and flag any deviation.
 const PASS_TOLERANCE = 0.5
 
-// --- CLI args ---
-const args = process.argv.slice(2)
-const scenarioFilter = args.includes('--scenario') ? args[args.indexOf('--scenario') + 1] : null
-const domainFilter = args.includes('--domain') ? parseInt(args[args.indexOf('--domain') + 1]) : null
+// ---------------------------------------------------------------------------
+// CLI args
+// ---------------------------------------------------------------------------
 
-// --- API key ---
-const apiKey = process.env.ANTHROPIC_API_KEY
-if (!apiKey) {
-  console.error('Error: ANTHROPIC_API_KEY environment variable is not set.')
+const args = process.argv.slice(2)
+
+function getArg(flag, defaultValue = null) {
+  const i = args.indexOf(flag)
+  return i !== -1 ? args[i + 1] : defaultValue
+}
+
+const scenarioFilter = getArg('--scenario')
+const domainFilter   = getArg('--domain') ? parseInt(getArg('--domain')) : null
+const providerFlag   = getArg('--provider', 'local')
+const endpointFlag   = getArg('--endpoint')
+const modelFlag      = getArg('--model')
+const apiKeyFlag     = getArg('--api-key')
+
+// ---------------------------------------------------------------------------
+// Provider configuration
+// ---------------------------------------------------------------------------
+
+const PROVIDER_DEFAULTS = {
+  local:     { baseURL: 'http://192.168.1.28:1234/v1', model: 'qwen3-next-80b-a3b-instruct-mlx', requiresKey: false },
+  anthropic: { baseURL: 'https://api.anthropic.com/v1', model: 'claude-sonnet-4-6',              requiresKey: true  },
+  openai:    { baseURL: 'https://api.openai.com/v1',    model: 'gpt-4o',                         requiresKey: true  },
+  custom:    { baseURL: '',                              model: '',                               requiresKey: false },
+}
+
+const providerConf = PROVIDER_DEFAULTS[providerFlag] ?? PROVIDER_DEFAULTS.local
+
+// Resolve endpoint
+const baseURL = endpointFlag ?? providerConf.baseURL
+if (!baseURL) {
+  console.error(`Error: --endpoint is required for provider '${providerFlag}'.`)
   process.exit(2)
 }
 
-const client = new Anthropic({ apiKey })
-const MODEL = 'claude-sonnet-4-6'
+// Resolve model
+const MODEL = modelFlag ?? providerConf.model
+if (!MODEL) {
+  console.error(`Error: --model is required for provider '${providerFlag}'.`)
+  process.exit(2)
+}
 
-// --- Prompt assembly (mirrors evaluator.js, adapted for Node.js) ---
+// Resolve API key
+let apiKey = apiKeyFlag
+if (!apiKey && providerFlag === 'anthropic') apiKey = process.env.ANTHROPIC_API_KEY
+if (!apiKey && providerFlag === 'openai')    apiKey = process.env.OPENAI_API_KEY
+if (!apiKey && providerConf.requiresKey) {
+  console.error(`Error: provider '${providerFlag}' requires an API key. Pass --api-key or set the appropriate env var.`)
+  process.exit(2)
+}
+if (!apiKey) apiKey = 'lm-studio'  // placeholder for local providers
+
+// ---------------------------------------------------------------------------
+// Client
+// ---------------------------------------------------------------------------
+
+const client = new OpenAI({ baseURL, apiKey })
+
+// ---------------------------------------------------------------------------
+// Prompt assembly (mirrors evaluator.js)
+// ---------------------------------------------------------------------------
+
 function buildSystemPrompt(scenario, artifactContent) {
   const { domain_name, level, title, delivery_mode, presentation, rubric } = scenario
 
@@ -119,17 +176,23 @@ Respond with a single JSON object — no prose before or after it:
 }`
 }
 
+// ---------------------------------------------------------------------------
+// Evaluator call
+// ---------------------------------------------------------------------------
+
 async function callEvaluator(scenario, artifactContent, responseText) {
   const systemPrompt = buildSystemPrompt(scenario, artifactContent)
 
-  const message = await client.messages.create({
+  const response = await client.chat.completions.create({
     model: MODEL,
     max_tokens: 2048,
-    system: systemPrompt,
-    messages: [{ role: 'user', content: responseText }],
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: responseText },
+    ],
   })
 
-  const raw = message.content[0]?.text ?? ''
+  const raw = response.choices[0]?.message?.content ?? ''
   const jsonMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/) ?? raw.match(/(\{[\s\S]*\})/)
   const jsonStr = jsonMatch ? (jsonMatch[1] ?? jsonMatch[0]) : raw
 
@@ -140,24 +203,27 @@ async function callEvaluator(scenario, artifactContent, responseText) {
   }
 }
 
-// --- Scenario loading ---
+// ---------------------------------------------------------------------------
+// Scenario loading
+// ---------------------------------------------------------------------------
+
 function loadScenario(scenarioYamlPath) {
   const content = readFileSync(scenarioYamlPath, 'utf-8')
-  // Strip comment lines that start with # but are outside YAML block scalars
-  // (scenario notes are stored as YAML comments)
   return parseYaml(content)
 }
 
-function loadArtifact(scenario, scenarioDir) {
+function loadArtifact(scenario) {
   const artifactFile = scenario.presentation?.artifact_file
   if (!artifactFile) return null
-  // artifact_file is a relative path from the repo root
   const artifactPath = join(REPO_ROOT, artifactFile)
   if (!existsSync(artifactPath)) return null
   return readFileSync(artifactPath, 'utf-8')
 }
 
-// --- Main ---
+// ---------------------------------------------------------------------------
+// Main
+// ---------------------------------------------------------------------------
+
 async function main() {
   const yamlPaths = await glob('**/scenario.yaml', { cwd: SCENARIOS_DIR, absolute: true })
 
@@ -180,8 +246,10 @@ async function main() {
   }
 
   console.log(`\nCalibration harness — ${new Date().toISOString()}`)
-  console.log(`Model: ${MODEL}`)
-  console.log(`Scenarios to process: ${filteredPaths.length}\n`)
+  console.log(`Provider: ${providerFlag}`)
+  console.log(`Endpoint: ${baseURL}`)
+  console.log(`Model:    ${MODEL}`)
+  console.log(`Scenarios: ${filteredPaths.length}\n`)
 
   const results = []
   let totalRuns = 0
@@ -192,7 +260,7 @@ async function main() {
   for (const yamlPath of filteredPaths.sort()) {
     const scenarioDir = dirname(yamlPath)
     const scenario = loadScenario(yamlPath)
-    const artifactContent = loadArtifact(scenario, scenarioDir)
+    const artifactContent = loadArtifact(scenario)
     const scenarioResults = { id: scenario.id, domain: scenario.domain, level: scenario.level, mode: scenario.delivery_mode, runs: [] }
 
     console.log(`Scenario: ${scenario.id} (Domain ${scenario.domain}, Level ${scenario.level}, Mode ${scenario.delivery_mode})`)
@@ -292,6 +360,8 @@ async function main() {
   const resultsFile = join(RESULTS_DIR, `calibration_${timestamp}.json`)
   writeFileSync(resultsFile, JSON.stringify({
     timestamp: new Date().toISOString(),
+    provider: providerFlag,
+    endpoint: baseURL,
     model: MODEL,
     summary: { total_runs: totalAttempted, passed, failed, skipped },
     scenarios: results,

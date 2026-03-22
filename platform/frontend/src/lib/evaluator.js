@@ -1,4 +1,72 @@
-import Anthropic from '@anthropic-ai/sdk'
+import OpenAI from 'openai'
+
+// ---------------------------------------------------------------------------
+// Settings schema and persistence
+// ---------------------------------------------------------------------------
+
+export const SETTINGS_KEY = 'sysadmin_assessment_settings'
+const LEGACY_KEY = 'sysadmin_assessment_api_key'
+
+export const DEFAULT_SETTINGS = {
+  provider: 'local',
+  endpoint: 'http://192.168.1.28:1234/v1',
+  apiKey: '',
+  model: 'qwen3-next-80b-a3b-instruct-mlx',
+  evaluatorMode: 'auditor',
+}
+
+/** Load settings from localStorage, migrating the legacy API key if present. */
+export function loadSettings() {
+  const stored = localStorage.getItem(SETTINGS_KEY)
+  if (stored) {
+    try {
+      return { ...DEFAULT_SETTINGS, ...JSON.parse(stored) }
+    } catch {
+      // fall through to defaults
+    }
+  }
+  // Migrate legacy Anthropic-only key
+  const legacyKey = localStorage.getItem(LEGACY_KEY)
+  if (legacyKey) {
+    const migrated = { ...DEFAULT_SETTINGS, provider: 'anthropic', apiKey: legacyKey }
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(migrated))
+    localStorage.removeItem(LEGACY_KEY)
+    return migrated
+  }
+  return { ...DEFAULT_SETTINGS }
+}
+
+/** Persist settings to localStorage. */
+export function saveSettings(settings) {
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings))
+}
+
+// ---------------------------------------------------------------------------
+// Provider abstraction
+// ---------------------------------------------------------------------------
+
+const PROVIDER_BASE_URLS = {
+  local:     null,                             // uses settings.endpoint
+  anthropic: 'https://api.anthropic.com/v1',
+  openai:    'https://api.openai.com/v1',
+  custom:    null,                             // uses settings.endpoint
+}
+
+/**
+ * Build an OpenAI-compatible client for the given provider settings.
+ * All providers (including Anthropic) are accessed via the openai package
+ * using their OpenAI-compatible endpoints.
+ */
+export function buildClient({ provider = 'local', endpoint, apiKey }) {
+  const baseURL = PROVIDER_BASE_URLS[provider] ?? endpoint ?? 'http://192.168.1.28:1234/v1'
+  // Local providers don't require a real key; use a placeholder so the header is valid
+  const key = apiKey || (provider === 'local' ? 'lm-studio' : 'no-key')
+  return new OpenAI({ baseURL, apiKey: key, dangerouslyAllowBrowser: true })
+}
+
+// ---------------------------------------------------------------------------
+// Prompt assembly
+// ---------------------------------------------------------------------------
 
 /**
  * Assemble the evaluator system prompt from a scenario definition.
@@ -72,24 +140,29 @@ Respond with a single JSON object — no prose before or after it:
 }`
 }
 
-/**
- * Call the Anthropic API and return a parsed evaluation result.
- * Throws on API error. Returns { raw, parsed } where parsed may be null if
- * JSON extraction fails.
- */
-export async function evaluate({ scenario, artifactContent, responseText, apiKey, model = 'claude-sonnet-4-6' }) {
-  const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true })
+// ---------------------------------------------------------------------------
+// Evaluator
+// ---------------------------------------------------------------------------
 
+/**
+ * Call the configured provider and return a parsed evaluation result.
+ * Throws on API/network error. Returns { raw, parsed } where parsed may be
+ * null if JSON extraction fails.
+ */
+export async function evaluate({ scenario, artifactContent, responseText, settings }) {
+  const client = buildClient(settings)
   const systemPrompt = buildSystemPrompt(scenario, artifactContent)
 
-  const message = await client.messages.create({
-    model,
+  const response = await client.chat.completions.create({
+    model: settings.model,
     max_tokens: 2048,
-    system: systemPrompt,
-    messages: [{ role: 'user', content: responseText }],
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: responseText },
+    ],
   })
 
-  const raw = message.content[0]?.text ?? ''
+  const raw = response.choices[0]?.message?.content ?? ''
 
   // Extract JSON — model may wrap it in a code block
   const jsonMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/) ?? raw.match(/(\{[\s\S]*\})/)

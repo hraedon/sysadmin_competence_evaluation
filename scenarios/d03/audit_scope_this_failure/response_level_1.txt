@@ -1,0 +1,7 @@
+Three users in conference room B cannot get on the network and the problem started this morning. Other areas of the building are not affected.
+
+Looking at the ipconfig output, all three users have 169.254.x.x addresses. This looks unusual. I would first recommend trying to renew their IP addresses by running ipconfig /release followed by ipconfig /renew on each workstation.
+
+I would also check if the network cables are properly connected and try a different port in the conference room. If the WiFi user also has the same problem, maybe there's something wrong with the access point AP-CRWING-02.
+
+Since other VLANs are working fine, this seems to be localized to conference room B. I would recommend calling the network team to check if there's a switch port issue on CR-SW-01 or if the conference room ports are configured correctly.

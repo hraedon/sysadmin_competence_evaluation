@@ -1,0 +1,159 @@
+id: d03-audit-dns-hunch
+domain: 3
+domain_name: "Networking Fundamentals"
+level: 2
+title: "The DNS Hunch"
+delivery_mode: A
+subtype: null
+
+difficulty: 3
+difficulty_note: >
+  The artifact contains a clean, confident resolution from the admin's workstation — the
+  correct result from the wrong location. The distractor is strong: the nslookup succeeds
+  and the app loads. Reading the DNS configuration section carefully and connecting the
+  zone transfer failure timeline to the DNS record creation date requires cross-referencing
+  two separate sections of the artifact.
+
+# Scenario note (for scenario authors and evaluators):
+# Most similar to: d03-literacy-where-does-it-break (both test whether candidates
+# understand that DNS resolution is client-specific and path-dependent).
+# How the reasoning challenge differs: the Literacy scenario tests whether candidates
+# can sequence the components in a successful connection. This scenario tests whether
+# candidates can recognize that a successful test from a different location is
+# insufficient as diagnostic evidence — and diagnose WHY the two machines would get
+# different DNS answers. The admin's confident resolution creates a strong distractor:
+# everything appears to be working. The critical failure is the inference that "I can
+# resolve it" means "the user can resolve it." The secondary failure is not noticing
+# that the West Office DNS server has a stale secondary zone that predates the DNS
+# record that was added on 2026-03-20.
+
+presentation:
+  type: log_extract
+  artifact_file: "scenarios/d03/audit_dns_hunch/diagnostic_notes.txt"
+  context: |
+    A colleague (P. Okafor) resolved this ticket as "cannot reproduce" after
+    running a DNS test from their own workstation and confirming the application
+    was accessible. F. Nakamura re-opened it this afternoon, still unable to access
+    app.corp.internal.
+
+    You've been asked to review the diagnostic approach before the ticket is
+    escalated further.
+
+    Identify:
+    (1) What is wrong with P. Okafor's diagnostic approach?
+    (2) What additional tests should have been run, and from where?
+    (3) Based on the DNS configuration context in the artifact, what do you think
+        is actually causing F. Nakamura's failure?
+
+rubric:
+  critical_findings:
+    - id: test_from_wrong_system
+      description: >
+        P. Okafor ran nslookup from WKSTN-007 (Main Office, 10.10.1.0/24), not from
+        WKSTN-042 (West Office, 10.50.2.0/24). DNS resolution is client-specific: it
+        depends on which DNS server the client is configured to use, what records that
+        server holds, and whether the client has a cached entry. Testing from a different
+        machine in a different subnet with a different DNS server assignment does not
+        reproduce the user's DNS resolution path. The correct diagnostic test is to run
+        nslookup (or Resolve-DnsName) from the affected machine — WKSTN-042 — or from
+        a machine in the same subnet with the same DHCP DNS assignment.
+      severity: critical
+      miss_signal: >
+        Candidate treats P. Okafor's nslookup result as sufficient evidence that DNS
+        is working. Accepts the "cannot reproduce" closure as valid. Recommends that the
+        user clear their browser cache without identifying the diagnostic gap in the
+        original investigation. Does not distinguish between "I can resolve it" and
+        "the user can resolve it."
+      learning_note: >
+        DNS resolution is not a single global operation — it is a client-specific process.
+        Each client resolves names through its configured DNS resolver, which varies by
+        subnet (via DHCP) and may have different zone data, different cached entries, or
+        different forwarding rules. A successful nslookup from workstation A proves only
+        that workstation A's DNS resolver has the correct record. It says nothing about
+        workstation B's DNS resolver.
+
+        In this case, WKSTN-007 (Main Office) queries DC01 (10.10.10.1), which holds
+        the primary zone for corp.internal and has the current record for app.corp.internal.
+        WKSTN-042 (West Office) queries west-dns01 (10.50.100.10), which holds a
+        secondary zone that has been stale since 2026-03-15 — before the DNS record
+        was added on 2026-03-20.
+
+        The diagnostic rule: always test from the affected system or a machine with an
+        identical network configuration. "I can reproduce it" and "I can't reproduce it"
+        are only meaningful if the reproduction attempt uses the same network path as
+        the affected user.
+
+  secondary_findings:
+    - id: stale_secondary_zone
+      description: >
+        The West Office DNS server (west-dns01) holds a secondary zone for corp.internal
+        that last successfully transferred from DC01 on 2026-03-15. Zone transfers have
+        been failing since 2026-03-16 due to a connectivity timeout (firewall change that
+        blocked TCP 53). The DNS record for app.corp.internal was added on 2026-03-20 —
+        after the last successful zone transfer. West Office clients querying west-dns01
+        for app.corp.internal will either receive NXDOMAIN (name not found) or an old
+        record from before the server migration, depending on the prior record state.
+        This is why F. Nakamura gets "Server not found" while P. Okafor's test succeeds:
+        they are querying different DNS servers with different zone data.
+      severity: high
+      learning_note: >
+        A secondary DNS zone is a read-only copy of a DNS zone that a secondary server
+        receives from the primary via zone transfers. Zone transfers use TCP port 53
+        (as opposed to DNS queries, which use UDP 53 for small responses). When zone
+        transfers fail — due to a firewall, connectivity issue, or misconfiguration —
+        the secondary server's zone data becomes stale. Records added or modified on the
+        primary after the last successful transfer will be invisible to clients querying
+        the secondary.
+
+        The failure mode here is silent: west-dns01 continues responding to DNS queries
+        for corp.internal. It just returns the stale data it has — including missing
+        records for names added after 2026-03-15. Clients get NXDOMAIN for new names
+        and old IPs for migrated servers, with no indication that the secondary zone
+        is out of date.
+
+        The two-part fix: (1) restore TCP 53 connectivity from west-dns01 to DC01 (fix
+        or update the firewall rule that changed on 2026-03-16); (2) trigger a manual
+        zone transfer on west-dns01 after connectivity is restored. Monitor zone transfer
+        success/failure in DNS server logs going forward.
+
+    - id: client_dns_assignment_check
+      description: >
+        Even before diagnosing the root cause, the correct next step after confirming
+        the user's symptom is to check what DNS server WKSTN-042 is configured to use.
+        Running `ipconfig /all` on the affected workstation reveals the DNS server
+        assignment from DHCP. This is the first test that would have revealed the
+        two-workstation DNS configuration difference and prevented the incorrect closure.
+      severity: moderate
+
+  level_indicators:
+    level_1: >
+      Identifies that DNS might be related to the problem and notes that P. Okafor
+      confirmed name resolution worked. Cannot articulate why testing from a different
+      workstation is problematic. May suggest the user clear browser cache or DNS cache
+      without identifying the diagnostic gap. Does not read the DNS configuration context
+      section to understand the West Office DNS infrastructure.
+    level_2: >
+      Identifies the core diagnostic error: P. Okafor tested from WKSTN-007 (Main Office),
+      not from WKSTN-042 (West Office). States that DNS resolution is client-specific and
+      testing from a different machine is insufficient. Recommends running the nslookup
+      from the affected workstation or checking the client's DNS server assignment via
+      ipconfig /all. Does NOT identify what the actual failure cause is from the DNS
+      configuration context (stale secondary zone).
+    level_3: >
+      All of the above plus reads the DNS configuration section and identifies the
+      stale secondary zone as the likely root cause: zone transfers have been failing
+      since 2026-03-16 (one day before the DNS record was added on 2026-03-20), so
+      west-dns01 does not have the record for app.corp.internal. Identifies the firewall
+      change on 2026-03-16 as the likely cause of zone transfer failures (TCP 53 blocked).
+      Does NOT specify the two-part remediation sequence (restore TCP 53, then force zone
+      transfer) or raise monitoring as a process gap.
+    level_4: >
+      All of the above plus specifies the full remediation: restore TCP 53 connectivity
+      from west-dns01 to DC01 (identify and update the firewall rule changed on 2026-03-16),
+      then force a manual zone transfer on west-dns01 before the user retries. Notes that
+      the stale zone was silent — west-dns01 continued responding to queries without
+      surfacing an error, which is why the problem went undetected. Recommends zone transfer
+      monitoring: alerting on consecutive zone transfer failures before user impact occurs.
+      Also notes the split-horizon consideration: secondary zone failures like this can
+      produce different resolution results for internal and external clients, and the
+      diagnostic must account for which DNS server each client type uses.

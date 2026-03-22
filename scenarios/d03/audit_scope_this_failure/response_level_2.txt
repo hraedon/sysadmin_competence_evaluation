@@ -1,0 +1,5 @@
+The 169.254.x.x addresses on all three workstations are APIPA addresses. APIPA is Windows' fallback when DHCP fails — the machine sends DHCP Discover broadcasts and receives no offer within the timeout period, so it self-assigns a 169.254.x.x address. These workstations have not received a valid DHCP lease. This is a DHCP problem, not a switch port problem or routing problem.
+
+The key observation is that both wired users (Ethernet ports CR-B-3 and CR-B-4 on CR-SW-01) AND the WiFi user (on AP-CRWING-02) are all on VLAN 40 and all have APIPA addresses. A bad cable or single bad switch port would only affect one wired user — it would not affect the WiFi user. The fact that both network transports are failing on the same VLAN 40 means this is a VLAN 40-wide DHCP issue.
+
+Before involving the network team, I would check whether DHCP01 is running and responding. I would verify the DHCP service is active on DHCP01, check the DHCP server event log for any errors this morning, and try to ping DHCP01 from the affected subnet to confirm it's reachable. If DHCP01 is unreachable from VLAN 40, that would explain why none of the workstations received a lease.

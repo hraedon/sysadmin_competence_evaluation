@@ -1,0 +1,16 @@
+Change Specification: Computer-Auth Template Validity Extension
+
+Proposed change: Extend the validity period on the Computer-Auth certificate template from 1 year to 2 years.
+
+Scope: This change will affect all domain-joined computers that use the Computer-Auth certificate template.
+
+Implementation steps:
+1. Open the Certificate Templates console on the CA server
+2. Locate the Computer-Auth template
+3. Open properties and navigate to the General tab
+4. Change the validity period from 1 year to 2 years
+5. Click OK to save
+
+Testing: Test on a few workstations before deploying widely.
+
+Rollback plan: If issues occur, revert the template validity period back to 1 year.

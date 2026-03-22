@@ -1,0 +1,11 @@
+Hi Network Team,
+
+We are having connectivity issues. Accounting users cannot access the ERP application (ERPSRV01). This started this afternoon around 14:15.
+
+Other areas seem to be working fine. The ERP server itself appears to be working.
+
+Can you please look into this? We think it might be related to the network maintenance that happened today.
+
+Let me know if you need any more information.
+
+Thanks

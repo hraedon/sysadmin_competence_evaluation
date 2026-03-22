@@ -1,0 +1,28 @@
+To: Network Team
+Subject: Inter-VLAN connectivity failure — VLAN 20 to VLAN 30 — change correlation
+Priority: High
+
+Summary:
+All Accounting users (VLAN 20, 10.20.0.0/24) have been unable to reach ERPSRV01
+(10.30.10.50, VLAN 30) since approximately 14:15 today. My hypothesis is that a
+permit rule for traffic from VLAN 20 to VLAN 30 was removed or not carried forward
+during today's ACL update on DIST-SW-01.
+
+Change correlation:
+The problem onset (≈14:15) falls within your maintenance window (13:30–14:30) for
+DIST-SW-01, which included updating inter-VLAN ACL rules per security review Q1-2026.
+
+Diagnostic evidence:
+- VLAN 20 workstations can reach their default gateway (10.20.0.1): PASS
+- VLAN 10 (IT) workstation can reach ERPSRV01 (10.30.10.50): PASS — ERP server is healthy
+- All VLAN 20 workstations tested: cannot reach ERPSRV01 — FAIL
+- VLAN 20 to other destinations (internet, VLAN 10 file shares): working normally
+
+Ruling out: not a routing table issue (gateway reachable); not a server issue (VLAN 10
+path works); not a single-workstation issue (all VLAN 20 users affected); not a
+general inter-VLAN failure (VLAN 10 → VLAN 30 works).
+
+Requested action:
+Please verify that a permit rule exists on DIST-SW-01 for traffic from 10.20.0.0/24
+to 10.30.10.50 (or 10.30.0.0/24) and restore it if it is absent. Please test the
+VLAN 20 → VLAN 30 path after making any changes and confirm the result.

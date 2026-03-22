@@ -1,0 +1,19 @@
+Change Specification: Computer-Auth Template Validity Extension (1 year → 2 years)
+
+Scope Assessment:
+The Computer-Auth template currently applies to All Computers in the domain with autoenrollment enabled via Group Policy. This means the change will affect approximately 1,400 domain-joined machines — both workstations and servers. After the template change is deployed, machines will re-enroll via autoenrollment and receive new 2-year certificates on their next Group Policy refresh cycle.
+
+Testing:
+Before modifying the production template, test the change on a small subset of machines. Deploy the template change in a test environment first and verify that the issued certificates have the correct properties and that applications using computer certificates continue to work correctly.
+
+Rollout:
+1. Modify the Computer-Auth template validity period to 2 years in the test environment
+2. Verify certificate issuance on test machines
+3. Confirm applications and services (including any that rely on computer certificates) continue to function
+4. Deploy the template change to production
+
+Monitoring:
+Monitor the CA for certificate issuance after deployment. Check that autoenrollment is completing successfully and that no errors appear in the certificate services event log.
+
+Rollback:
+If problems are detected, revert the Computer-Auth template validity period back to 1 year. This should prevent additional machines from receiving 2-year certificates.

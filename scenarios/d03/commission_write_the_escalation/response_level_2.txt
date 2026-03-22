@@ -1,0 +1,18 @@
+Hi Network Team,
+
+We have a connectivity issue affecting Accounting department users. Since approximately 14:15 today, all users on the Accounting VLAN (VLAN 20) have been unable to reach the ERP application server ERPSRV01.
+
+What we have tested:
+- Accounting users (VLAN 20) cannot reach ERPSRV01
+- Users on other VLANs can reach ERPSRV01 and the ERP application is working
+- Accounting workstations can reach their default gateway and other network resources
+
+This started during or shortly after your maintenance window today (13:30-14:30), which involved updating ACL rules on the distribution switch. We believe the maintenance may have affected connectivity between VLAN 20 and VLAN 30 where ERPSRV01 is located.
+
+Could you please check the ACL configuration on the distribution switch and verify that traffic from VLAN 20 to VLAN 30 is allowed?
+
+Impact: Accounting staff cannot access the ERP application. This is affecting payroll and purchasing operations.
+
+Please let us know what you find.
+
+Thanks

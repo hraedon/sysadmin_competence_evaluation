@@ -1,0 +1,9 @@
+J. Whitfield's test is invalid for two reasons: soft-fail revocation behavior, and CRL caching.
+
+First, the soft-fail issue: the developer portal is configured with CERT_CHAIN_POLICY_IGNORE_ALL_REV_UNKNOWN_ERRORS = true. In soft-fail mode, if the revocation check fails (the client cannot retrieve or evaluate the CRL), the client allows the connection anyway. A successful authentication with a revoked certificate in a soft-fail environment does not prove revocation is working — it is equally consistent with the revocation check never occurring. The test cannot distinguish "revocation confirmed valid" from "revocation check failed, soft-fail allowed connection."
+
+Second, the CRL caching issue: the CRL validity period is 14 days. J. Whitfield performed the test at 11:45, 15 minutes after revoking the certificate and publishing the updated CRL at 11:30. If J. Whitfield's test machine had previously downloaded and cached the CRL before 11:30, it would still be using the cached CRL — which does not contain the revocation entry (serial 1A:2B:3C:4D:5E:6F:7A:8B was only added at 11:30). The cached CRL would indicate the certificate is valid even if the new CRL correctly shows it as revoked. The test machine would need to flush its CRL cache (`certutil -urlcache CRL delete` or equivalent) to force a fresh fetch before the test is valid.
+
+A valid test requires: (1) a fresh CRL fetch (or a confirmed network capture showing the revocation entry being downloaded); (2) either a hard-fail configuration or a test that can directly observe whether the revocation entry was processed. The result should be a blocked connection, not a successful one.
+
+The incident should remain open until a valid test confirms the revocation is effective.

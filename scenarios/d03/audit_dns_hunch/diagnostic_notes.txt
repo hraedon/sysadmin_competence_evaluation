@@ -1,0 +1,57 @@
+--- HELPDESK TICKET INC-2026-1847 ---
+Submitted:   2026-03-22 09:14
+User:        F. Nakamura
+Workstation: WKSTN-042
+Building:    West Office
+Subnet:      10.50.2.0/24
+Priority:    Normal
+
+Description: "Cannot access the internal project tracker at app.corp.internal.
+Getting 'Server not found' in Chrome and Edge. Worked fine on Friday.
+Other websites work normally. I can access SharePoint and Outlook fine."
+
+--- ADMIN INVESTIGATION NOTES (P. Okafor, WKSTN-007, Main Office, 10.10.1.0/24) ---
+
+09:47 — DNS resolution test from my workstation:
+
+    C:\> nslookup app.corp.internal
+    Server:  dc01.corp.local
+    Address:  10.10.10.1
+
+    Name:    app.corp.internal
+    Address:  10.20.30.45
+
+09:48 — Verified application is accessible from my workstation:
+    Opened https://app.corp.internal in Chrome → page loaded (login screen).
+    Response time: normal.
+
+09:49 — Confirmed APP01 (10.20.30.45) is healthy:
+    PING 10.20.30.45: Reply from 10.20.30.45, time<1ms (x4)
+    Application team confirmed: no outages, no maintenance today.
+
+09:53 — Checked DNS record directly:
+    C:\> nslookup app.corp.internal 10.10.10.1
+    Name: app.corp.internal
+    Address: 10.20.30.45
+    (Record added 2026-03-20 after server migration to new IP)
+
+09:55 — Resolution: CLOSED — "Cannot reproduce. Name resolves correctly
+    and application is accessible. User should clear browser cache and
+    retry. If issue persists, user may need to contact the Help Desk again."
+
+--- NETWORK / DNS CONFIGURATION CONTEXT ---
+
+Main Office infrastructure:
+  Subnet:     10.10.1.0/24
+  DHCP scope: Assigns DNS server 10.10.10.1 (DC01, Main Office)
+  DC01 holds primary DNS zones for corp.local and corp.internal.
+
+West Office infrastructure:
+  Subnet:     10.50.2.0/24
+  DHCP scope: Assigns DNS server 10.50.100.10 (west-dns01, West Office)
+  west-dns01: Caching/forwarding resolver.
+              Configured as secondary zone holder for corp.internal.
+              Receives zone updates via zone transfer from DC01 (TCP 53).
+              Last successful zone transfer: 2026-03-15 07:02
+              Zone transfer failures since: 6 consecutive failures.
+              Failure reason logged: "Connection timed out" (started 2026-03-16)

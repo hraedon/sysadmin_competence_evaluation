@@ -1,0 +1,15 @@
+P. Okafor's closure was incorrect. The core diagnostic error: nslookup was run from WKSTN-007 (Main Office, DHCP DNS = DC01 at 10.10.10.1), not from WKSTN-042 (West Office, DHCP DNS = west-dns01 at 10.50.100.10). These are different DNS resolvers. Proving DC01 has the record says nothing about west-dns01's zone data.
+
+Root cause, from the artifact: west-dns01 holds a secondary zone for corp.internal. Zone transfers from DC01 have been failing since 2026-03-16 — logged as "Connection timed out," which indicates TCP 53 is blocked (zone transfers require TCP; queries use UDP for small responses, TCP for large). The last successful transfer was 2026-03-15. The app.corp.internal record was added on 2026-03-20 after the server migration. Because west-dns01's corp.internal zone has not refreshed since 2026-03-15, it has no record for app.corp.internal. When WKSTN-042 queries west-dns01, it receives NXDOMAIN.
+
+The causal chain: firewall change (2026-03-16) → TCP 53 blocked → zone transfers fail silently → secondary zone goes stale → new DNS records invisible to West Office clients.
+
+Remediation sequence:
+1. Identify the firewall rule that changed on 2026-03-16 and blocking TCP 53 from west-dns01 (10.50.100.10) to DC01 (10.10.10.1). Restore or update the rule to permit this traffic.
+2. After restoring connectivity, manually force a zone transfer on west-dns01: either via DNS Manager (right-click zone → Transfer from Master) or dnscmd /zonerefresh corp.internal.
+3. Verify the transfer succeeded and that west-dns01 now returns the correct record: nslookup app.corp.internal 10.50.100.10.
+4. Confirm F. Nakamura can access app.corp.internal.
+
+Process improvement: zone transfer failures should be monitored and alerted — six consecutive failures over seven days should not require a user complaint to surface. DNS server event logs (Event ID 6702 for zone transfer failure) or a simple scheduled check against west-dns01's zone serial number compared to DC01's would catch this before user impact.
+
+Split-horizon note: in environments where internal and external clients use different DNS servers (split-horizon), secondary zone staleness produces exactly this pattern: one group of clients resolves correctly, another does not. The diagnostic principle is the same — always test from the affected client's network context, not your own.

@@ -1,0 +1,9 @@
+J. Whitfield's test is invalid. The fact that authentication succeeded after revocation does not prove revocation is working — it may prove the opposite.
+
+The developer portal is configured with soft-fail revocation (CERT_CHAIN_POLICY_IGNORE_ALL_REV_UNKNOWN_ERRORS = true). Soft-fail means: if the client cannot determine the revocation status of a certificate — because it cannot reach the CRL distribution point, because the CRL has not been downloaded yet, or because of any other failure in the revocation check — it defaults to allowing the connection rather than blocking it. A soft-fail result is indistinguishable from a successful revocation check from the application's perspective: in both cases, the connection succeeds.
+
+J. Whitfield's test result ("authentication succeeded") therefore tells us nothing about whether the revocation was evaluated. The certificate could have been accepted because: (a) the CRL was retrieved and somehow not applied correctly, or (b) the revocation check failed entirely and the client soft-failed through. The test cannot distinguish these outcomes.
+
+A valid revocation test would need to confirm that the client is actually receiving and evaluating the CRL. One approach: temporarily configure the test environment for hard-fail revocation, attempt authentication with the revoked certificate, and confirm the connection is blocked with a "certificate revoked" error. Alternatively, use a network capture to confirm the CRL is being fetched from the distribution point and the revocation entry is present.
+
+The certificate should not be considered effectively revoked until a proper test confirms the revocation infrastructure is working end-to-end.

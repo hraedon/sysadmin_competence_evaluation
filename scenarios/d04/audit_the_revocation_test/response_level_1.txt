@@ -1,0 +1,5 @@
+The certificate was revoked correctly and J. Whitfield confirmed that the CRL was published after the revocation. The test result (authentication succeeded) confirms that the revocation process completed successfully — the certificate was properly revoked in the Certificate Authority and the updated CRL was published to the distribution point.
+
+The process followed was appropriate: revoke the certificate, publish the CRL, verify that the revoked certificate can no longer be used. The successful test confirms that everything is working as expected.
+
+I would recommend closing the incident as resolved. The revoked certificate is no longer a security concern since the revocation has been confirmed.

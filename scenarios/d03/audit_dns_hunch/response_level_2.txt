@@ -1,0 +1,10 @@
+The main problem with P. Okafor's diagnostic approach is that the nslookup test was run from the wrong machine. WKSTN-007 is in the Main Office on subnet 10.10.1.0/24, while WKSTN-042 is in the West Office on subnet 10.50.2.0/24. These workstations are in different subnets and are assigned different DNS servers via DHCP. Successfully resolving app.corp.internal from WKSTN-007 only proves that WKSTN-007's DNS server (DC01 at 10.10.10.1) has the correct record. It tells us nothing about what WKSTN-042 sees when it queries its DNS server (west-dns01 at 10.50.100.10).
+
+The correct diagnostic steps should have been:
+1. Log into WKSTN-042 (or ask the user to run the test) and check what DNS server is assigned: ipconfig /all
+2. Run nslookup app.corp.internal from WKSTN-042 to see what answer that machine receives from its DNS server
+3. Check if there is a cached stale entry on WKSTN-042: Get-DnsClientCache
+
+The "cannot reproduce" closure was premature. The admin reproduced the name resolution working from their machine, not from the user's machine. These are different tests.
+
+Without testing from WKSTN-042 specifically, it is impossible to determine whether WKSTN-042's DNS server (west-dns01) has the correct record for app.corp.internal.

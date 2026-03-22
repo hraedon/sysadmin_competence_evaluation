@@ -1,0 +1,10 @@
+The user is getting "Server not found" in Chrome which sounds like it could be a DNS issue or a browser problem. The admin already ran nslookup and it resolved fine, and the application is working normally from the admin's workstation. This suggests the application itself is not down.
+
+I would recommend the user try the following:
+- Clear their browser cache and cookies
+- Try a different browser to rule out Chrome-specific issues
+- Restart their workstation to clear any temporary network state
+
+If the problem persists after that, the user could try accessing the site by IP address (10.20.30.45) to see if that works. If it does, that would confirm DNS is the issue.
+
+The admin's investigation looks thorough — they confirmed the DNS record exists and the application is accessible. It's possible the user has a corrupted browser profile or a browser extension interfering with DNS resolution.

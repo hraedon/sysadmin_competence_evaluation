@@ -1,0 +1,63 @@
+--- INCIDENT: Suspected private key exposure — certificate revocation verification ---
+Date: 2026-03-22
+
+A developer (E. Sousa) reported that their laptop (DEVLAP-07) was left unattended and
+unlocked at a conference. The laptop has a client authentication certificate installed
+in the personal certificate store. While the risk of actual key exfiltration is
+considered low, security policy requires revocation for any certificate with potential
+key exposure.
+
+--- CERTIFICATE DETAILS ---
+
+Subject:     CN=E. Sousa,OU=Developers,DC=corp,DC=local
+Serial:      1A:2B:3C:4D:5E:6F:7A:8B
+Issuer:      CN=Corp-Issuing-CA-01,DC=corp,DC=local
+Valid from:  2026-01-15
+Valid to:    2027-01-15
+Key usage:   Digital Signature, Key Encipherment
+EKU:         Client Authentication (1.3.6.1.5.5.7.3.2)
+CRL DPs:     http://pki.corp.local/CRL/Corp-Issuing-CA-01.crl
+
+--- REVOCATION ACTION ---
+
+Performed by: J. Whitfield (PKI admin)
+Time:         2026-03-22 11:30
+Method:       Revoked via ADCS Certificate Authority console.
+              Reason code: Key Compromise (1)
+CRL re-published: Yes — "Publish CRL" executed immediately after revocation.
+              CRL next update timestamp: 2026-04-05 (14 days from now)
+
+--- POST-REVOCATION TEST (J. Whitfield) ---
+
+11:45 — Tested using the revoked certificate to authenticate to the
+        internal developer portal (devportal.corp.local).
+
+Result:      Authentication succeeded. "Logged in as E. Sousa."
+
+J. Whitfield's conclusion: "Revocation infrastructure is functioning correctly.
+The certificate was revoked and CRL was published. The successful test confirms
+the revocation process completed without error. Ticket closed."
+
+--- CRL DISTRIBUTION POINT ANALYSIS ---
+
+Corp-Issuing-CA-01 CRL configuration:
+  Publication interval: Every 14 days
+  CRL validity period:  14 days from publication
+  Delta CRL:            Not configured
+  CDP:                  http://pki.corp.local/CRL/Corp-Issuing-CA-01.crl
+  Distribution:         HTTP only (no LDAP CDP)
+
+Current CRL file (from http://pki.corp.local/CRL/Corp-Issuing-CA-01.crl):
+  This Update:  2026-03-22 11:30
+  Next Update:  2026-04-05 11:30
+  Revoked certificates: 1 entry — serial 1A:2B:3C:4D:5E:6F:7A:8B (Key Compromise)
+
+Developer portal (devportal.corp.local) TLS/auth configuration:
+  Client cert authentication: Required (mutual TLS)
+  Certificate validation:     Enabled
+  Revocation check:           CertVerifyCertificateChainPolicy with
+                              CERT_CHAIN_REVOCATION_CHECK_CHAIN_EXCLUDE_ROOT
+  Revocation check mode:      REVOCATION_FLAG_CACHE_ONLY_URL_RETRIEVAL = false
+                              (online check enabled)
+  Soft-fail on revocation:    Enabled (CERT_CHAIN_REVOCATION_CHECK_CACHE_ONLY = false,
+                              but CERT_CHAIN_POLICY_IGNORE_ALL_REV_UNKNOWN_ERRORS = true)

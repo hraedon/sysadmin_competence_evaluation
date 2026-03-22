@@ -1,0 +1,63 @@
+--- HELPDESK TICKET INC-2026-1851 ---
+Submitted:   2026-03-22 10:03
+Priority:    High
+Reported by: A. Patel (conference room B)
+
+Description: "Three of us in conference room B cannot get on the network at all.
+WiFi says connected but no internet. Network cable also not working. Started this
+morning — we were all fine in the meeting yesterday afternoon. Others in the building
+are not affected."
+
+Affected users:
+  - A. Patel        (WKSTN-091, connected via Ethernet, port CR-B-3)
+  - M. Brennan      (WKSTN-118, connected via Ethernet, port CR-B-4)
+  - K. Osei         (WKSTN-144, connected via WiFi, access point AP-CRWING-02)
+
+--- INITIAL DIAGNOSTICS (collected by users via helpdesk phone guidance) ---
+
+WKSTN-091 (Ethernet, port CR-B-3):
+  C:\> ipconfig /all
+  ...
+  Ethernet adapter:
+    IPv4 Address: 169.254.47.12 (Preferred)
+    Subnet Mask:  255.255.0.0
+    Default Gateway: (none)
+    DNS Servers: (none)
+    DHCP Enabled: Yes
+    DHCP Server: 0.0.0.0
+    Lease Obtained: N/A
+
+WKSTN-118 (Ethernet, port CR-B-4):
+  IPv4 Address: 169.254.203.88 (Preferred)
+  Subnet Mask:  255.255.0.0
+  Default Gateway: (none)
+  DNS Servers: (none)
+  DHCP Enabled: Yes
+  DHCP Server: 0.0.0.0
+
+WKSTN-144 (WiFi, AP-CRWING-02):
+  Wireless adapter:
+    IPv4 Address: 169.254.91.44 (Preferred)
+    Subnet Mask:  255.255.0.0
+    Default Gateway: (none)
+    DNS Servers: (none)
+    DHCP Enabled: Yes
+    DHCP Server: 0.0.0.0
+
+--- NETWORK CONTEXT ---
+
+Conference Room Wing:
+  Wired ports CR-B-1 through CR-B-6: access switch CR-SW-01, VLAN 40
+  WiFi access point AP-CRWING-02: serves conference room wing, VLAN 40 (same)
+  VLAN 40 DHCP: Scope 10.40.0.0/24, served by DHCP01 (10.10.10.5) via relay agent
+
+Other building areas:
+  VLAN 10 (IT): 10.10.0.0/24 — multiple users active, no reported issues
+  VLAN 20 (Staff): 10.20.0.0/24 — multiple users active, no reported issues
+  VLAN 30 (Labs): 10.30.0.0/24 — no reported issues
+
+Network change log — last 48 hours:
+  2026-03-21 17:45  DHCP01: Updated DHCP scope 10.40.0.0/24 lease duration
+                    from 8 hours to 24 hours. Change author: J. Torres.
+                    Approved: standard maintenance.
+  (no other changes)

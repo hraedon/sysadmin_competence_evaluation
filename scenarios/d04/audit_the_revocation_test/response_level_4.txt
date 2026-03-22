@@ -1,0 +1,18 @@
+J. Whitfield's test is invalid, and the conclusion provides false confidence. The incident is not resolved.
+
+Three problems with the test and the revocation infrastructure:
+
+1. Soft-fail invalidates the test. The developer portal has CERT_CHAIN_POLICY_IGNORE_ALL_REV_UNKNOWN_ERRORS = true. In soft-fail mode, any failure in the revocation check — including the CRL not being retrieved, not being parsed, or not containing the expected entry — results in the connection being allowed. J. Whitfield's successful authentication is consistent with two very different situations: (a) the revocation check failed entirely and soft-fail allowed the connection, or (b) some other failure in CRL evaluation. In neither case does "authentication succeeded" confirm that revocation is working. A valid test requires a hard-fail context OR direct observation (network capture) that the CRL is being retrieved and the revocation entry is present.
+
+2. CRL caching contaminated the test. The CRL has a 14-day validity period. The revocation was performed at 11:30 and the test was run at 11:45, 15 minutes later. J. Whitfield's test machine, if it had previously cached the CRL, would still be using a pre-revocation version — one that does not contain the revocation entry for serial 1A:2B:3C:4D:5E:6F:7A:8B. The test machine's CRL cache must be flushed (certutil -urlcache CRL delete or equivalent) before a meaningful test is possible.
+
+3. No delta CRL — structural gap for key compromise scenarios. The CRL configuration explicitly states "Delta CRL: Not configured." Without delta CRLs, revocation propagation to all clients takes up to 14 days — clients with a fresh cached CRL will not learn about the revocation until their cache expires. For a key compromise incident where the certificate is used by an adversary, this 14-day window is operationally inadequate. The configuration should include delta CRL publication with a validity period of 1–8 hours, which would propagate the revocation to all clients within that window.
+
+Immediate actions required:
+1. Do not close the incident. Perform a valid revocation test: flush the test machine's CRL cache, configure a hard-fail test context, attempt authentication with the revoked certificate, and confirm the connection is blocked with a "certificate revoked" error.
+2. Document that J. Whitfield's test provides no assurance about the revocation infrastructure's effectiveness.
+
+Structural recommendation:
+Enable delta CRL publication on Corp-Issuing-CA-01. Set delta CRL validity to 8 hours or less. Test the delta CRL distribution path end-to-end. This is the correct remediation for the slow revocation propagation problem and would also reduce the blast radius of future key compromise incidents.
+
+The current situation is that a potentially compromised certificate may still be accepted by clients with cached CRLs for up to 14 days. That risk should be stated explicitly in the incident record.

@@ -1,0 +1,17 @@
+All three workstations have APIPA addresses (169.254.x.x, no gateway, no DNS, DHCP Server: 0.0.0.0). APIPA means DHCP Discover received no response — the DHCP client's broadcast was not answered. This is categorically a DHCP failure, not a routing or switch port problem.
+
+Both wired (CR-B-3, CR-B-4 on CR-SW-01) and WiFi (AP-CRWING-02) are on VLAN 40 and all have APIPA. A hardware fault (bad cable, bad port) would affect one device. Both transports failing on the same VLAN means DHCP is not serving VLAN 40 — either the relay agent is not forwarding, or the scope is exhausted.
+
+Most likely cause — scope exhaustion from the lease duration change: J. Torres changed the VLAN 40 lease duration from 8 hours to 24 hours at 17:45 yesterday. Under the previous 8-hour leases, the addresses issued during yesterday's daytime meetings would have expired and returned to the pool by 02:00 this morning. Under 24-hour leases, those same addresses are held until 17:45 today. The net effect is that yesterday's conference room leases are still occupying the pool. If the 10.40.0.0/24 scope (254 usable addresses) was at or near capacity during yesterday's peak, this change would exhaust the pool overnight.
+
+Diagnostic tests to differentiate scope exhaustion from relay agent failure:
+
+1. Scope exhaustion: Check DHCP01 scope statistics — Get-DhcpServerv4ScopeStatistics -ScopeId 10.40.0.0. If "Available" is zero or near zero, the pool is exhausted. Also check whether DHCP01 is logging DHCP Discover packets from the conference room subnet; if it is receiving them but refusing (no available addresses), exhaustion is confirmed.
+
+2. Relay agent failure: If scope statistics show addresses available AND DHCP01 has no recent Discover events from 10.40.x.x clients, the relay agent is not forwarding. Check the relay agent configuration on the distribution switch for VLAN 40 (ip helper-address or equivalent).
+
+Remediation for scope exhaustion:
+- Immediate: shorten lease duration back to 8 hours (or reduce to 4 hours for conference rooms), then run ipconfig /release && ipconfig /renew on the affected workstations. This alone will not free up existing leases — the leases already issued will be held until expiration. Expand the scope range if the subnet can accommodate it (10.40.0.0/24 → 10.40.0.0/23 or add a second scope) for faster relief.
+- Process improvement: conference room, guest, and other transient-user VLAN scopes should use shorter lease durations by design (1–4 hours). The lease duration change should have been reviewed against scope capacity before deployment.
+
+The change should also be reviewed for any other VLAN scopes that were modified — the change record says "Updated DHCP scope 10.40.0.0/24 lease duration" which suggests VLAN 40 only, but worth confirming.

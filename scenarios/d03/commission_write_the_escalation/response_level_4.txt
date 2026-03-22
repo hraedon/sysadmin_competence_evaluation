@@ -1,0 +1,49 @@
+To: Network Team
+Subject: [HIGH] VLAN 20 → VLAN 30 path broken — ACL change correlation — Accounting blocked
+Priority: High — all Accounting users blocked from ERP since 14:15
+
+Summary:
+All users on Accounting VLAN (VLAN 20, 10.20.0.0/24) lost connectivity to ERPSRV01
+(10.30.10.50, VLAN 30) at approximately 14:15 today. The onset correlates precisely
+with your maintenance window on DIST-SW-01 (13:30–14:30). My hypothesis is that the
+Q1-2026 security review ACL update removed or did not carry forward the permit rule
+for TCP traffic from 10.20.0.0/24 to 10.30.10.50.
+
+Change reference:
+2026-03-22, 13:30–14:30: DIST-SW-01, inter-VLAN ACL update, change Q1-2026-ACL-03.
+Failure first reported: 14:15. No other changes in the relevant timeframe.
+
+Diagnostic evidence:
+  PASS  WKSTN-ACC-07 → 10.20.0.1 (VLAN 20 gateway): ping succeeds → local routing intact
+  PASS  WKSTN-IT-01 (VLAN 10) → 10.30.10.50 (ERPSRV01): ping + application load → server healthy
+  PASS  WKSTN-ACC-07 → internet and VLAN 10 file shares: working → general routing unaffected
+  FAIL  WKSTN-ACC-07 → 10.30.10.50: no reply → VLAN 20 → VLAN 30 path blocked
+  FAIL  All VLAN 20 workstations tested: same result → not a single workstation issue
+
+Rules out: gateway routing (PASS), server health (PASS), general VLAN 20 connectivity (PASS).
+Points to: DIST-SW-01 ACL blocking VLAN 20 → VLAN 30 traffic.
+
+Protocol detail:
+The ERP application (SQL Server backend) uses TCP 1433. ICMP (ping) also fails, suggesting
+the ACL is dropping all traffic from 10.20.0.0/24 to 10.30.0.0/24, not just the application
+port. This may indicate a blanket deny for VLAN 20 → VLAN 30 rather than a missing
+port-specific permit.
+
+Requested action:
+1. Review the ACL diff from the Q1-2026-ACL-03 change on DIST-SW-01 — specifically, what
+   rules affecting traffic from 10.20.0.0/24 to 10.30.0.0/24 were modified or removed.
+2. Verify a permit rule exists for 10.20.0.0/24 to 10.30.10.50 (or 10.30.0.0/24) on
+   the relevant protocol(s), including ICMP for diagnostics and TCP 1433 for ERP.
+3. Restore the missing rule(s) if absent.
+4. Test by pinging 10.30.10.50 from a VLAN 20 workstation and confirming ERP application
+   loads, before closing.
+
+Note on rollback: Please do not roll back the full change — this would undo the other
+intended security improvements from the Q1-2026 review. A targeted rule restoration is
+preferable. If a targeted fix is not feasible within the next 30 minutes, a full rollback
+is acceptable as a temporary measure, but should be documented and the security review
+rule set re-applied with this path preserved.
+
+Business impact: Accounting (approximately 35 users) cannot access the ERP application.
+Payroll processing for end-of-month cycle is blocked. Each additional hour of downtime
+increases manual reconciliation work on their end.

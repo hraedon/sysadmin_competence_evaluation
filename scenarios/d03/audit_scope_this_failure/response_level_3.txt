@@ -1,0 +1,9 @@
+All three workstations show APIPA addresses (169.254.x.x) with no default gateway and no DNS server. APIPA means DHCP Discover failed — no DHCP server (or relay agent) responded to their broadcasts. This is a DHCP-layer failure, not a switch or routing problem.
+
+Both wired users (Ethernet ports CR-B-3 and CR-B-4 on CR-SW-01) and the WiFi user (AP-CRWING-02) are on VLAN 40 and all have APIPA. A physical cable or port failure would only affect one wired user. The WiFi user being affected rules out a hardware fault as the cause — this is VLAN 40 DHCP failing across all transports.
+
+The most likely cause, connecting to the change log: J. Torres changed the VLAN 40 DHCP scope lease duration from 8 hours to 24 hours at 17:45 yesterday. Leases issued under the 8-hour duration yesterday afternoon would normally have expired by early this morning, returning those addresses to the pool. Under 24-hour leases, those addresses are now held until tomorrow evening. Conference room B is a high-turnover environment — meeting attendees come and go, each consuming a lease. If the VLAN 40 scope was near capacity, holding leases for 3x longer than before could have exhausted the pool overnight.
+
+The diagnostic test: on DHCP01, check the 10.40.0.0/24 scope statistics to see how many addresses are available (Get-DhcpServerv4ScopeStatistics -ScopeId 10.40.0.0 or DHCP console → Scope → Show Statistics). If "Available" is near zero, scope exhaustion is confirmed.
+
+Fix: shorten the lease duration back to 8 hours (or a value appropriate for a conference room), or expand the scope range.

@@ -1,0 +1,37 @@
+Change Specification: Computer-Auth Template Validity Extension (1 year → 2 years)
+
+1. SCOPE ASSESSMENT
+
+The Computer-Auth template is scoped to All Computers in the domain with autoenrollment enabled via Group Policy. This is a domain-wide, simultaneous propagation change — not a staged rollout. When the template is modified, every domain-joined machine (~1,400 workstations and servers) will re-enroll at the next Group Policy refresh cycle (approximately every 90 minutes). There is no mechanism to limit which machines enroll after the template change without restricting the template's scope.
+
+A key distinction from standard software deployments: you cannot "gradually roll out" a template change to a percentage of machines. All machines in scope will receive the new certificate within 2–3 GP refresh cycles.
+
+2. TESTING APPROACH
+
+Before modifying the production Computer-Auth template, create a duplicate template (Computer-Auth-Test) with 2-year validity and restrict its scope to a test OU containing 5–10 representative machines (a mix of workstations and servers). Enable autoenrollment for the test OU only. Allow those machines to enroll and verify:
+- Issued certificate has correct validity period (2 years), key usage, EKU, and SAN
+- Kerberos authentication continues to work (the primary use of computer certificates)
+- Any services using computer certificates (802.1X, VPN client auth, etc.) continue to function
+
+After confirming the test machines work correctly, proceed to the production template change.
+
+3. ROLLOUT SEQUENCING
+
+1. Create Computer-Auth-Test template (scoped to test OU), allow test machines to enroll, verify (see above)
+2. Schedule a maintenance window for the production template change
+3. Modify Computer-Auth template validity to 2 years
+4. Monitor autoenrollment over the next 3 hours (2–3 GP refresh cycles) to confirm certificates are issuing correctly
+5. Verify a sample of enrolled machines have received the new 2-year certificates
+
+4. MONITORING
+
+Monitor the following for 24 hours after deployment:
+- ADCS event log (Event ID 4886 for successful enrollment, 4887 for failure)
+- Number of certificates issued from Computer-Auth template (should see a burst corresponding to re-enrollment)
+- Any authentication failure alerts from helpdesk or monitoring systems
+
+5. ROLLBACK DEFINITION
+
+Reverting the template to 1-year validity will prevent additional machines from receiving 2-year certificates. However, it will NOT recall certificates already issued under the 2-year template — those certificates remain valid for 2 years regardless of the template change. "Rollback" in this context means: no additional 2-year certificates will be issued, but the environment will be in a mixed state (some machines with 2-year certs, some with 1-year certs) until the 2-year certificates expire naturally or are revoked.
+
+Rollback is warranted if: authentication failures are observed across a significant number of machines, or if application compatibility issues are detected after re-enrollment.

@@ -58,6 +58,24 @@ rubric:
         traversal payload. This is a real injection surface, not a theoretical one.
       severity: moderate
 
+    - id: minimal_fixes_proposed
+      description: >
+        Beyond identifying the problems, the response proposes targeted, minimal
+        fixes for each: (1) Remove -Force from Remove-Item and add -ErrorAction Stop
+        so exceptions propagate naturally; (2) Fix the catch block to log
+        $_.Exception.Message rather than the hardcoded success string; (3) Validate
+        $ApplicationName before constructing $cleanupPath — match against an allowlist
+        or at minimum reject strings containing path separators and relative path
+        components. Fixes are targeted to the specific vulnerabilities and do not
+        rewrite the script.
+      severity: moderate
+      miss_signal: >
+        Response identifies all findings and explains the severity rationale correctly
+        but does not propose any specific fixes. A response that identifies problems
+        without proposing fixes should be assigned Level 3, not Level 4, regardless
+        of the quality of the analysis. Proposing targeted minimal fixes is the sole
+        differentiator between Level 3 and Level 4 for this scenario.
+
   level_indicators:
     level_1: >
       Describes what the script does. May note that it requires administrator rights
@@ -74,7 +92,8 @@ rubric:
       is rated above the silent failure despite both being serious — -Force removes
       the last safety mechanism before data loss, while the silent failure prevents
       detection after the fact. Both are severe; -Force is rated critical because
-      it is the enabler of irreversible damage.
+      it is the enabler of irreversible damage. Does NOT propose specific fixes
+      (that is the L4 differentiator).
     level_4: >
       All of the above, plus proposes minimal targeted fixes for each issue: remove
       -Force and add -ErrorAction Stop to let exceptions surface naturally; fix the

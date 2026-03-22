@@ -66,6 +66,32 @@ rubric:
         recognizing that the toggle is already enabled and the problem is the
         missing AD delegation. Or: candidate does not read the AD DS Connector
         account section and cannot identify what specific permissions are missing.
+      learning_note: >
+        SSPR password writeback has two separate configuration surfaces, and enabling
+        both is necessary but not sufficient. The Entra Connect wizard lets you enable
+        the "Password Writeback" toggle (feature flag), and the SSPR policy has a
+        separate "Write back passwords to your on-premises directory" setting. Both
+        must be set to Enabled — but neither toggle actually grants the AD permissions
+        required for writeback to work.
+
+        The missing piece is AD delegation. The Entra Connect AD DS Connector account
+        (usually named MSOL_xxxxxxxx) must have three specific AD write permissions
+        on the OUs where your user accounts live:
+          • Reset password
+          • Write lockoutTime
+          • Write pwdLastSet
+
+        These must be delegated manually to the connector account on the correct OUs
+        — the wizard does not do this automatically. You can use the Delegation of
+        Control Wizard in Active Directory Users and Computers, or a PowerShell script
+        using Set-ACL.
+
+        The signal that catches this failure pattern is in the audit log, not the
+        configuration surface. When everything shows "Enabled" but every attempt
+        fails with OnPremisesPasswordResetFailed, the feature was toggled without
+        completing the underlying AD setup. The three-step test: toggle on in Entra
+        Connect, toggle on in SSPR policy, then immediately test with a real account
+        before declaring the feature live.
 
   secondary_findings:
     - id: writeback_never_worked

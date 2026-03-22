@@ -71,8 +71,9 @@ export function buildClient({ provider = 'local', endpoint, apiKey }) {
 /**
  * Assemble the evaluator system prompt from a scenario definition.
  * Handles Mode A (artifact analysis) and Mode B (document production).
+ * Optionally extends with coach mode instructions.
  */
-function buildSystemPrompt(scenario, artifactContent) {
+function buildSystemPrompt(scenario, artifactContent, { coachMode = false, coachRound = 0 } = {}) {
   const { domain_name, level, title, delivery_mode, presentation, rubric } = scenario
 
   const criticalBlock = (rubric.critical_findings ?? []).map(f =>
@@ -94,6 +95,20 @@ function buildSystemPrompt(scenario, artifactContent) {
   const artifactSection = artifactContent
     ? `ARTIFACT (${presentation.type}):\n\`\`\`\n${artifactContent}\n\`\`\``
     : '(No artifact — Mode B commission exercise)'
+
+  // Optional coach mode fields appended to JSON schema
+  let coachJsonFields = ''
+  let coachInstructions = ''
+
+  if (coachMode) {
+    if (coachRound === 0) {
+      coachJsonFields = `,\n  "coach_question": <string — a single Socratic question pointing to specific artifact evidence for the primary missed finding; omit this field entirely if all findings are caught>`
+      coachInstructions = `\n\nCOACH MODE: After evaluating, if any findings were missed, include a "coach_question" field — a single Socratic question pointing to specific evidence in the artifact that would help the candidate discover their primary missed finding. Do not name the finding or reveal the correct answer. The question should be answerable from the artifact alone. Omit this field if no findings were missed.`
+    } else {
+      coachJsonFields = `,\n  "resolved": <true|false — whether the candidate has now identified the primary missed finding>,\n  "coach_question": <string — a more direct follow-up question; omit if resolved is true or if round >= 3>`
+      coachInstructions = `\n\nFOLLOW-UP COACHING (round ${coachRound} of 3): The candidate has responded to a coaching question. The exchange history follows the initial response in the message thread. Determine whether they have now identified the primary missed finding:\n- If yes: set "resolved": true and complete all evaluation fields normally.\n- If no and round < 3: set "resolved": false and include a more direct "coach_question".\n- If no and round >= 3: set "resolved": false and omit "coach_question" — the UI will surface explanation content for the candidate.`
+    }
+  }
 
   return `ROLE: You are an assessment evaluator for the Modern Systems Administration Competency Framework. You are evaluating a candidate's response to a scenario exercise. Do not provide the correct answer or reveal findings the candidate missed.
 
@@ -136,8 +151,8 @@ Respond with a single JSON object — no prose before or after it:
   "unlisted": [<brief descriptions of valid unlisted findings>],
   "severity_calibration": <"accurate"|"understated"|"overstated"|"mixed">,
   "gap": <"prose description of what separates this response from the next level, or null if clearly at a level">,
-  "narrative": <"1–2 paragraph assessment of the response, suitable for the candidate to read. Do not reveal missed findings or the correct answer.">
-}`
+  "narrative": <"1–2 paragraph assessment of the response, suitable for the candidate to read. Do not reveal missed findings or the correct answer.">${coachJsonFields}
+}${coachInstructions}`
 }
 
 // ---------------------------------------------------------------------------
@@ -146,20 +161,31 @@ Respond with a single JSON object — no prose before or after it:
 
 /**
  * Call the configured provider and return a parsed evaluation result.
+ *
+ * In coach mode, coachRound and coachHistory extend the conversation:
+ *   coachRound 0 = initial evaluation (coach_question added to JSON if findings missed)
+ *   coachRound 1+ = follow-up (coachHistory contains prior exchanges, resolved field added)
+ *
+ * coachHistory is an array of { role: 'assistant'|'user', content } messages
+ * representing exchanges after the initial response.
+ *
  * Throws on API/network error. Returns { raw, parsed } where parsed may be
  * null if JSON extraction fails.
  */
-export async function evaluate({ scenario, artifactContent, responseText, settings }) {
+export async function evaluate({ scenario, artifactContent, responseText, settings, coachMode = false, coachRound = 0, coachHistory = [] }) {
   const client = buildClient(settings)
-  const systemPrompt = buildSystemPrompt(scenario, artifactContent)
+  const systemPrompt = buildSystemPrompt(scenario, artifactContent, { coachMode, coachRound })
+
+  const messages = [
+    { role: 'system', content: systemPrompt },
+    { role: 'user', content: responseText },
+    ...coachHistory,
+  ]
 
   const response = await client.chat.completions.create({
     model: settings.model,
     max_tokens: 2048,
-    messages: [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: responseText },
-    ],
+    messages,
   })
 
   const raw = response.choices[0]?.message?.content ?? ''

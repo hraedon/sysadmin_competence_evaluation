@@ -58,6 +58,27 @@ rubric:
         Server service, without recognizing that the error log already shows the SPN
         registration failed on the most recent restart and a restart alone will not fix
         the underlying permission problem.
+      learning_note: >
+        A Service Principal Name (SPN) is an identifier registered in Active Directory
+        that links a service to the account it runs under. When a client connects to
+        SQLSRV01.corp.local, it asks the KDC for a ticket to MSSQLSvc/SQLSRV01.corp.local.
+        The KDC looks up which account has that SPN registered and issues a ticket
+        encrypted for that account. If no account has the SPN, the KDC returns an error
+        and Kerberos fails.
+
+        SQL Server auto-registers its SPNs on startup — but only if the service account
+        has the "Write servicePrincipalName" permission on its own AD object. The error
+        code 0x2098 means "insufficient rights to write SPN." A managed service account
+        or the built-in NETWORK SERVICE account gets this right automatically; a domain
+        user account (like corp\svc_sql) does not get it by default and must have it
+        delegated explicitly.
+
+        When the BI team switched the service account to NT Service\MSSQLSERVER and back,
+        SQL Server deregistered the SPNs from corp\svc_sql on the switch-away, then
+        failed to re-register them on the switch-back because corp\svc_sql lacked the
+        Write SPN permission. The fix is to register the SPNs manually:
+          setspn -A MSSQLSvc/SQLSRV01.corp.local:1433 corp\svc_sql
+          setspn -A MSSQLSvc/SQLSRV01.corp.local corp\svc_sql
 
   secondary_findings:
     - id: fqdn_vs_ip_protocol_selection
@@ -75,6 +96,24 @@ rubric:
         on FQDN with "Cannot generate SSPI context," the root cause is almost always
         a missing or misregistered SPN.
       severity: moderate
+      learning_note: >
+        Windows selects the authentication protocol based on how the target is addressed.
+        When a client connects using an IP address, Windows uses NTLM — a
+        challenge-response protocol that authenticates by proving knowledge of the
+        password hash directly with a domain controller. NTLM does not use SPNs at all.
+
+        When a client connects using a hostname (SQLSRV01) or FQDN
+        (SQLSRV01.corp.local), Windows attempts Kerberos first. Kerberos requires a
+        valid SPN to exist in AD so the KDC can issue a service ticket. If the SPN
+        lookup fails, what happens next depends on configuration: some environments
+        fall back to NTLM for short names, but FQDNs often do not fall back cleanly,
+        especially when the server or client is configured to require Kerberos.
+
+        This is why "Cannot generate SSPI context" appears on FQDN connections but
+        IP connections work fine — the IP path never touches the Kerberos path at all.
+        It is also why the BI team's local hostname test succeeded: a local connection
+        via short name fell back to NTLM. The production application connecting via
+        FQDN had no such fallback.
 
   level_indicators:
     level_1: >

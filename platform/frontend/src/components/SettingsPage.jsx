@@ -164,6 +164,30 @@ export default function SettingsPage({ settings, onSave, onClose }) {
             )}
           </section>
 
+          {/* Evaluator Mode */}
+          <section className="border-t border-gray-700 pt-5">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-3">Evaluator Mode</h3>
+            <div className="flex gap-2">
+              {[
+                { id: 'auditor', label: 'Strict Auditor', desc: 'Full evaluation immediately after submission' },
+                { id: 'coach',   label: 'Socratic Coach', desc: 'Guided questions before revealing results' },
+              ].map(m => (
+                <label key={m.id}
+                  className={`flex-1 cursor-pointer rounded-lg border p-3 text-sm transition-colors
+                    ${draft.evaluatorMode === m.id
+                      ? 'border-indigo-500 bg-indigo-950/60'
+                      : 'border-gray-600 text-gray-400 hover:border-gray-500'}`}>
+                  <input type="radio" name="evaluatorMode" value={m.id}
+                    checked={draft.evaluatorMode === m.id}
+                    onChange={() => setField('evaluatorMode', m.id)}
+                    className="sr-only" />
+                  <div className="font-medium text-gray-100">{m.label}</div>
+                  <div className="mt-0.5 text-xs text-gray-400">{m.desc}</div>
+                </label>
+              ))}
+            </div>
+          </section>
+
           {/* Data */}
           <section className="border-t border-gray-700 pt-5">
             <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-3">Profile Data</h3>

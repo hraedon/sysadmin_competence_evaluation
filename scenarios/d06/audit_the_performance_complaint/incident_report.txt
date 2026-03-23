@@ -1,0 +1,124 @@
+================================================================================
+INCIDENT REPORT — INC-2026-1847
+================================================================================
+Priority:    High
+Status:      Open
+Opened:      2026-03-19 08:47
+Server:      SERVER-APP01 (Physical, Windows Server 2022 Standard)
+Assigned to: Infrastructure Team
+
+--------------------------------------------------------------------------------
+USER REPORT (submitted 2026-03-19 08:47 by application team lead)
+--------------------------------------------------------------------------------
+SERVER-APP01 is running very slowly. The document processing application has
+been intermittently timing out on file read and write operations since Tuesday
+morning (2026-03-18). Jobs that normally complete in under 30 seconds are
+taking 4–5 minutes or failing outright with I/O timeout errors. The issue
+affects all users of the application. We need this resolved urgently.
+
+--------------------------------------------------------------------------------
+DESKTOP ENGINEER NOTE (added 2026-03-19 09:15 by D. Hartley, Desktop Support)
+--------------------------------------------------------------------------------
+I worked on SERVER-APP01 on Tuesday (2026-03-18). The C: drive was running low
+on space — it was showing 94% used (about 452 GB used of 480 GB). The
+application team had flagged this as a risk the previous week. I expanded the
+C: drive on Tuesday morning to add space. Used Disk Management to extend the
+volume. The server now has plenty of space on C:. I didn't think this would
+cause a performance issue.
+
+================================================================================
+CURRENT DISK CONFIGURATION
+Captured: 2026-03-22 10:14 via DISKPART (LIST DISK, LIST VOLUME, DETAIL DISK)
+================================================================================
+
+DISKPART> LIST DISK
+
+  Disk ###  Status         Size     Free     Dyn  Gpt
+  --------  -------------  -------  -------  ---  ---
+  Disk 0    Online          480 GB      0 B   *
+  Disk 1    Online         2000 GB    100 GB   *
+
+  Note: Both disks are marked Dynamic (Dyn = *).
+
+DISKPART> DETAIL DISK (Disk 0)
+
+Samsung PM893 SSD
+Disk ID: {A1B2C3D4-...}
+Type   : SATA
+Status : Online
+Path   : 0
+Target : 0
+LUN ID : 0
+Location Path : ...
+Current Read-only State : No
+Read-only  : No
+Boot Disk  : Yes
+Pagefile Disk  : Yes
+Hibernation File Disk  : No
+Crashdump Disk  : Yes
+Clustered Disk  : No
+
+  Volume ###  Ltr  Label        Fs     Type        Size     Status     Info
+  ----------  ---  -----------  -----  ----------  -------  ---------  --------
+  Volume 1     C   System       NTFS   Spanned     2380 GB  Healthy    Boot
+                                                                        System
+                                                                        Pagefile
+
+  (Volume C spans this disk fully: 480 GB allocated to the spanned volume)
+
+DISKPART> DETAIL DISK (Disk 1)
+
+WD Gold 2TB HDD (WD2005FBYZ)
+Disk ID: {E5F6A7B8-...}
+Type   : SATA
+Status : Online
+Path   : 0
+Target : 1
+LUN ID : 0
+Location Path : ...
+Current Read-only State : No
+Read-only  : No
+Boot Disk  : No
+Pagefile Disk  : No
+Hibernation File Disk  : No
+Crashdump Disk  : No
+Clustered Disk  : No
+
+  Volume ###  Ltr  Label        Fs     Type        Size     Status     Info
+  ----------  ---  -----------  -----  ----------  -------  ---------  --------
+  Volume 1     C   System       NTFS   Spanned     2380 GB  Healthy    Boot
+  Volume 2     D   Data         NTFS   Simple       100 GB  Healthy
+
+  (Volume C spans 1,900 GB of this disk; Volume D occupies the remaining 100 GB)
+
+DISKPART> LIST VOLUME
+
+  Volume ###  Ltr  Label        Fs     Type        Size     Status     Info
+  ----------  ---  -----------  -----  ----------  -------  ---------  --------
+  Volume 1     C   System       NTFS   Spanned     2380 GB  Healthy    Boot
+                                                                        System
+                                                                        Pagefile
+  Volume 2     D   Data         NTFS   Simple       100 GB  Healthy
+
+  Spanned volume detail for Volume C:
+    Member disk 0: 480 GB  (SSD — Samsung PM893)
+    Member disk 1: 1,900 GB (HDD — WD Gold 2TB)
+
+================================================================================
+PERFORMANCE DATA
+Collected via Performance Monitor (PerfMon). 5-minute averages.
+Baseline: Monday 2026-03-17 (pre-change). Post-change: Wednesday 2026-03-19.
+Counter: PhysicalDisk(_Total) unless noted.
+================================================================================
+
+  Metric                                Mon 2026-03-17   Wed 2026-03-19
+                                        (Baseline)       (Post-change)
+  ------------------------------------  ---------------  ---------------
+  Avg. Disk sec/Read (ms)                    2.8 ms           26.4 ms
+  Avg. Disk sec/Write (ms)                   3.1 ms           29.7 ms
+  Current Disk Queue Length                  0.3              5.1
+  % Processor Time (all cores)              34%              36%
+
+================================================================================
+END OF INCIDENT REPORT INC-2026-1847
+================================================================================

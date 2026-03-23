@@ -112,11 +112,11 @@ function buildSystemPrompt(scenario, artifactContent) {
   const { domain_name, level, title, delivery_mode, presentation, rubric } = scenario
 
   const criticalBlock = (rubric.critical_findings ?? []).map(f =>
-    `[${f.id}] ${f.description.trim()}\n  Severity: ${f.severity}\n  Miss signal: ${(f.miss_signal ?? '').trim()}`
+    `[${f.id}] (Severity: ${f.severity}) ${f.description.trim()}`
   ).join('\n\n')
 
   const secondaryBlock = (rubric.secondary_findings ?? []).map(f =>
-    `[${f.id}] ${f.description.trim()}\n  Severity: ${f.severity}`
+    `[${f.id}] (Severity: ${f.severity}) ${f.description.trim()}`
   ).join('\n\n')
 
   const levelBlock = Object.entries(rubric.level_indicators ?? {}).map(([k, v]) =>
@@ -180,7 +180,7 @@ Respond with a single JSON object — no prose before or after it:
 // Evaluator call
 // ---------------------------------------------------------------------------
 
-async function callEvaluator(scenario, artifactContent, responseText) {
+async function callEvaluator(scenario, artifactContent, responseText, retry = true) {
   const systemPrompt = buildSystemPrompt(scenario, artifactContent)
 
   const response = await client.chat.completions.create({
@@ -198,7 +198,11 @@ async function callEvaluator(scenario, artifactContent, responseText) {
 
   try {
     return JSON.parse(jsonStr.trim())
-  } catch {
+  } catch (err) {
+    if (retry) {
+      process.stdout.write(`(parse error, retrying...) `)
+      return callEvaluator(scenario, artifactContent, responseText, false)
+    }
     return { _parse_error: true, _raw: raw }
   }
 }

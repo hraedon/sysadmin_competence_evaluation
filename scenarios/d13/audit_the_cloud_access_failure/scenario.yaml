@@ -1,0 +1,145 @@
+id: d13-audit-the-cloud-access-failure
+domain: 13
+domain_name: "Cross-domain Synthesis"
+level: 3
+title: "The Change That Didn't Touch Azure"
+delivery_mode: A
+subtype: synthesis
+
+difficulty: 4
+difficulty_note: >
+  The network team's statement ("we didn't change anything in Azure") is accurate and
+  is the primary distractor. Accepting it at face value and searching for an Azure-side
+  misconfiguration will find nothing wrong — the Azure configuration is correct and
+  unchanged. The finding requires understanding how on-premises conditional DNS
+  forwarders interact with Azure private endpoint DNS resolution, and why removing a
+  forwarder that routes blob storage queries to Azure DNS (168.63.129.16) causes
+  on-premises clients to resolve to the public IP instead of the private endpoint IP.
+  This requires synthesising DNS mechanics (D03), Azure private endpoint resolution
+  (D07), and a change management inference (D09) — the network team didn't know the
+  forwarder was load-bearing because hybrid DNS dependencies aren't documented as
+  "Azure infrastructure."
+
+presentation:
+  type: environment_description
+  artifact_file: "scenarios/d13/audit_the_cloud_access_failure/incident_report.txt"
+  context: |
+    An ETL pipeline that reads from Azure Blob Storage has been failing since Monday
+    morning. The attached document contains the incident ticket, DNS resolution test
+    results from on-premises and from an Azure VM, connectivity test output, the Azure
+    storage account networking configuration, and the network team's response describing
+    a DNS cleanup change performed over the weekend.
+
+    Identify the root cause of the failure and explain why the network team's change
+    broke on-premises access to Azure Storage.
+
+# Most similar to: d13-audit-the-broken-share (both are synthesis scenarios requiring
+# reasoning across Linux/Windows platform boundaries and change management; both involve
+# a change whose impact wasn't anticipated because the change was mentally categorised
+# as affecting a different domain than the one that broke).
+# How the reasoning challenge differs: the SMB1 scenario requires understanding protocol
+# negotiation and GPO enforcement timing. This scenario requires understanding hybrid
+# DNS resolution paths and why a "DNS housekeeping" change on on-premises infrastructure
+# constitutes a de facto change to cloud access — the mental model gap being that DNS
+# forwarders for cloud services are not cosmetic.
+
+rubric:
+  critical_findings:
+    - id: forwarder_removal_broke_private_endpoint_resolution
+      description: >
+        Azure private endpoint DNS resolution for on-premises clients depends on a
+        conditional forwarder on the on-premises DNS servers routing blob.core.windows.net
+        queries to Azure DNS (168.63.129.16). Azure DNS, queried from within the VNet,
+        returns the private endpoint IP (10.0.2.5) because the private DNS zone
+        (privatelink.blob.core.windows.net) is linked to the VNet. Without the forwarder,
+        on-premises clients resolve blob.core.windows.net via public DNS, which returns
+        the public IP (20.150.47.130). The DNS resolution comparison in the artifact
+        confirms this: on-premises clients resolve to 20.150.47.130 (public), the Azure
+        VM resolves to 10.0.2.5 (private endpoint). The storage account has public
+        access disabled, so the public IP returns a connection refused. The Azure
+        configuration is correct and unchanged. The failure is a missing on-premises DNS
+        forwarder.
+      severity: critical
+      miss_signal: >
+        Candidate accepts the network team's position that the Azure configuration should
+        be reviewed and investigates Azure NSG, firewall, or private endpoint settings —
+        none of which have changed. Or: candidate identifies the DNS resolution discrepancy
+        (on-premises gets public IP, Azure VM gets private endpoint IP) without explaining
+        why the discrepancy exists or how the removed forwarder caused it.
+
+    - id: forwarder_was_load_bearing_not_stale
+      description: >
+        The network team identified the blob.core.windows.net conditional forwarder as
+        "stale or redundant." It was neither. For any storage account with public access
+        disabled and a private endpoint, on-premises clients cannot reach the storage
+        account without a DNS path that returns the private endpoint IP rather than the
+        public IP. The forwarder routing blob.core.windows.net to 168.63.129.16 was the
+        on-premises half of the hybrid DNS resolution chain required to make private
+        endpoints work from outside the VNet. Removing it did not break anything inside
+        Azure — it broke the bridge between on-premises DNS and Azure's private DNS
+        infrastructure. The network team's claim ("we didn't touch anything in Azure")
+        is technically accurate but incomplete: they touched the prerequisite for
+        on-premises Azure connectivity.
+      severity: critical
+      miss_signal: >
+        Candidate identifies the forwarder as the cause but does not explain why it was
+        necessary — treats it as "we just need to add it back" without articulating the
+        private endpoint DNS resolution chain that depends on it. Or: candidate explains
+        the private endpoint mechanics without noting the change management dimension —
+        that the forwarder's purpose was undocumented and therefore misidentified as stale.
+
+  secondary_findings:
+    - id: fix_is_restore_forwarder
+      description: >
+        The immediate fix is to restore the conditional forwarders for
+        blob.core.windows.net and privatelink.blob.core.windows.net pointing to
+        168.63.129.16 (Azure DNS) on the on-premises DNS servers. Once restored, on-
+        premises clients will again resolve the storage hostname to the private endpoint
+        IP and connections will succeed. The Azure configuration requires no changes.
+      severity: high
+
+    - id: change_management_gap
+      description: >
+        The DNS cleanup change did not include an assessment of which forwarder rules
+        were dependencies for hybrid cloud access. Any conditional forwarder routing to
+        168.63.129.16 is a hybrid DNS dependency — it enables on-premises clients to
+        use Azure's private DNS infrastructure. These forwarders are not cosmetic or
+        legacy entries; they are operational requirements for any private endpoint
+        configuration. A pre-change review should include identifying and documenting
+        forwarder rules that support cloud connectivity before any DNS housekeeping
+        project removes them.
+      severity: moderate
+
+  level_indicators:
+    level_1: >
+      Identifies that DNS is returning a different IP for on-premises clients than for
+      Azure clients. Recommends investigating the DNS configuration or Azure firewall
+      settings. Does not identify the conditional forwarder as the cause or explain the
+      private endpoint DNS resolution chain.
+    level_2: >
+      Identifies the removed blob.core.windows.net forwarder as the cause. Notes that
+      without the forwarder, on-premises DNS resolves to the public IP, which is blocked
+      because the storage account has public access disabled. Recommends restoring the
+      forwarder. Does NOT explain the private endpoint DNS resolution chain — why the
+      forwarder routes to 168.63.129.16, what Azure DNS returns from within the VNet,
+      or why the Azure VM gets the private endpoint IP and the on-premises client does not.
+    level_3: >
+      All of the above plus: explains the complete private endpoint DNS resolution chain —
+      the on-premises conditional forwarder routes blob.core.windows.net queries to Azure
+      DNS (168.63.129.16), Azure DNS returns the private endpoint IP because the private
+      DNS zone is linked to the VNet, on-premises clients therefore resolve to the private
+      endpoint. Without the forwarder, on-premises clients use public DNS and get the
+      public IP, which is blocked. Uses the DNS comparison in the artifact to confirm
+      the diagnosis. Does NOT address the change management process gap — why the forwarder
+      was incorrectly identified as stale or how to prevent this class of change from
+      recurring.
+    level_4: >
+      All of the above plus: addresses the change management gap explicitly — the network
+      team's mental model ("we manage on-premises DNS; Azure manages Azure DNS") does not
+      account for on-premises DNS forwarders as a category of hybrid cloud dependency.
+      Any forwarder routing to 168.63.129.16 is a dependency for private endpoint access
+      and should be documented and treated as load-bearing infrastructure, not a candidate
+      for housekeeping removal. Notes that the network team's statement ("we didn't touch
+      anything in Azure") is technically accurate but reflects an incomplete mental model
+      of what constitutes cloud infrastructure — the forwarders were the on-premises half
+      of an Azure access control chain.

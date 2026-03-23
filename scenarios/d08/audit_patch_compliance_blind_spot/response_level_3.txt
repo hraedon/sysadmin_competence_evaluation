@@ -1,0 +1,11 @@
+The compliance summary cannot be used to answer the CTO's questions. The core problem is scan staleness for the three compromised machines and a broader population.
+
+WORKSTATION-047, -083, and -091 all last scanned successfully on January 6–13. Attacker activity began January 15. Their "Compliant: 0 required" classification reflects patch state from before the breach window — not from the time of the attack, and not from today. The report's own footnote confirms this: devices with no scan in 60+ days show status from their last completed scan. All three affected machines fall into that category. Patching cannot be ruled out as a contributing factor on the basis of this report.
+
+The problem extends beyond the three compromised machines. The Scan Health section shows 12 machines total have last scans older than 60 days. Those 12 machines have potentially missed 10 or more weeks of patch cycles while appearing compliant in the summary view. The CTO cannot be told the remaining estate is protected until those machines are assessed.
+
+An important nuance: the compliance UI provides no visual distinction between "Compliant based on a scan from this morning" and "Compliant based on a scan from January." Both look identical in the main table. The Scan Health section is the only place that surfaces staleness — it is not combined with compliance status in the primary view. This means the green headline figure can persist even as underlying scan health degrades.
+
+To verify and remediate: the stale machines need a fresh software updates scan triggered. WUA health — whether the Windows Update Agent is successfully completing scans — is tracked separately from SCCM hardware inventory. A machine can be actively reporting into SCCM's hardware inventory cycle while its WUA component fails silently. The scan failure evidence will be in the WUA event log on each affected machine (the Microsoft-Windows-WindowsUpdateClient operational log contains scan-related events). For the 12 stale machines, checking WUA event logs will distinguish between machines that are healthy but happened not to scan recently versus machines where WUA has failed and needs remediation.
+
+Until fresh scans are completed on all 12 stale machines, the true compliant population is 150 at most, not 158.

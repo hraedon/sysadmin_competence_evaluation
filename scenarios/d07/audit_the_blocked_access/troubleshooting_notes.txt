@@ -1,0 +1,66 @@
+Incident: INC-5502
+Opened: 2026-03-20 08:14
+Reported by: External user (partner organisation)
+Title: Unable to reach customer portal from outside our network
+
+Description:
+Partner reports that the customer portal (https://portal.contoso-ext.com) is
+unreachable from their offices. The URL resolves correctly (tested with nslookup —
+returns the correct public IP). The portal works fine from inside Contoso's corporate
+network and through the VPN.
+
+Target VM: portal-prod-01 (10.0.1.10)
+Public IP: 51.140.82.29 (static, attached to portal-prod-01 NIC)
+Subnet: subs-webapp (10.0.1.0/24)
+Service: IIS, HTTPS on port 443
+
+---
+
+Troubleshooting log (junior admin, 2026-03-20 08:30–09:45):
+
+Step 1 — Verified DNS and network connectivity from partner's external IP:
+  nslookup portal.contoso-ext.com → 51.140.82.29 (correct)
+  ping 51.140.82.29 → Request timed out (ICMP blocked, expected)
+  Test-NetConnection -ComputerName 51.140.82.29 -Port 443 → TcpTestSucceeded: False
+
+Step 2 — Checked Windows Firewall on portal-prod-01:
+  Inbound rules (relevant):
+    World Wide Web Services (HTTPS Traffic-In): TCP 443, Enabled, Allow
+    World Wide Web Services (HTTP Traffic-In):  TCP 80,  Enabled, Allow
+  Result: Windows Firewall is configured to allow HTTPS. Not the cause.
+
+Step 3 — Checked NIC-level NSG (nsg-portal-nic):
+  Inbound security rules:
+
+  Priority  Name                Port  Protocol  Source            Destination  Action
+  --------  ------------------  ----  --------  ----------------  -----------  ------
+  100       Allow-HTTPS-Any     443   TCP       Any               Any          Allow
+  200       Allow-HTTP-Any      80    TCP       Any               Any          Allow
+  65500     DenyAllInbound      *     *         Any               Any          Deny  (default)
+
+  Result: NIC-level NSG allows HTTPS from Any. Not the cause.
+
+Step 4 — Checked IIS binding:
+  Site "Default Web Site" binding: HTTPS 0.0.0.0:443, certificate attached (valid)
+  IIS is listening on port 443.
+  Result: IIS configuration is correct. Not the cause.
+
+I've checked all the usual places. Windows Firewall allows it, the NIC NSG allows it,
+IIS is listening. External connectivity still fails. Escalating — not sure what else to check.
+
+---
+
+Additional context (from network team, provided on request):
+
+Subnet-level NSG (nsg-webapp-subnet) is applied to subs-webapp (10.0.1.0/24).
+Full inbound rule list:
+
+  Priority  Name                   Port  Protocol  Source           Destination  Action
+  --------  ---------------------  ----  --------  ---------------  -----------  ------
+  100       Allow-Corp-VPN-HTTPS   443   TCP       10.0.0.0/8       *            Allow
+  200       Allow-HTTP-Any         80    TCP       Any              *            Allow
+  300       Allow-SSH-Management   22    TCP       10.100.0.0/24    *            Allow
+  65500     DenyAllInbound         *     *         Any              *            Deny  (default)
+
+Note from network team: "subnet NSG was set up by a previous admin. We haven't
+touched it since the webapp subnet was created in 2024."

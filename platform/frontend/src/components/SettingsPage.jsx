@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { buildClient } from '../lib/evaluator.js'
 
 const PROVIDERS = [
-  { id: 'local',     label: 'Local (LM Studio / Ollama)', hasEndpoint: true,  hasKey: false },
+  { id: 'local',     label: 'Local (LM Studio / Ollama)', hasEndpoint: true,  hasKey: true  },
   { id: 'anthropic', label: 'Anthropic',                  hasEndpoint: false, hasKey: true  },
   { id: 'openai',    label: 'OpenAI',                     hasEndpoint: false, hasKey: true  },
   { id: 'custom',    label: 'Custom',                     hasEndpoint: true,  hasKey: true  },
@@ -117,20 +117,27 @@ export default function SettingsPage({ settings, onSave, onClose }) {
             {provider.hasEndpoint && (
               <div className="mb-3">
                 <label className="block text-xs text-gray-400 mb-1">Endpoint URL</label>
-                <input type="url" value={draft.endpoint} onChange={e => setField('endpoint', e.target.value)}
+                <input type="text" value={draft.endpoint} onChange={e => setField('endpoint', e.target.value)}
                   placeholder="http://192.168.1.28:1234/v1"
                   className="w-full rounded-lg bg-gray-700 px-3 py-2 font-mono text-sm text-gray-100 placeholder-gray-500 outline-none ring-1 ring-gray-600 focus:ring-indigo-500" />
+                {draft.provider === 'local' && draft.endpoint.startsWith('/') && (
+                  <p className="mt-1 text-[10px] text-indigo-400/80 leading-tight">Using pod-based reverse proxy to mask internal IP.</p>
+                )}
               </div>
             )}
 
             {provider.hasKey && (
               <div className="mb-3">
-                <label className="block text-xs text-gray-400 mb-1">API Key</label>
+                <label className="block text-xs text-gray-400 mb-1">
+                  {draft.provider === 'local' ? 'Proxy Secret (Optional)' : 'API Key'}
+                </label>
                 <input type="password" autoComplete="off" value={draft.apiKey}
                   onChange={e => setField('apiKey', e.target.value)}
-                  placeholder={draft.provider === 'anthropic' ? 'sk-ant-...' : 'sk-...'}
+                  placeholder={draft.provider === 'local' ? 'your-secret-key' : (draft.provider === 'anthropic' ? 'sk-ant-...' : 'sk-...')}
                   className="w-full rounded-lg bg-gray-700 px-3 py-2 font-mono text-sm text-gray-100 placeholder-gray-500 outline-none ring-1 ring-gray-600 focus:ring-indigo-500" />
-                <p className="mt-1 text-xs text-gray-500">Stored in browser localStorage only. Never sent to this platform's servers.</p>
+                <p className="mt-1 text-xs text-gray-500">
+                  {draft.provider === 'local' ? 'Sent as Bearer token if using the Nginx proxy PSK.' : 'Stored in browser localStorage only. Never sent to this platform\'s servers.'}
+                </p>
               </div>
             )}
 

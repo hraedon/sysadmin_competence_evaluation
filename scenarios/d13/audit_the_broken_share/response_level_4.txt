@@ -1,0 +1,65 @@
+Root cause: FILESRV01 no longer offers SMB1. The GPO setting
+LanmanServer\Parameters\SMB1 = 0 was applied on 2026-01-28, but LanmanServer
+registry parameters require a service restart to take effect. FILESRV01 rebooted
+on 2026-03-07 for the monthly patch cycle, starting LanmanServer with SMB1
+disabled for the first time. Samba 3.6.25 on LINPROC01 can only offer SMB1-era
+dialects (LANMAN1, LANMAN2, NT LM 0.12 — confirmed in the Samba log). With
+SMB1 disabled server-side and no SMB2 capability client-side, negotiation fails.
+Port 445 open and ping success rule out the network layer; the failure is
+definitively at SMB protocol negotiation.
+
+The server team's "no recent changes" is accurate from their process perspective.
+The GPO was set six weeks ago (not recent). The reboot was routine maintenance
+(not a file server change). Both statements are true. The enforcement event —
+the moment SMB1 was actually disabled in the running LanmanServer service — is
+not something their process tracks. This is a predictable outcome of a change
+management approach that records the policy-application event but not the
+enforcement event.
+
+Samba 3.6.25 on Ubuntu 18.04 is non-default — the distro ships 4.7.6. This
+installation has been manually maintained, pinned, or compiled. Combined with
+Ubuntu 18.04 being past end of extended security maintenance, this system
+represents accumulated technical debt that created the conditions for this
+failure: a current Samba 4.x installation would have negotiated SMB2 successfully
+and the reboot-enforced GPO change would have been invisible to operations.
+
+Remediation:
+
+Immediate: Upgrade Samba on LINPROC01 to 4.x, configure SMB2 negotiation, test
+batch job connectivity. Temporary re-enablement of SMB1 on FILESRV01 is
+acceptable only if time-bounded (tracked as an open exception, not a resolved
+state) and if the security team is informed, given SMB1's vulnerability history.
+
+Long-term: Migrate LINPROC01 off Ubuntu 18.04. The Samba version issue is a
+symptom of a platform that has been maintained outside normal package management.
+A migration to a current Ubuntu LTS resolves the immediate issue as a consequence
+of restoring normal package management.
+
+Process gap this incident reveals:
+
+GPO changes that target service parameters with restart-dependent enforcement
+represent a class of deferred enforcement change. When such a GPO is applied,
+the registry value is written but the running service is unaffected. The
+effective change occurs at the next service restart — which may be hours, days,
+or weeks later, depending on the server's patch and reboot cadence.
+
+A change management process that records only the policy-application event will
+consistently misclassify deferred enforcement changes as complete when they are
+actually pending. The server team's accurate response — "the GPO was set six
+weeks ago" — is the expected output of this process gap. They are not wrong;
+the process does not give them visibility to the enforcement event.
+
+The recommended process correction: GPO changes targeting service or session
+parameters should be documented with an explicit enforcement dependency (e.g.,
+"effective on next LanmanServer restart; will activate at next patch reboot
+scheduled 2026-03-07") and tracked as open changes until the restart is
+confirmed. This would have surfaced the effective SMB1 enforcement as a
+change event associated with the March patch cycle, rather than discovering it
+through a broken overnight batch job.
+
+This class of gap — policy applied, change not yet enforced — applies beyond
+GPO: service configuration changes that require a restart to activate, kernel
+parameters that require a reboot (some sysctl values), and TLS certificate
+changes that require service reload all share the same deferred enforcement
+characteristic. The process correction is the same in each case: track the
+enforcement event, not just the configuration event.

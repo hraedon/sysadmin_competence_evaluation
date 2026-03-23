@@ -1,0 +1,25 @@
+Root cause: The C: drive is a Dynamic spanned volume spanning a 480 GB SSD (Disk 0,
+Samsung PM893) and a 1,900 GB SATA HDD (Disk 1, WD Gold 2TB). Spanned volumes on
+Windows fill member disks sequentially — Disk 0 is filled entirely before any data is
+written to Disk 1. Because the SSD was at 94% capacity (approximately 452 GB used of
+480 GB) before the expansion, the SSD portion of C: was nearly exhausted at the point
+the spanning was created. Any write to C: that cannot fit in the remaining ~28 GB of SSD
+space goes directly to the SATA HDD. From Tuesday onward, essentially all new application
+writes — including temporary files, updated documents, and any application state written
+to C: — are landing on the hard drive.
+
+The performance data is fully consistent with this: read latency has jumped from 2.8 ms
+to 26.4 ms (9.4x), write latency from 3.1 ms to 29.7 ms (9.6x), and disk queue length
+from 0.3 to 5.1. These numbers match SATA HDD latency characteristics under moderate
+I/O load. CPU is unchanged, confirming this is a storage subsystem problem only.
+
+Remediation complexity: There is no in-place path to undo this. Converting a Dynamic
+disk back to Basic on Windows requires deleting all volumes on the disk first. Since C:
+is the system and boot volume, this cannot be done while the OS is running from it. The
+practical remediation requires either: (a) restoring from a bare-metal backup taken before
+Tuesday's change, then addressing the original space problem through hardware expansion,
+or (b) migrating the OS and application data to a replacement SSD, rebuilding the volume
+structure on Basic disks, and decommissioning the current spanning configuration.
+
+The correct fix for the original space problem is hardware-level: replace Disk 0 with a
+larger SSD, or add a second SSD and extend the volume within SSD-class storage only.

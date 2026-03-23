@@ -1,0 +1,3 @@
+The network team says they didn't change anything in Azure, but the DNS results show that something is clearly different between how on-premises and Azure VMs resolve the storage hostname. The Azure VM gets an internal IP (10.0.2.5) but on-premises clients get a public IP (20.150.47.130).
+
+The Azure storage account has public access disabled, which would explain why the public IP doesn't work. I'd recommend checking whether there's a firewall rule or NSG in Azure that might be blocking the on-premises IP range, or whether the storage account's network access rules need to be updated to allow the on-premises network.

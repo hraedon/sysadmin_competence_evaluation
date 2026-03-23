@@ -1,0 +1,185 @@
+id: d06-audit-the-performance-complaint
+domain: 6
+domain_name: "Compute"
+level: 2
+title: "The Expanded Drive"
+delivery_mode: A
+subtype: null
+
+# Scenario note (for scenario authors and evaluators):
+# Most similar to: d09-audit-what-is-wrong-with-this-plan (both test whether candidates
+# can read a post-change artifact and identify a root cause that is not labelled as a
+# problem in the document — the issue exists in the configuration, not in any error message).
+# How the reasoning challenge differs: the change management scenario tests whether candidates
+# can identify gaps in a plan before it executes. This scenario tests whether candidates can
+# identify a configuration state (Dynamic spanned volume spanning mismatched storage tiers)
+# as the cause of observed performance data after the change has already executed. The
+# reasoning burden is different: the candidate must interpret performance counters, read
+# disk configuration output, and connect both to a causal mechanism rather than auditing
+# a plan for structural omissions.
+
+presentation:
+  type: log_extract
+  artifact_file: "scenarios/d06/audit_the_performance_complaint/incident_report.txt"
+  context: |
+    SERVER-APP01, a physical Windows Server 2022 application server, has been experiencing
+    elevated disk latency since Tuesday 2026-03-18. The application team is reporting
+    intermittent timeouts on file read and write operations. A desktop support engineer who
+    recently worked on the server has been identified — he reports that he "expanded the
+    C: drive" on Tuesday because it was running low on space. You have been provided with
+    the current disk configuration and performance data captured this morning.
+
+    Review the incident report and disk configuration data. Identify the cause of the
+    performance degradation, assess its severity, and recommend a remediation path.
+
+difficulty: 3
+difficulty_note: >
+  The artifact contains a distractor: the desktop engineer's note frames the expansion as
+  a routine space management action and explicitly states he did not expect a performance
+  impact. Candidates must disregard this framing and reason from the configuration data.
+  The key inference — that a Spanned volume spanning an SSD and a SATA HDD produces
+  I/O latency that varies depending on which physical disk the target data resides on —
+  requires knowing how Windows Dynamic spanned volumes work (sequential fill from the first
+  member disk), cross-referencing that with the pre-expansion SSD utilisation (94%), and
+  connecting both to the observed latency spike. The CPU counter is a deliberate distractor
+  confirming compute is not a factor; candidates who anchor on CPU will miss the storage
+  tier issue.
+
+rubric:
+  critical_findings:
+    - id: c_drive_spans_ssd_and_hdd_storage_tiers
+      description: >
+        The C: drive is a Dynamic spanned volume whose member disks are a 480 GB SSD
+        (Disk 0, Samsung PM893) and a 1,900 GB SATA HDD (Disk 1, WD Gold 2TB). These are
+        fundamentally different storage tiers: the SSD provides sub-5 ms latency; the SATA
+        HDD provides 8–12 ms latency under light load and significantly higher under queue
+        depth. I/O that reaches data stored on the HDD portion of the spanned volume will
+        experience latency an order of magnitude higher than I/O served from the SSD
+        portion. The observed latency increase — from ~3 ms to ~27 ms — is consistent with
+        a significant fraction of I/O hitting the SATA HDD. This is the direct cause of
+        the performance regression. The change on Tuesday (disk expansion via Dynamic
+        spanning) is the event that created this configuration.
+      severity: critical
+      miss_signal: >
+        Candidate notes the disk was expanded on Tuesday and performance degraded on
+        Tuesday, and concludes the change caused the problem — but does not identify the
+        storage tier mismatch (SSD spanned to SATA HDD) as the specific causal mechanism.
+        A response that recommends "reversing the disk expansion" without identifying why
+        the expansion caused the problem has not demonstrated the critical finding.
+      learning_note: >
+        Windows Dynamic spanned volumes concatenate member disks into a single logical
+        volume. They do not stripe or mirror — data is written sequentially, filling the
+        first member disk before writing to the second. The volume type does not equalise
+        the performance characteristics of the underlying disks: a block that resides on
+        the SSD member is served at SSD speed; a block that resides on the HDD member is
+        served at HDD speed. When member disks have mismatched performance profiles (SSD
+        and SATA HDD), the effective throughput and latency of the volume is non-uniform
+        and depends entirely on where the data physically lives. For an OS drive, this
+        means the page file, temporary files, application binaries, and frequently-accessed
+        data may reside on the slow member if the fast member was near capacity when the
+        volume was spanned. This is not a supported or recommended configuration for
+        production workloads.
+
+  secondary_findings:
+    - id: sequential_fill_means_hot_data_on_cold_disk
+      description: >
+        Spanned volumes fill member disks sequentially: Disk 0 (SSD, 480 GB) is filled
+        entirely before any data is written to Disk 1 (HDD). Since the SSD was at 94%
+        capacity (approximately 452 GB used) before the expansion, data written after the
+        expansion boundary — including new application writes from Tuesday onward — goes
+        directly to the SATA HDD. Data already on the SSD near the 452 GB mark (files
+        written last before the drive was full) is at the highest risk of fragmented I/O:
+        sequential reads that begin on the SSD and cross into the HDD will stall at the
+        boundary. The working set of the application (recently written and modified files)
+        is on or past the SSD/HDD boundary, which explains why I/O is consistently slow
+        rather than occasionally slow.
+      severity: high
+      learning_note: >
+        The sequential fill behaviour of spanned volumes is the mechanism that converts
+        the storage tier mismatch into a practical performance problem. If the SSD had
+        been at 10% utilisation when it was spanned to the HDD, most I/O would still hit
+        the SSD and performance would be acceptable for a while. But at 94% utilisation,
+        the overflow point is almost immediately reached: any write that doesn't fit in the
+        remaining 28 GB of SSD space goes to the HDD. Over time — or immediately, in the
+        case of a server with active writes — the active working set migrates onto the
+        slower disk.
+
+    - id: rollback_is_destructive
+      description: >
+        There is no in-place path to convert a Dynamic disk back to a Basic disk on
+        Windows. Converting Dynamic back to Basic requires deleting all volumes on the
+        disk first — which means all data must be migrated off both disks before the
+        conversion can proceed. For a system disk (the disk containing the boot and system
+        volumes), this is not possible while the OS is running from that disk. Restoration
+        requires rebuilding the OS installation or restoring from a bare-metal backup,
+        then migrating data back. The remediation is significantly more complex than
+        the original change that created the problem.
+      severity: high
+      learning_note: >
+        The Dynamic-to-Basic conversion constraint is a Windows-specific behaviour that
+        has remained consistent across Windows Server versions. Disk Management and
+        DISKPART both surface the option to "Convert to Basic Disk" only after all
+        volumes on the disk have been deleted. For a system disk, this means the
+        conversion cannot be done online. This is why spanning the OS disk to a second
+        disk — rather than replacing the underlying hardware or adding a larger SSD —
+        creates a recovery problem that is disproportionate to the original space
+        constraint it was solving.
+
+    - id: change_management_process_failure
+      description: >
+        Modifying the OS drive storage configuration of a production application server
+        is a significant change: it converts the disk type (Basic to Dynamic), changes
+        the volume type (Simple to Spanned), and introduces a dependency on a second
+        physical disk for the server to boot. This change should not have been made
+        without a change request, a performance impact assessment, and a tested rollback
+        procedure. None of these were in place. A desktop support engineer executed a
+        major storage configuration change on a production server without infrastructure
+        team involvement or change management approval. The process failure is the reason
+        the technical failure was possible.
+      severity: moderate
+
+  level_indicators:
+    level_1: >
+      Notes that the disk expansion happened on Tuesday and the performance issue started
+      on Tuesday, and concludes the expansion caused the problem based on timing alone.
+      May recommend reverting or investigating the disk change. Does not identify the
+      storage tier mismatch (SSD spanned to SATA HDD) as the specific cause, and does not
+      connect the disk configuration output to the latency data. May misread the DISKPART
+      output or not recognise what a Spanned volume type indicates.
+    level_2: >
+      Identifies that the C: drive is now a Dynamic spanned volume spanning a 480 GB SSD
+      (Disk 0) and a 1,900 GB SATA HDD (Disk 1). Recognises that these are mismatched
+      storage tiers and that I/O hitting the HDD portion will experience significantly
+      higher latency than I/O on the SSD. Connects this to the observed latency spike
+      (2.8 ms to 26.4 ms reads, 3.1 ms to 29.7 ms writes) and the disk queue length
+      increase (0.3 to 5.1). Notes CPU is unchanged, ruling out compute as a factor.
+      Recommends separating the volumes and returning C: to SSD-only storage. Does NOT
+      explain the sequential-fill mechanism that places active data on the HDD, does not
+      address the rollback complexity of Dynamic-to-Basic conversion, and does not
+      identify this as a change management failure.
+    level_3: >
+      All of the above plus: explains the sequential fill mechanism — spanned volumes
+      fill Disk 0 entirely before writing to Disk 1, so since the SSD was at 94%
+      before expansion, new writes from Tuesday onward go directly to the SATA HDD,
+      placing the active application working set on the slow disk. Notes that rollback
+      is not straightforward: converting Dynamic back to Basic requires deleting all
+      volumes first, and a system disk cannot be converted while the OS is running from
+      it — data migration and OS rebuild or bare-metal restore are required. Identifies
+      the correct long-term fix: extend the underlying SSD hardware (replace with a
+      larger SSD), then extend the partition within the SSD, rather than spanning to a
+      second disk of a different type. Does NOT characterise this as a change management
+      or process failure, and does not identify the absence of a change request or
+      rollback plan as a contributing factor.
+    level_4: >
+      All of the above plus: identifies the process failure — a desktop support engineer
+      executed a significant storage configuration change on a production OS drive without
+      a change request, performance impact assessment, or rollback procedure. Notes that
+      the correct escalation path was to raise the space constraint as a risk requiring
+      infrastructure team involvement, not to resolve it unilaterally using Disk
+      Management. Proposes process controls that would have prevented this: requiring
+      change management approval for disk type and volume type changes on production
+      servers, and defining the infrastructure team as the appropriate owner for OS drive
+      storage decisions. Notes the irony that the change that caused the incident was
+      itself triggered by a legitimate problem (94% SSD utilisation) that should have
+      been caught and resolved through planned hardware expansion, not emergency action
+      by a desktop engineer.

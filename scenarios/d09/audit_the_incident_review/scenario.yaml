@@ -1,0 +1,152 @@
+id: d09-audit-the-incident-review
+domain: 9
+domain_name: "Change Management"
+level: 2
+title: "Admin Error"
+delivery_mode: A
+subtype: null
+
+difficulty: 3
+difficulty_note: >
+  The RCA is internally consistent and professionally formatted. The timeline is
+  accurate, the corrective actions are plausible, and the root cause is factually
+  correct — the operator did load the wrong config file. The finding requires
+  recognising that a factually correct root cause can still be analytically insufficient:
+  "admin error" explains who did what but not what system conditions made the error
+  possible. Candidates who evaluate the RCA on accuracy rather than analytical
+  completeness will miss the finding. The corrective actions are the clearest signal —
+  they are person-targeted (training, written warning) rather than system-targeted, which
+  means they don't address any of the conditions that allowed the error.
+
+presentation:
+  type: change_plan
+  artifact_file: "scenarios/d09/audit_the_incident_review/incident_review.txt"
+  context: |
+    You have been asked to review a post-incident review document before it is
+    submitted to the change advisory board. The incident resulted in deletion of a
+    production database and 3 hours 44 minutes of downtime.
+
+    Assess the quality of the root cause analysis and identify what, if anything,
+    the review missed.
+
+# Most similar to: d09-audit-assess-the-cab (both require identifying a structural
+# gap in a change management document — the CAB scenario identifies process gaps in
+# approval and review; this scenario identifies analytical gaps in incident review).
+# How the reasoning challenge differs: the CAB scenario requires reading observable
+# data (approval rate, review frequency) and inferring what the process should show.
+# This scenario requires evaluating an RCA's analytical methodology — not whether the
+# facts are accurate (they are), but whether the root cause question was asked correctly.
+# The CAB scenario identifies missing process components; this scenario identifies a
+# wrong framing of the root cause question.
+
+rubric:
+  critical_findings:
+    - id: corrective_actions_are_person_targeted_not_system_targeted
+      description: >
+        Both corrective actions (formal warning + training; runbook update requiring
+        verbal confirmation of target) address the person who made the error, not the
+        system conditions that made the error possible. Person-targeted corrective
+        actions do not prevent the same error from a different person who has not
+        received the training, or the same person on a different day under similar
+        pressure. A system-targeted corrective action modifies the environment so that
+        the error is harder or impossible to make. None of the three systemic conditions
+        identified in the RCA's own timeline (config files in the same directory, tool
+        didn't display the target before executing, operator had DROP permission in
+        production) received a corrective action. Person-targeted corrective actions
+        following a systemic failure are a sign the RCA stopped at the proximate cause
+        rather than the conditions that enabled it.
+      severity: critical
+      miss_signal: >
+        Candidate accepts the corrective actions as appropriate and focuses feedback on
+        minor additions (better communication, faster escalation). Or: candidate
+        identifies one missing systemic fix but frames it as an enhancement suggestion
+        rather than an RCA gap — treats the analysis as mostly complete rather than
+        structurally deficient.
+
+    - id: systemic_conditions_not_addressed
+      description: >
+        The artifact's own incident timeline documents three conditions that made the
+        error possible, none of which appear in the corrective actions: (1) The migration
+        tool ran the script without displaying the target server name before execution —
+        a single confirmation prompt would have surfaced the wrong connection before any
+        data was affected. (2) The operator's account had DROP DATABASE permission in the
+        production database — least-privilege enforcement would have turned a near-miss
+        into an error that failed safely. (3) Both production and staging configuration
+        files were in the same working directory with similar names — environment
+        separation in tooling or directory structure reduces the likelihood of loading
+        the wrong file. Any of these three controls, if present, would have prevented
+        the deletion regardless of operator behaviour. None of them require the operator
+        to act differently; they modify the system.
+      severity: critical
+      miss_signal: >
+        Candidate identifies one systemic condition (e.g., the tool should have shown
+        the target) but not the others, or identifies them as contributing factors
+        without connecting the absence of corrective actions for those conditions to
+        the RCA quality. The finding is not just "these things exist" but "these things
+        were identified in the timeline and then not addressed in the corrective actions."
+
+  secondary_findings:
+    - id: root_cause_question_wrong
+      description: >
+        The RCA answers "who did what" (operator loaded the wrong config file) rather
+        than "what made this error possible." These are different questions. A correct
+        root cause analysis asks: given that a human will occasionally make an error,
+        what in the environment allowed this particular error to cause this particular
+        outcome? The RCA's root cause as stated ("operator error") is unfalsifiable —
+        any incident involving a human action can be attributed to operator error — and
+        non-actionable, because it implies that the solution is a different operator or
+        a more careful one. "Operator error" as a root cause finding signals that the
+        analysis stopped before identifying the system conditions the corrective actions
+        should address.
+      severity: high
+      learning_note: >
+        "Human error" or "admin error" as a root cause finding is widely recognised in
+        incident analysis as a stopping point, not an answer. The question after "a human
+        made an error" is always "what in the system made that error consequential?" —
+        because humans will continue to make errors regardless of training. System-targeted
+        corrective actions (permission controls, confirmation prompts, environmental
+        separation) reduce the blast radius of errors that will inevitably occur.
+
+    - id: fatigue_listed_as_contributing_factor
+      description: >
+        The RCA lists operator fatigue as a contributing factor without any corrective
+        action to address it. If fatigue is identified as a contributing condition,
+        the corrective actions should include a structural response — maintenance window
+        length limits, two-person operations for destructive tasks, or shift rotation
+        requirements. Listing a contributing factor without a corresponding corrective
+        action is an RCA quality gap: it acknowledges a systemic condition and then
+        does nothing about it.
+      severity: moderate
+
+  level_indicators:
+    level_1: >
+      Reads the RCA and agrees that the operator made an error and that retraining is
+      appropriate. May suggest that the runbook update is a good corrective action.
+      Does not identify what the RCA missed or evaluate whether the corrective actions
+      address the conditions that made the error possible.
+    level_2: >
+      Identifies that the corrective actions are person-targeted and do not prevent the
+      same error from a different operator. Identifies at least one systemic condition
+      that was not addressed (tool should display target before executing; DROP permission
+      in production; config files in same directory). Notes that the incident can recur
+      because the system conditions remain unchanged. Does NOT articulate why "admin
+      error" is an analytically insufficient root cause — identifies the missing fixes
+      without naming the methodological flaw.
+    level_3: >
+      All of the above plus: identifies all three systemic conditions documented in the
+      timeline that received no corrective action. Notes the distinction between person-
+      targeted and system-targeted corrective actions and explains why person-targeted
+      actions don't prevent recurrence. Notes that fatigue is listed as a contributing
+      factor without any corrective action. Does NOT articulate the root cause question
+      framing error — does not name "operator error" as an analytically insufficient
+      framing rather than merely an incomplete one.
+    level_4: >
+      All of the above plus: names the root cause question framing error explicitly —
+      "operator error" answers "who acted" not "what made this consequential." Notes
+      that this framing is unfalsifiable (any human-involved incident can be attributed
+      to operator error) and non-actionable (implies the solution is a more careful
+      person). Articulates the correct root cause question: given that humans make errors,
+      what system conditions allowed this error to delete a production database? The
+      RCA's own timeline answers this question — tool showed no confirmation, operator
+      had DROP permission, config files were adjacent — but the analysis did not reach
+      that question, and as a result the corrective actions address none of those conditions.

@@ -1,0 +1,11 @@
+The discrepancy is caused by orphaned VMDK files on the datastore that are not registered to any VM in vCenter. Cross-referencing the datastore browser listing against the VM inventory shows three sets of files with no associated .vmx file or current VM registration:
+
+- OldWebServer_2023-flat.vmdk: 1.80 TB, last modified 2024-01-14
+- ProjectDB_archive-flat.vmdk: 850 GB, last modified 2023-09-07
+- StagingApp-000001.vmdk: 180 GB, last modified 2024-03-22
+
+These three together account for approximately 2.83 TB. The four registered VMs (6.00 TB) plus the orphaned files (2.83 TB) plus the WS2022-Base template (80 GB) and file system overhead accounts for the 9.03 TB in use.
+
+These files are almost certainly left over from VMs that were removed from vCenter inventory rather than deleted from disk. In vSphere, "Remove from Inventory" removes the VM object from vCenter but leaves all files on the datastore. "Delete from Disk" removes both. When a VM is decommissioned using the wrong option, its VMDKs remain on the datastore consuming real space but invisible in the normal inventory view.
+
+The recommended action is to identify and delete the orphaned files to recover approximately 2.83 TB, which would bring utilisation back to around 62% and clear the capacity alert.

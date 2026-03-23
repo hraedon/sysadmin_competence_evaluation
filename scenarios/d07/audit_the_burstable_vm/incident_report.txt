@@ -1,0 +1,85 @@
+Support Ticket #INC-4471
+Submitted: 2026-03-19 14:22
+Priority: High
+Component: ProcessingWorker (prod)
+Assigned to: Infrastructure
+
+Title: ProcessingWorker service severely degraded since go-live
+
+Description:
+ProcessingWorker went live on 2026-03-16 after three days of testing. During testing
+it processed the message queue without issues — latency p95 was under 800ms and the
+queue stayed below 100 messages. In production the service degraded within two hours
+of go-live. Processing latency is now consistently 8–12 seconds p95. The queue is
+backing up and has reached 4,200 messages as of this morning. The service hasn't been
+changed since testing. We need this resolved today.
+
+— Dev lead, AppServices team
+
+---
+
+Update 2026-03-19 09:41 (ops team):
+Checked application logs. No errors. The service is running and processing messages,
+just very slowly. CPU appears high. Checking infrastructure.
+
+---
+
+Infrastructure details (from Azure Portal, pulled 2026-03-19 09:50):
+
+VM: proc-worker-prod-01
+Region: East US 2
+Resource group: rg-processingworker-prod
+VM size: Standard_B2ms (2 vCPU, 8 GiB RAM)
+OS disk: Standard SSD E10 (128 GiB)
+OS: Windows Server 2022 Datacenter
+Uptime: 3 days 2 hours
+
+Deployment notes (from provisioning record, 2026-03-13):
+  Size selection: B2ms chosen over D2s_v3 to reduce monthly cost (~40% savings).
+  B2ms is sufficient for the expected workload based on test results.
+  Approved by: ops lead
+
+---
+
+ProcessingWorker service description (from application runbook):
+  Continuous data transformation pipeline. Reads from an Azure Service Bus queue,
+  transforms each message (JSON parsing, field mapping, validation, downstream HTTP
+  call), and writes result to Azure SQL. Designed to process messages as fast as
+  they arrive. Throughput target: 50 messages/second sustained.
+
+---
+
+Azure Monitor — proc-worker-prod-01 metrics (2026-03-16 10:00 to 2026-03-16 14:00)
+Time window: first 4 hours of production go-live
+Interval: 15 minutes
+
+  Time (UTC)   CPU %   CPU Credits Remaining
+  10:00        78%     60.0
+  10:15        82%     48.2
+  10:30        84%     36.1
+  10:45        79%     24.5
+  11:00        83%     12.8
+  11:15        80%     3.4
+  11:30        41%     0.0   ← performance degradation reported by dev team
+  11:45        38%     0.0
+  12:00        40%     0.0
+  12:15        39%     0.0
+  12:30        41%     0.0
+  13:00        40%     0.0
+  13:30        39%     0.0
+  14:00        40%     0.0
+
+Note: CPU Credits Remaining is a count metric. 60.0 represents a full credit bucket.
+Credits are earned when CPU utilisation is below the VM's baseline CPU percentage and
+spent when CPU utilisation exceeds the baseline.
+
+---
+
+Azure Monitor — proc-worker-prod-01 metrics (2026-03-17 to 2026-03-19, 72-hour view)
+Interval: 1 hour — summary
+
+  CPU % range: 39–42% (sustained)
+  CPU Credits Remaining: 0.0 (sustained since 2026-03-16 11:15)
+  Disk read IOPS: < 100 (within E10 baseline, not constrained)
+  Network in/out: < 5 Mbps (not constrained)
+  Available memory: 6.1 GiB of 8 GiB (memory not constrained)

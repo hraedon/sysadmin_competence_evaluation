@@ -1,0 +1,5 @@
+The corrective actions in this RCA address the operator who made the error, not the conditions that made the error possible. A formal warning and additional training apply to one person. A different operator making the same mistake would not be protected by either action. The incident can recur.
+
+The timeline documents at least one condition that would have prevented the data loss regardless of operator behaviour: the migration tool ran the script without displaying the target server name before executing. If the tool had shown "Target: db-prod-01 — confirm?" before running, the operator would have seen the wrong connection before DROP DATABASE ran. This is a tooling gap, and it has no corrective action in the RCA.
+
+The RCA should be returned for revision to address the systemic conditions identified in the timeline.

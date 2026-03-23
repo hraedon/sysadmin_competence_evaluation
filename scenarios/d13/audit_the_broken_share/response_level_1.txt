@@ -1,0 +1,18 @@
+Looking at this, the first thing I checked is whether the network connectivity
+is the issue. Ping to FILESRV01 works fine and port 445 is open, so it's not a
+firewall problem or a routing issue. The server is reachable.
+
+Since the network is fine, I'd look at a few other things. First, does LINPROC01
+have a valid account that can access the share? The smbclient command is being
+run with -N (no password), which might be the problem — the share may require
+authentication. Second, I'd check whether the share permissions on FILESRV01
+have changed. The server team says no recent changes, but it's worth verifying
+the share ACL hasn't been accidentally modified. Third, I'd check whether the
+share path \\FILESRV01\DataShare still exists — maybe it was renamed or moved
+during the Windows Update process.
+
+I'd also check DNS resolution on LINPROC01 to make sure it's resolving FILESRV01
+to the correct IP, since DNS issues can sometimes cause SMB connection failures.
+
+The Windows team should confirm that the share is still shared and that the
+Linux system's service account still has access permissions.

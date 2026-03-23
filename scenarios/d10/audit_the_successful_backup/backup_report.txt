@@ -1,0 +1,71 @@
+Backup Health Audit Request
+Requested by: IT Manager
+Date: 2026-03-23
+Scope: All production backup jobs — confirm jobs are healthy and meeting retention targets.
+
+---
+
+JOB: PROD-FileServer-Daily
+Type: Backup (Forever Forward Incremental)
+Source: FS-PROD-01 (E:\ — shared drives, 1.4 TB used)
+Repository: REPO-NAS01 (\\nas01\veeam-repo\PROD-FileServer-Daily)
+Retention policy: Keep 7 restore points
+Schedule: Daily at 23:00
+
+Job History — last 7 runs:
+
+  Date        Start     End       Status   Data transferred
+  ----------  --------  --------  -------  ----------------
+  2026-03-16  23:00:12  23:47:31  Success  142 GB
+  2026-03-17  23:00:08  23:51:44  Success  156 GB
+  2026-03-18  23:00:15  00:12:33  Success  181 GB
+  2026-03-19  23:00:11  23:38:42  Success   28 GB
+  2026-03-20  23:00:09  23:27:15  Success   31 GB
+  2026-03-21  23:00:14  23:31:08  Success   34 GB
+  2026-03-22  23:00:11  23:29:47  Success   29 GB
+
+Repository status (REPO-NAS01):
+
+  Capacity:  4.0 TB
+  Used:      3.92 TB
+  Free:      82 GB (2.0%)
+
+Restore points currently available for this job:
+
+  #  Type          Date/Time              Size on disk
+  -  ------------  ---------------------  ------------
+  1  Full          2026-03-16 23:47       1.87 TB
+  2  Incremental   2026-03-17 23:51         156 GB
+  3  Incremental   2026-03-18 00:12         181 GB
+
+---
+
+Session log excerpts (jobs 2026-03-19 through 2026-03-22):
+
+2026-03-19 23:00:11  Job started. Processing FS-PROD-01...
+2026-03-19 23:36:54  Incremental backup complete. 28 GB transferred.
+2026-03-19 23:36:55  Repository free space below threshold (5.0%).
+                     Initiating merge of oldest restore point to reclaim space.
+2026-03-19 23:38:40  Merge complete. Restore point 2026-03-13 removed.
+2026-03-19 23:38:42  Job finished. Status: Success.
+
+2026-03-20 23:00:09  Job started. Processing FS-PROD-01...
+2026-03-20 23:25:07  Incremental backup complete. 31 GB transferred.
+2026-03-20 23:25:08  Repository free space below threshold (5.0%).
+                     Initiating merge of oldest restore point to reclaim space.
+2026-03-20 23:27:13  Merge complete. Restore point 2026-03-14 removed.
+2026-03-20 23:27:15  Job finished. Status: Success.
+
+2026-03-21 23:00:14  Job started. Processing FS-PROD-01...
+2026-03-21 23:29:01  Incremental backup complete. 34 GB transferred.
+2026-03-21 23:29:02  Repository free space below threshold (5.0%).
+                     Initiating merge of oldest restore point to reclaim space.
+2026-03-21 23:31:06  Merge complete. Restore point 2026-03-15 removed.
+2026-03-21 23:31:08  Job finished. Status: Success.
+
+2026-03-22 23:00:11  Job started. Processing FS-PROD-01...
+2026-03-22 23:27:38  Incremental backup complete. 29 GB transferred.
+2026-03-22 23:27:39  Repository free space below threshold (5.0%).
+                     Initiating merge of oldest restore point to reclaim space.
+2026-03-22 23:29:45  Merge complete. Restore point 2026-03-16 removed.
+2026-03-22 23:29:47  Job finished. Status: Success.

@@ -1,0 +1,23 @@
+The cause of the performance degradation is the disk configuration change made on
+Tuesday. Looking at the DISKPART output, the engineer converted both disks to Dynamic
+and extended C: as a Spanned volume. C: now spans two physically different disks:
+Disk 0 (a 480 GB Samsung SSD) and Disk 1 (a 2 TB WD Gold SATA hard drive), contributing
+480 GB and 1,900 GB respectively to the 2,380 GB spanned volume.
+
+These are completely different storage tiers. The SSD will serve I/O in the 2–4 ms
+range; the SATA HDD will be in the 8–15 ms range under normal conditions, and
+considerably worse under queue depth. The performance data confirms this: average read
+latency jumped from 2.8 ms to 26.4 ms, and average write latency from 3.1 ms to 29.7 ms.
+That is approximately a 9x increase, which is exactly what you would expect when a
+significant fraction of I/O is now hitting a SATA HDD rather than an SSD. The disk
+queue length increase from 0.3 to 5.1 confirms the storage subsystem is saturated.
+CPU is essentially unchanged at 34% vs 36%, which rules out compute as a factor — this
+is a pure storage performance problem.
+
+The C: volume includes the page file and system files (shown in the DISKPART detail), so
+application I/O, OS I/O, and paging are all hitting this spanned volume.
+
+Recommendation: The spanned volume needs to be separated and C: returned to SSD-only
+storage. The 94% SSD utilisation that prompted the change in the first place still needs
+to be addressed, but by expanding the underlying SSD hardware rather than spanning to a
+slower disk.

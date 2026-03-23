@@ -1,0 +1,13 @@
+The RCA is factually accurate but analytically incomplete. Its corrective actions are person-targeted — they address the operator who made the error, not the conditions that made the error consequential. Person-targeted corrective actions don't prevent the same incident from a different operator, and they don't reduce the blast radius if the same error recurs.
+
+The RCA's own timeline documents three conditions that each independently could have prevented the data loss, none of which appear in the corrective actions:
+
+The migration tool executed without displaying the target server name before running. A confirmation step — "You are about to run this against db-prod-01. Confirm?" — would have surfaced the wrong connection before DROP DATABASE ran. This is a missing tooling control.
+
+The operator's account had DROP DATABASE permission in production. The maintenance task was a staging upgrade. There is no reason that account needed production DROP permissions for that task. Least-privilege enforcement would have turned this into a recoverable failure — script errors on permission denied — rather than a data loss event.
+
+Both migration configuration files (migrate_prod.cfg and migrate_staging.cfg) were in the same working directory. Separating them by environment — different directories, different access controls — reduces the likelihood of loading the wrong one and makes the error visible before execution.
+
+The contributing factor of operator fatigue is listed without a corrective action. If fatigue contributed, the response should address it structurally: two-person operations for destructive tasks, or maintenance window length limits.
+
+The RCA should be returned for revision. The three systemic conditions above should each have a corrective action, and the fatigue contributing factor requires either a corresponding action or removal from the document.

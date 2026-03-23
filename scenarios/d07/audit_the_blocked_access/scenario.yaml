@@ -1,0 +1,148 @@
+id: d07-audit-the-blocked-access
+domain: 7
+domain_name: "Cloud Infrastructure"
+level: 2
+title: "The Rule That Wasn't There"
+delivery_mode: A
+subtype: null
+
+difficulty: 3
+difficulty_note: >
+  The artifact provides the subnet NSG rules and the diagnosis requires reading them
+  correctly. The difficulty is structural: the junior admin already checked the NIC NSG
+  (which does allow HTTPS from Any) and concluded the NSG layer was clear. Candidates who
+  do not know that Azure evaluates subnet-level and NIC-level NSGs independently, or who
+  do not know that the subnet NSG is evaluated first for inbound traffic, will accept the
+  junior admin's conclusion at face value. The distractor is strong because the NIC NSG
+  rule (Allow-HTTPS-Any at priority 100) looks exactly like what you would add to fix the
+  problem — unless you know traffic is blocked before that rule is ever evaluated.
+
+presentation:
+  type: environment_description
+  artifact_file: "scenarios/d07/audit_the_blocked_access/troubleshooting_notes.txt"
+  context: |
+    A junior admin has escalated an incident after exhausting their troubleshooting
+    checklist. The customer portal is reachable from inside the network but not from
+    external partner addresses. The attached document contains the ticket, the
+    troubleshooting steps already taken, and the NSG rule tables retrieved on request
+    from the network team.
+
+    Identify why the junior admin's troubleshooting did not find the cause, what is
+    actually blocking the connection, and what the correct fix is.
+
+# Most similar to: d03-audit-read-the-firewall (both require reading layered access
+# control rules and identifying the blocking rule in a multi-layer configuration).
+# How the reasoning challenge differs: the firewall scenario presents a single ruleset
+# and asks the candidate to identify the controlling rule for a given traffic flow.
+# This scenario presents a multi-layer cloud NSG configuration where the candidate must
+# also explain why a completed troubleshooting investigation missed the cause — the
+# NIC-level NSG was checked and correctly read, but the subnet-level NSG was not checked,
+# and understanding why the subnet layer is decisive for inbound traffic (subnet NSG
+# evaluated before NIC NSG) is the key finding.
+
+rubric:
+  critical_findings:
+    - id: subnet_nsg_blocks_external_https
+      description: >
+        The subnet-level NSG (nsg-webapp-subnet) applied to subs-webapp (10.0.1.0/24)
+        has no inbound allow rule for TCP 443 from internet sources. Its priority 100
+        rule (Allow-Corp-VPN-HTTPS) allows TCP 443 from 10.0.0.0/8 only — covering
+        corporate and VPN traffic. Its priority 200 rule allows TCP 80 from Any. There
+        is no rule allowing TCP 443 from Any or from internet address ranges. Traffic
+        arriving from external partner IPs on port 443 matches no allow rule and is
+        dropped by the default DenyAllInbound rule at priority 65500. This is why the
+        portal works from inside the corporate network and VPN (source IP matches
+        10.0.0.0/8) but not from external addresses.
+      severity: critical
+      miss_signal: >
+        Candidate accepts the junior admin's conclusion that the NSG layer is not the
+        cause because the NIC NSG allows HTTPS from Any. Or: candidate identifies an
+        NSG issue but does not correctly identify which rule is the cause (e.g., says
+        "add an HTTPS allow rule to the NSG" without specifying that the subnet NSG is
+        the layer that needs the rule). The subnet NSG rules are in the artifact — the
+        finding requires reading the source ranges and recognising that 10.0.0.0/8 does
+        not cover external partner IPs.
+
+    - id: subnet_nsg_evaluated_before_nic_nsg
+      description: >
+        Azure evaluates NSGs at both the subnet level and the NIC level independently.
+        For inbound traffic, the subnet NSG is evaluated first. If the subnet NSG drops
+        the traffic, it is discarded before the NIC NSG is ever consulted. The junior
+        admin checked the NIC NSG (which does allow HTTPS from Any), confirmed it was
+        correct, and concluded the NSG layer was not the cause. This conclusion was wrong
+        because checking only the NIC NSG is insufficient: the subnet NSG had already
+        dropped the traffic before the NIC NSG rule could apply. Understanding the
+        evaluation order is required to interpret the NIC NSG finding correctly.
+      severity: critical
+      miss_signal: >
+        Candidate identifies the subnet NSG gap but does not explain the evaluation order —
+        i.e., does not explain why the NIC NSG allow rule was irrelevant to the external
+        traffic. Or: candidate does not explain why the junior admin's investigation missed
+        the cause. The scenario asks specifically why the troubleshooting did not find
+        the cause — an answer that only identifies the fix without explaining the
+        investigation gap is incomplete.
+
+  secondary_findings:
+    - id: fix_requires_subnet_nsg_rule
+      description: >
+        The correct fix is to add an inbound allow rule to the subnet NSG (nsg-webapp-subnet)
+        for TCP 443 from Internet (or from Any, or from specific partner source ranges if
+        least-privilege is preferred). Adding the rule to the NIC NSG is not necessary —
+        the NIC NSG already has an allow rule for HTTPS from Any. The subnet NSG is the
+        layer that needs the rule.
+      severity: high
+
+    - id: subnet_allow_affects_all_vms_in_subnet
+      description: >
+        Adding a TCP 443 allow rule to the subnet NSG (nsg-webapp-subnet) will apply to
+        all VMs in subs-webapp (10.0.1.0/24), not just portal-prod-01. If other VMs in
+        the subnet are not intended to be publicly reachable on port 443, the subnet-level
+        allow is broader than necessary. The more targeted fix is to add the allow rule
+        to the NIC NSG for portal-prod-01 only — but this only works if the subnet NSG
+        is also changed to allow the traffic through (since subnet NSG evaluates first).
+        The cleanest approach for a dedicated-use subnet is a subnet-level rule; for a
+        mixed-use subnet, NIC-level NSG per VM with a permissive subnet NSG is the better
+        pattern.
+      severity: moderate
+      learning_note: >
+        In Azure, the recommended pattern for fine-grained control is to keep the subnet
+        NSG permissive for traffic that is controlled at the NIC NSG level. If the subnet
+        NSG is restrictive and the NIC NSG is permissive, the subnet NSG becomes the
+        de facto policy — changes need to be made at the subnet level for every new
+        requirement. If the subnet NSG is permissive and the NIC NSG is restrictive,
+        per-VM policy can be managed at the NIC level without subnet changes. Mixing
+        restrictive rules at both layers creates exactly the investigation confusion
+        demonstrated here.
+
+  level_indicators:
+    level_1: >
+      Identifies that something is blocking the external connection and suggests checking
+      firewall or NSG settings more broadly. Does not identify the subnet NSG as the
+      specific layer with the missing rule, or explain the evaluation order between subnet
+      and NIC NSGs. May suggest the junior admin missed something in the Windows Firewall
+      or IIS configuration.
+    level_2: >
+      Identifies the subnet NSG (nsg-webapp-subnet) as the blocking layer: no inbound
+      allow rule for TCP 443 from non-RFC1918 sources; priority 100 rule only covers
+      10.0.0.0/8; external traffic hits the default deny at 65500. Specifies the correct
+      fix: add a TCP 443 allow rule to the subnet NSG for internet sources. Explains why
+      internal and VPN traffic works (covered by the 10.0.0.0/8 rule). Does NOT explain
+      the subnet-first evaluation order, or why checking only the NIC NSG led the junior
+      admin to the wrong conclusion.
+    level_3: >
+      All of the above plus: explains the Azure NSG evaluation order — subnet NSG is
+      evaluated before NIC NSG for inbound traffic; a subnet deny drops the packet before
+      the NIC NSG is ever consulted. Uses this to explain the investigation gap: the junior
+      admin's NIC NSG finding (Allow-HTTPS-Any at priority 100) was correct but irrelevant
+      for external traffic, because external TCP 443 was already dropped at the subnet
+      layer. Does NOT address the scope concern — that a subnet NSG rule affects all VMs
+      in the subnet, not only portal-prod-01.
+    level_4: >
+      All of the above plus: identifies the scope concern — adding TCP 443 allow to the
+      subnet NSG affects every VM in subs-webapp. Notes that for a dedicated webapp subnet
+      this is appropriate; for a mixed-use subnet it is broader than intended. Describes
+      the cleaner long-term NSG pattern: permissive subnet NSG with restrictive per-VM
+      NIC NSGs, rather than restrictive rules at both layers, which avoids the evaluation-
+      order confusion that caused this incident. Flags Azure Network Watcher's IP Flow
+      Verify as the investigation tool that would have immediately identified the blocking
+      rule and the layer containing it, rather than requiring manual review of each NSG layer.

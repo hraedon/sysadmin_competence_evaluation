@@ -1,68 +1,19 @@
-The conclusion is incorrect. The evidence does not support it — and the supporting evidence section of the investigation notes contains the information that would have revealed this if it had been read carefully.
+The conclusion is incorrect and unsupported by the evidence. The junior administrator's investigation has two fundamental flaws.
 
-The two compounding failures:
+FAILURE 1: Missing "Object Access" auditing on FILESRV01
+The audit policy output shows Object Access auditing is NOT enabled. In Windows, file share access generates Event ID 5140 (Object Access category), not Logon/Logoff events (4624/4625). While a new session might generate a 4624 Logon event, subsequent file operations within that session are only captured if Object Access auditing is enabled and a SACL is configured on the share. Currently, FILESRV01 is blind to share and file access; the absence of logon events is uninformative.
 
-FAILURE 1: Wrong audit category — audit policy blinds FILESRV01 to file share access
+FAILURE 2: Inadequate log retention
+The Security log is only 20MB with "overwrite when full." The earliest entry is 2026-03-16, while the incident occurred on 2026-03-02. On an active file server, 20MB of logon events is typically overwritten within days. The absence of entries from three weeks ago is a log rotation artifact, not evidence of inactivity.
 
-The audit policy output (attached to the investigation notes) shows "Audit File Share: No Auditing" and "Audit File System: No Auditing" under the Object Access category. File share access events are generated under Object Access, not Logon/Logoff. The events the junior administrator searched for — 4624 (logon success) and 4625 (logon failure) — are generated when a new logon session is established, not when a user accesses a specific share or file within an existing session.
+Correct investigation path:
+1. Check Domain Controller Security logs: Kerberos service ticket requests (Event 4769) for CIFS/FILESRV01 are recorded on the DC regardless of the file server's audit policy. This is the correct source for "did this account authenticate to this server."
+2. Check centralized logging/SIEM: If logs are forwarded, the 3-week-old data may be preserved even if overwritten locally on FILESRV01.
+3. Analyze NTLM fallback: If Kerberos was not used, NTLM would generate a 4624 event (Logon Type 3) on FILESRV01, but this is also subject to the same retention gap.
 
-To understand the distinction: when a domain user maps a drive or accesses a UNC path on a domain file server, two things happen:
-1. A Kerberos service ticket is requested from the DC for CIFS/FILESRV01
-2. The SMB connection is established and the share is accessed
+Conclusion: The allegation is neither confirmed nor cleared. The current evidence base cannot answer the question.
 
-If the connection creates a new logon session on FILESRV01 (Logon Type 3, Network), Event 4624 is generated on FILESRV01 — if and only if the Logon audit category is recording successes, which it is. However, this logon event represents the session creation, not share access. Subsequent file operations within the same session generate no further logon events. More importantly, the specific share accessed, the files opened, and the operations performed are captured only by Object Access events (5140 for share access, 4663 for object access within the share) — and only if Object Access auditing is enabled AND the share/files have SACL entries configured.
-
-FILESRV01 has no Object Access auditing enabled. The Security log is categorically blind to share and file access. The junior administrator searched the right log for logon events and found nothing — but found nothing is not the same as nothing happened, because the log would not have recorded what happened even if it did.
-
-FAILURE 2: Log retention does not cover the incident window
-
-Security log earliest entry: 2026-03-16. Incident window: 2026-03-02. The log rotates on a 20MB limit with "overwrite as needed." On an active file server that generates logon events for every user session, 20MB is exhausted in days to weeks depending on load. Any entries from 2026-03-02 were overwritten before 2026-03-16.
-
-This compounds Failure 1: even if logon events were the right evidence, they are gone. The current absence of entries from 2026-03-02 is a log rotation artifact, not evidence of absence of activity.
-
-What the evidence can actually tell us
-
-From the current investigation evidence:
-- No new logon sessions for T.Nakamura were created on FILESRV01 on 2026-03-02 that are visible in the current log → UNKNOWN (log doesn't retain this window)
-- T.Nakamura did not access the Accounting share via NTLM on 2026-03-02 → ALSO UNKNOWN (same retention issue)
-- T.Nakamura did not access the share via Kerberos on 2026-03-02 → UNKNOWN (Object Access not enabled)
-
-The correct conclusion is: the current evidence base cannot answer the question.
-
-What the correct investigation requires
-
-FIRST: DC Kerberos authentication logs
-
-When a domain user accesses a Windows file server via Kerberos, the KDC issues a Kerberos service ticket (Event 4769) for the target service principal on the domain controller. For SMB to FILESRV01, the service name is CIFS/FILESRV01.corp.local (or cifs/filesrv01). This event appears on the DC's Security log regardless of FILESRV01's audit policy.
-
-Query the DC Security log for:
-- Event 4769
-- Account Name: t.nakamura (or the full UPN: t.nakamura@corp.local)
-- Service Name: contains "filesrv01" or "FILESRV01"
-- Date: 2026-03-02, 14:00–16:00 (note: confirm DC timezone and NTP sync before trusting the window)
-
-If a service ticket for CIFS/FILESRV01 was issued to T.Nakamura in that window, T.Nakamura's account made a Kerberos request to access FILESRV01. This is strong evidence of access — the account attempted to authenticate to the file server. Combined with the account being active on that date, this supports the allegation.
-
-DC log retention: DCs typically have larger Security logs than member servers, and many organizations forward DC logs to a SIEM or centralized log aggregator with longer retention. Check both the DC's local Security log AND any centralized log infrastructure for 3-week-old entries.
-
-SECOND: NTLM analysis from what we have
-
-Here is the partial value of what the junior administrator actually checked: FILESRV01's Security log has Logon auditing enabled. If T.Nakamura accessed the share via NTLM (Logon Type 3, Network, authentication package NTLM), a 4624 event would appear on FILESRV01's Security log. The log shows no such event — but the log doesn't retain the incident date. So for the 2026-03-02 window, NTLM access is neither confirmed nor excluded.
-
-For completeness: the DC also generates NTLM authentication events (the specific event ID depends on whether it's the DC or a member server completing NTLM auth). These are worth checking alongside the Kerberos events.
-
-REVISED CONCLUSION AND WHAT TO COMMUNICATE
-
-To the security team: The junior administrator's investigation did not search the correct evidence sources. FILESRV01's Security log does not capture file share access events because Object Access auditing is disabled. The log also does not retain entries from the incident date due to log rotation. The investigation is incomplete; the allegation is neither confirmed nor cleared.
-
-Recommended next steps with estimated evidence availability:
-1. DC Security log for Event 4769 (Kerberos service ticket issuance to FILESRV01) — likely available if DC log is larger or forwarded to SIEM
-2. Any centralized SIEM/log aggregator for either Kerberos or NTLM authentication events from 2026-03-02
-3. If neither is available: document that the evidence was not retained, and note this as a gap in the organization's ability to investigate access incidents
-
-FORWARD-LOOKING REMEDIATION (should be documented regardless of investigation outcome):
-- Enable Audit File Share (Object Access) on FILESRV01
-- Configure SACL on the Accounting share to generate access audit events for all users
-- Increase Security log maximum size or implement centralized log forwarding with 90-day retention
-- Ensure DC Security logs are included in any centralized logging infrastructure
-These changes cannot help with the current investigation but are necessary for the organization to have any investigative capability for future access incidents on this server.
+Forward-looking remediation:
+- Enable "Audit File Share" (Object Access) on FILESRV01 and configure a SACL on the share.
+- Increase Security log size and implement 90-day retention via centralized log forwarding.
+- Ensure DC Security logs are included in centralized logging.

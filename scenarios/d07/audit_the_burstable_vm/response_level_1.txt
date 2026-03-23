@@ -1,0 +1,3 @@
+The CPU on this VM is consistently running at around 40%, and looking at the ticket the performance problem started after go-live when the full production workload hit. The service is working but slowly. This sounds like the VM is undersized for the production load.
+
+I would recommend scaling up the VM to something larger — a B4ms or B8ms would give more CPU and memory headroom. The dev team should also review the application for any inefficiencies, since the test environment worked fine and something may have changed with the production data or message volume compared to the test load.

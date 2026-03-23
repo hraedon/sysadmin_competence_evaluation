@@ -1,0 +1,42 @@
+Root cause: The C: drive is a Dynamic spanned volume spanning a 480 GB SSD (Disk 0,
+Samsung PM893) and a 1,900 GB SATA HDD (Disk 1, WD Gold 2TB). Spanned volumes fill
+member disks sequentially — Disk 0 is filled entirely before any data is written to
+Disk 1. The SSD was at 94% utilisation (approximately 452 GB used) before the expansion,
+leaving only ~28 GB of SSD headroom. Essentially all writes from Tuesday onward —
+application files, temporary data, and updated documents written to C: — land on the
+SATA HDD, placing the active working set on the slower disk.
+
+Performance data confirms this: read latency increased from 2.8 ms to 26.4 ms (9.4x),
+write latency from 3.1 ms to 29.7 ms (9.6x), and disk queue length from 0.3 to 5.1.
+These values are characteristic of SATA HDD latency under moderate I/O queue depth.
+CPU is unchanged (34% vs 36%), ruling out compute as a contributing factor. The page
+file resides on C: (confirmed by DISKPART), amplifying any memory pressure through HDD
+paging latency.
+
+Remediation: No in-place conversion path exists. Converting Dynamic back to Basic
+requires deleting all volumes first; a system disk cannot undergo this process while the
+OS is running from it. The options are: (a) restore from a bare-metal backup predating
+Tuesday's change, then address the space problem properly; or (b) rebuild the OS
+installation on a replacement SSD with a Basic disk configuration and migrate data.
+Neither is quick. This is a disproportionate recovery burden for what was framed as a
+routine disk expansion.
+
+Process failure: This change should not have been made without infrastructure team
+involvement and change management approval. Converting an OS drive from Basic to Dynamic,
+and creating a spanned volume that introduces a dependency on a second physical disk for
+the server to boot, is a significant storage configuration change on a production server —
+not a routine disk management task within desktop support scope. The correct response to
+the 94% SSD utilisation warning was to raise it as a risk requiring planned hardware
+intervention, not to resolve it unilaterally using Disk Management.
+
+The controls that should have been in place: (1) disk type and volume type changes on
+production server OS drives require a change request and infrastructure team approval;
+(2) desktop support scope on production servers should be limited to defined tasks that
+do not include storage reconfiguration; (3) the original space constraint — flagged the
+previous week — should have triggered a planned hardware expansion, not emergency action.
+
+The incident is also a reminder that 94% disk utilisation on a production server's OS
+drive should itself trigger a change request for capacity expansion, not a reactive fix
+performed outside change management. The problem was predictable and the correct
+remediation (hardware SSD expansion) was known. The process failure is what converted
+a manageable space problem into a production outage.

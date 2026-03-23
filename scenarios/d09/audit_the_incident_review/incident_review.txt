@@ -1,0 +1,70 @@
+POST-INCIDENT REVIEW
+Incident: INC-5891 — Production database deletion
+Review date: 2026-03-21
+Prepared by: Infrastructure team lead
+Status: CLOSED
+
+---
+
+EXECUTIVE SUMMARY
+
+On 2026-03-14 at 02:23 UTC, during a planned maintenance window, an operator
+accidentally ran a database migration script against the production database server
+instead of the staging server. The migration script included a DROP DATABASE step as
+part of its setup sequence. The production database (AppDB_Prod, 380 GB) was deleted.
+Service was restored from backup at 06:07 UTC, resulting in 3 hours 44 minutes of
+unplanned downtime and approximately 4 hours of data loss (last backup completed at
+2026-03-13 22:00).
+
+---
+
+INCIDENT TIMELINE
+
+  2026-03-14 01:00   Maintenance window opened. Planned work: upgrade AppDB from
+                     version 14 to version 16 on staging environment.
+  2026-03-14 01:00   Operator logged into database management tool.
+  2026-03-14 01:05   Operator loaded migration configuration file.
+  2026-03-14 01:08   Migration pre-checks passed on staging server (db-staging-01).
+  2026-03-14 01:09   Operator ran migration script. Script completed successfully
+                     on staging server. Staging upgrade confirmed functional.
+  2026-03-14 02:20   Operator began second phase: applying same migration to
+                     validate configuration. Loaded migration configuration file.
+  2026-03-14 02:23   Operator ran migration script. Script connected to db-prod-01
+                     (production). DROP DATABASE AppDB_Prod executed. Script failed
+                     at subsequent step (schema creation) and halted.
+  2026-03-14 02:26   Operator noticed connection was to db-prod-01. Incident declared.
+  2026-03-14 02:45   On-call DBA and incident manager engaged.
+  2026-03-14 03:10   Restore initiated from most recent backup (2026-03-13 22:00).
+  2026-03-14 06:07   AppDB_Prod restored. Service resumed.
+
+---
+
+ROOT CAUSE
+
+Operator error. During the second phase of the maintenance window, the operator loaded
+the production migration configuration file (migrate_prod.cfg) instead of the staging
+configuration file (migrate_staging.cfg). Both files were present in the same working
+directory. The migration tool connected to the database server specified in the
+configuration file without displaying the target server name prior to execution.
+
+The operator did not verify the target server before running the script.
+
+---
+
+CONTRIBUTING FACTORS
+
+- The operator was fatigued after an extended maintenance window.
+- The configuration file names (migrate_prod.cfg and migrate_staging.cfg) are visually
+  similar and were both present in the same working directory.
+
+---
+
+CORRECTIVE ACTIONS
+
+1. Operator received a formal written warning and completed additional training on
+   maintenance procedures, including connection verification requirements.
+2. Maintenance runbook updated: new step added requiring operator to confirm target
+   server name in writing (in the maintenance ticket) before executing any script.
+3. Incident review completed. Ticket closed.
+
+Review approved by: IT Manager (2026-03-21)

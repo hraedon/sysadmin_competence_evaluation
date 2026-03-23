@@ -1,0 +1,16 @@
+The performance issue on SERVER-APP01 started on Tuesday 2026-03-18, which is the same
+day the desktop engineer expanded the C: drive. The timing is not a coincidence — the
+disk change is clearly what caused the problem.
+
+The engineer used Disk Management to add space to C:. Something about how he did this is
+causing the I/O timeouts. The disk queue length went from 0.3 to 5.1 after the change,
+which shows the disk is struggling to keep up.
+
+I would recommend reverting whatever disk change was made on Tuesday and restoring the
+server to its previous disk configuration. If that is not possible immediately, the
+application team should be informed that the issue is storage-related and the
+infrastructure team needs to investigate the disk configuration changes made by the
+desktop engineer.
+
+The CPU usage is only 36%, so it is not a processing issue — it is something specific to
+the disk change.

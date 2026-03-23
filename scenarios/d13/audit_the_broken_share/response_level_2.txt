@@ -1,0 +1,26 @@
+The network layer is not the issue. Ping succeeds and port 445 is confirmed open,
+which means LINPROC01 can reach FILESRV01 at the TCP level. But smbclient -L
+returns NT_STATUS_CONNECTION_REFUSED even though port 445 is open — that tells
+us the TCP connection is being established but the SMB session is being refused
+before any authentication happens. This is a protocol-layer failure, not a
+network or firewall failure.
+
+The Samba log on LINPROC01 shows the client offering dialects LANMAN1, LANMAN2,
+and NT LM 0.12 — these are all SMB1-era protocols. The negotiation then fails
+immediately. The Group Policy information in the ticket shows that a GPO set
+HKLM\...\LanmanServer\Parameters\SMB1 = 0 on FILESRV01, disabling SMB1 on the
+server.
+
+Samba 3.6 on Ubuntu 18.04 appears to only support SMB1 dialects based on the
+log output. If FILESRV01 has disabled SMB1, the client cannot negotiate a
+protocol version the server will accept. That is the mismatch causing the
+connection failure.
+
+The GPO was last modified on 2026-01-28 so it has been in place for a while.
+It's not clear why this is only failing now — possibly the policy was applied
+recently or there was a configuration change on the Linux side. I'd verify when
+exactly the GPO was applied to FILESRV01 and whether anything changed on
+LINPROC01 around the time failures started.
+
+To fix this: LINPROC01's Samba installation needs to be upgraded to support
+SMB2 or higher so it can negotiate with a server that has SMB1 disabled.

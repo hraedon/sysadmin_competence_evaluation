@@ -1,0 +1,5 @@
+The root cause is the VM family selection. The Standard_B2ms is a burstable VM — Azure B-series VMs operate on a CPU credit model where the VM earns credits when CPU utilisation is below a baseline percentage and spends credits when above it. Once the credit balance reaches zero, the VM is throttled to its sustained CPU baseline and cannot exceed it.
+
+The metrics show exactly this: CPU Credits Remaining depleted from 60 (full) to 0 between 10:00 and 11:15 UTC on go-live day. From 11:30 onward, CPU is pinned at 39–41% and has not moved in three days. That 40% figure is not "moderate utilisation" — it is the B2ms's throttled baseline ceiling. The VM is running at its maximum sustained capacity for the VM type, and the service is processing as fast as the VM will allow.
+
+The fix is to move to a non-burstable VM family. A Standard_D2s_v3 (2 vCPU, 8 GiB RAM) provides the same memory with full sustained access to both vCPUs at all times, without a credit model. That should restore the processing performance the application needs.

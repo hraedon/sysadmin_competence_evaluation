@@ -1,0 +1,93 @@
+================================================================================
+  vSphere Datastore Report — DS-PROD-01
+  Generated: 2026-03-22 08:47:03 UTC
+================================================================================
+
+DATASTORE SUMMARY
+-----------------
+Name          : DS-PROD-01
+Type          : VMFS 6
+Accessible    : Yes
+Location      : ESXi-HOST-04 (primary) / ESXi-HOST-05, ESXi-HOST-06 (shared)
+Capacity      : 10.00 TB
+Used          : 9.03 TB (90.3%)
+Free          : 0.97 TB (9.7%)
+Alert State   : CRITICAL — Usage exceeds 90% threshold
+
+================================================================================
+
+VM INVENTORY — VIRTUAL MACHINES REGISTERED ON DS-PROD-01
+(Source: vCenter Server inventory)
+---------------------------------------------------------
+  VM Name        Provisioned    Disk Format    State
+  -------------- -------------- -------------- -----------
+  PROD-APP01     2.00 TB        Thick (Eager)  Powered On
+  PROD-DB01      2.50 TB        Thick (Eager)  Powered On
+  PROD-WEB01     800 GB         Thick (Eager)  Powered On
+  PROD-UTIL01    700 GB         Thick (Eager)  Powered On
+  -------------- -------------- -------------- -----------
+  TOTAL          6.00 TB
+
+  (6.00 TB = 60.0% of 10.00 TB datastore capacity)
+
+================================================================================
+
+DATASTORE BROWSER — ALL FILES ON DS-PROD-01
+(Source: direct datastore filesystem enumeration)
+-------------------------------------------------
+
+  [PROD-APP01]
+    PROD-APP01.vmx                  8 KB    Modified: 2025-09-14 11:22
+    PROD-APP01.vmdk                 1 KB    Modified: 2025-09-14 11:22
+    PROD-APP01-flat.vmdk        2.00 TB    Modified: 2026-03-22 08:41
+    PROD-APP01.nvram               20 KB    Modified: 2026-03-22 08:41
+
+  [PROD-DB01]
+    PROD-DB01.vmx                   8 KB    Modified: 2025-06-03 09:05
+    PROD-DB01.vmdk                  1 KB    Modified: 2025-06-03 09:05
+    PROD-DB01-flat.vmdk         2.50 TB    Modified: 2026-03-22 08:44
+    PROD-DB01.nvram                20 KB    Modified: 2026-03-22 08:44
+
+  [PROD-WEB01]
+    PROD-WEB01.vmx                  8 KB    Modified: 2025-10-19 14:37
+    PROD-WEB01.vmdk                 1 KB    Modified: 2025-10-19 14:37
+    PROD-WEB01-flat.vmdk       800.00 GB    Modified: 2026-03-22 08:42
+    PROD-WEB01.nvram               20 KB    Modified: 2026-03-22 08:42
+
+  [PROD-UTIL01]
+    PROD-UTIL01.vmx                 8 KB    Modified: 2025-08-22 16:53
+    PROD-UTIL01.vmdk                1 KB    Modified: 2025-08-22 16:53
+    PROD-UTIL01-flat.vmdk      700.00 GB    Modified: 2026-03-22 08:40
+    PROD-UTIL01.nvram              20 KB    Modified: 2026-03-22 08:40
+
+  [OldWebServer_2023]
+    OldWebServer_2023.vmdk          1 KB    Modified: 2024-01-14 22:18
+    OldWebServer_2023-flat.vmdk  1.80 TB    Modified: 2024-01-14 22:18
+
+  [ProjectDB_archive]
+    ProjectDB_archive.vmdk          1 KB    Modified: 2023-09-07 11:02
+    ProjectDB_archive-flat.vmdk  850.00 GB  Modified: 2023-09-07 11:02
+
+  [StagingApp]
+    StagingApp-000001.vmdk        180.00 GB  Modified: 2024-03-22 09:14
+
+  [Templates]
+    WS2022-Base.vmdk                1 KB    Modified: 2025-11-03 10:16
+    WS2022-Base-flat.vmdk          80.00 GB  Modified: 2025-11-03 10:16
+
+================================================================================
+
+FILE SIZE RECONCILIATION
+------------------------
+  Current VM files (4 VMs)              : 6.00 TB
+  OldWebServer_2023-flat.vmdk            : 1.80 TB
+  ProjectDB_archive-flat.vmdk            : 0.85 TB
+  StagingApp-000001.vmdk                 : 0.18 TB
+  Templates/WS2022-Base-flat.vmdk        : 0.08 TB
+  Descriptor files, .vmx, .nvram, etc.   : ~0.12 TB (estimated)
+  -------------------------------------------------------
+  Approximate total on disk              : 9.03 TB
+
+================================================================================
+  END OF REPORT
+================================================================================

@@ -1,0 +1,17 @@
+The 3.03 TB gap between the vCenter inventory total (6.00 TB) and actual datastore usage (9.03 TB) is caused by files on the datastore that have no associated VM registration. Cross-referencing the datastore browser listing against the inventory identifies three categories of non-inventory files:
+
+Orphaned VMDKs with no associated .vmx file:
+- OldWebServer_2023-flat.vmdk: 1.80 TB, last modified 2024-01-14
+- ProjectDB_archive-flat.vmdk: 850 GB, last modified 2023-09-07
+
+Snapshot delta with no associated base VMDK or .vmx:
+- StagingApp-000001.vmdk: 180 GB, last modified 2024-03-22
+
+Legitimate template (should not be deleted):
+- WS2022-Base-flat.vmdk: 80 GB, in the Templates folder
+
+The first two sets are consistent with VMs removed from inventory without being deleted from disk — the flat VMDK files remain but there is no .vmx to re-register them. The third, StagingApp-000001, is a snapshot delta (the -000001 suffix indicates a child disk in a snapshot chain). No base VMDK or .vmx file is visible on the datastore, which is unusual and requires investigation before any deletion. If a backup proxy job has this datastore snapshot as part of its working chain, deleting StagingApp-000001 would corrupt that backup job.
+
+Before deleting anything, verify each file is safe to remove. OldWebServer_2023 and ProjectDB_archive should be checked against the backup proxy catalog and any linked clone configurations — if either was used as a linked clone base, its children would break on deletion. StagingApp-000001 is the highest-risk file: as a snapshot delta with no visible parent chain or .vmx, it may be part of a backup proxy working snapshot. Deleting it while a backup proxy holds an active snapshot on this datastore would corrupt that backup job. The WS2022-Base template has a recent modification date and is in a named Templates folder — treat it as active until vCenter confirms it is registered.
+
+Once each orphaned file is verified as unlinked and unused, delete and reclaim the space.

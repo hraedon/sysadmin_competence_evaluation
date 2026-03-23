@@ -7,20 +7,32 @@ import OpenAI from 'openai'
 export const SETTINGS_KEY = 'sysadmin_assessment_settings'
 const LEGACY_KEY = 'sysadmin_assessment_api_key'
 
+const IS_PRODUCTION = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1'
+const LOCAL_PROXY_ENDPOINT = '/llm-proxy/v1'
+const INTERNAL_LOCAL_ENDPOINT = 'http://192.168.1.28:1234/v1'
+
 export const DEFAULT_SETTINGS = {
   provider: 'local',
-  endpoint: 'http://192.168.1.28:1234/v1',
+  endpoint: IS_PRODUCTION ? LOCAL_PROXY_ENDPOINT : INTERNAL_LOCAL_ENDPOINT,
   apiKey: '',
   model: 'qwen3-next-80b-a3b-instruct-mlx',
   evaluatorMode: 'auditor',
 }
 
-/** Load settings from localStorage, migrating the legacy API key if present. */
+/** Load settings from localStorage, migrating legacy keys and ensuring modern defaults. */
 export function loadSettings() {
   const stored = localStorage.getItem(SETTINGS_KEY)
   if (stored) {
     try {
-      return { ...DEFAULT_SETTINGS, ...JSON.parse(stored) }
+      const settings = { ...DEFAULT_SETTINGS, ...JSON.parse(stored) }
+      
+      // If the user has the default "internal" IP but is in production, 
+      // upgrade them to the proxy endpoint automatically.
+      if (IS_PRODUCTION && settings.endpoint === INTERNAL_LOCAL_ENDPOINT) {
+        settings.endpoint = LOCAL_PROXY_ENDPOINT
+      }
+      
+      return settings
     } catch {
       // fall through to defaults
     }
@@ -58,7 +70,13 @@ const PROVIDER_BASE_URLS = {
  * using their OpenAI-compatible endpoints.
  */
 export function buildClient({ provider = 'local', endpoint, apiKey }) {
-  const baseURL = PROVIDER_BASE_URLS[provider] ?? endpoint ?? 'http://192.168.1.28:1234/v1'
+  let baseURL = PROVIDER_BASE_URLS[provider] ?? endpoint ?? (IS_PRODUCTION ? LOCAL_PROXY_ENDPOINT : INTERNAL_LOCAL_ENDPOINT)
+  
+  // Ensure the baseURL is absolute if it's a relative path (OpenAI client prefers this)
+  if (baseURL.startsWith('/')) {
+    baseURL = window.location.origin + baseURL
+  }
+
   // Local providers don't require a real key; use a placeholder so the header is valid
   const key = apiKey || (provider === 'local' ? 'lm-studio' : 'no-key')
   return new OpenAI({ baseURL, apiKey: key, dangerouslyAllowBrowser: true })
@@ -77,11 +95,11 @@ function buildSystemPrompt(scenario, artifactContent, { coachMode = false, coach
   const { domain_name, level, title, delivery_mode, presentation, rubric } = scenario
 
   const criticalBlock = (rubric.critical_findings ?? []).map(f =>
-    `[${f.id}] ${f.description.trim()}\n  Severity: ${f.severity}\n  Miss signal: ${(f.miss_signal ?? '').trim()}`
+    `[${f.id}] (Severity: ${f.severity}) ${f.description.trim()}`
   ).join('\n\n')
 
   const secondaryBlock = (rubric.secondary_findings ?? []).map(f =>
-    `[${f.id}] ${f.description.trim()}\n  Severity: ${f.severity}`
+    `[${f.id}] (Severity: ${f.severity}) ${f.description.trim()}`
   ).join('\n\n')
 
   const levelBlock = Object.entries(rubric.level_indicators ?? {}).map(([k, v]) =>
@@ -172,7 +190,7 @@ Respond with a single JSON object — no prose before or after it:
  * Throws on API/network error. Returns { raw, parsed } where parsed may be
  * null if JSON extraction fails.
  */
-export async function evaluate({ scenario, artifactContent, responseText, settings, coachMode = false, coachRound = 0, coachHistory = [] }) {
+export async function evaluate({ scenario, artifactContent, responseText, settings, coachMode = false, coachRound = 0, coachHistory = [], isRetry = false }) {
   const client = buildClient(settings)
   const systemPrompt = buildSystemPrompt(scenario, artifactContent, { coachMode, coachRound })
 
@@ -197,8 +215,11 @@ export async function evaluate({ scenario, artifactContent, responseText, settin
   let parsed = null
   try {
     parsed = JSON.parse(jsonStr.trim())
-  } catch {
-    // Fallback: return raw text, let UI show it
+  } catch (err) {
+    if (!isRetry) {
+      console.warn('JSON parse failed, retrying once...', err)
+      return evaluate({ scenario, artifactContent, responseText, settings, coachMode, coachRound, coachHistory, isRetry: true })
+    }
   }
 
   return { raw, parsed }

@@ -1,0 +1,15 @@
+The RCA is factually accurate and analytically deficient. Its root cause — "operator error" — answers the wrong question. It describes who acted and what they did, but not what made that action consequential. "Operator error" is not a falsifiable root cause; any incident involving a human can be attributed to it. It is also non-actionable: the implied corrective action is a more careful operator, which retraining attempts to produce. The RCA's corrective actions follow from the stated root cause and are therefore both person-targeted and insufficient.
+
+The correct root cause question is: given that a human loaded the wrong configuration file, what system conditions turned that mistake into a production database deletion? The RCA's own timeline answers this question without recognising it has done so.
+
+Three conditions, each independently sufficient to have prevented the data loss:
+
+The migration tool ran without displaying the target server before execution. A confirmation step surfacing the connection target would have caught the wrong environment before any destructive operation. This is a missing tooling control — addressable without changing operator behaviour.
+
+The operator's account had DROP DATABASE permission in the production environment. The task was a staging maintenance operation. No justification exists for that permission. Least-privilege enforcement converts this from data loss to a recoverable permission-denied error.
+
+Both configuration files were in the same directory with similar names. Environment separation — different directories, different access controls, or environment indicators in the tool UI — reduces the probability of selecting the wrong file and the difficulty of detecting the error before execution.
+
+All three conditions survived the incident unchanged. The corrective actions (formal warning, runbook update requiring verbal target confirmation) address neither tooling, permissions, nor file organisation. They require a different person to behave differently in the same environment. The incident can recur.
+
+The RCA should be returned. Each of the three systemic conditions requires a corrective action. The fatigue contributing factor — listed without a corrective action — should either have a structural response (two-person rule for destructive operations, maintenance window duration limit) or be removed. An approved RCA that leaves identified contributing conditions unaddressed creates a false record: the incident appears resolved when the conditions that enabled it remain.

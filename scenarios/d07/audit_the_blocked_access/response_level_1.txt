@@ -1,0 +1,3 @@
+The junior admin has already checked Windows Firewall and the NIC NSG, and both look fine. The issue could be something in IIS — maybe the SSL certificate has an issue or the binding isn't working correctly for external traffic. I would also check if there is any application-level authentication or IP restriction in IIS that might be blocking external addresses.
+
+If IIS looks fine, I'd check whether there's a load balancer or application gateway in front of the VM that might have its own access restrictions.

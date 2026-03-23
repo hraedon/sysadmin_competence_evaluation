@@ -1,0 +1,19 @@
+The 3.03 TB gap between the vCenter inventory total (6.00 TB) and actual datastore usage (9.03 TB) is caused by files on the datastore that have no associated VM registration. Cross-referencing the datastore browser listing against the VM inventory identifies the following non-inventory files:
+
+Orphaned VMDKs with no associated .vmx file:
+- OldWebServer_2023-flat.vmdk: 1.80 TB, last modified 2024-01-14
+- ProjectDB_archive-flat.vmdk: 850 GB, last modified 2023-09-07
+
+Snapshot delta with no associated base VMDK or .vmx:
+- StagingApp-000001.vmdk: 180 GB, last modified 2024-03-22
+
+Legitimate template (do not delete):
+- WS2022-Base-flat.vmdk: 80 GB, in the Templates folder
+
+The first two sets are consistent with VMs removed from vCenter inventory without being deleted from disk — the flat VMDK files remain but there is no .vmx present. The StagingApp-000001 file is a snapshot delta with no visible parent chain on this datastore; before deletion, the backup proxy catalog must be checked to confirm no active job is using it.
+
+The safe cleanup sequence is: verify OldWebServer_2023 and ProjectDB_archive against backup catalog references; trace the StagingApp-000001 parent chain; confirm WS2022-Base is a registered template; then delete confirmed orphans.
+
+However, the immediate cleanup is not the complete picture. The modification dates tell a broader story: ProjectDB_archive was orphaned in September 2023, and OldWebServer_2023 was orphaned in January 2024. These are two separate events, more than a year apart, neither of which was caught at the time. This is not a one-time mistake — it is a pattern that indicates the decommission procedure does not include a post-removal disk verification step.
+
+A correct decommission procedure for this environment should include: (1) record all disk paths for the VM before initiating removal; (2) use "Delete from Disk" rather than "Remove from Inventory" when decommissioning, unless there is a specific reason to keep the files; (3) if "Remove from Inventory" is used for a legitimate reason, open the Datastore Browser after removal and confirm the files are gone or explicitly schedule a deletion; (4) storage reclaim step signed off by a team lead before the decommission ticket is closed. Recovering the 2.83 TB resolves today's alert, but without the procedural fix, the same accumulation will recur the next time a VM is decommissioned.

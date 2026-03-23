@@ -1,0 +1,89 @@
+================================================================================
+SCCM SOFTWARE UPDATES COMPLIANCE REPORT
+Generated: 2026-03-22 08:14:03
+Collection: All Desktop and Laptop Systems
+Report scope: All required updates (all classifications)
+Reporting server: SCCM-SRV01.corp.local
+================================================================================
+
+COMPLIANCE SUMMARY
+------------------
+Total devices in collection:     162
+Compliant:                       158  (97.5%)
+Non-compliant:                     4   (2.5%)
+Unknown:                           0   (0.0%)
+
+Compliance threshold met: YES (threshold: 90%)
+
+
+NON-COMPLIANT DEVICES
+---------------------
+Device           Missing Updates  Oldest Missing Update  Last Scan
+---------------  ---------------  ---------------------  ----------
+WORKSTATION-112            3      2026-02-11             2026-03-20
+WORKSTATION-118            2      2026-02-11             2026-03-21
+WORKSTATION-133            5      2025-11-12             2026-03-19
+LAPTOP-044                 1      2026-02-11             2026-03-22
+
+Notes:
+  WORKSTATION-133 has 2 updates outstanding from the November 2025 Patch Tuesday
+  cycle and 3 from February 2026. User has repeatedly declined prompts to restart.
+  Escalation to local manager sent 2026-03-10.
+
+
+SOFTWARE UPDATES SCAN HEALTH
+-----------------------------
+This section reflects Windows Update Agent (WUA) scan telemetry collected by
+SCCM hardware inventory. Scan health is tracked independently of compliance
+status.
+
+  Devices with last successful scan > 7 days:    31
+  Devices with last successful scan > 30 days:   18
+  Devices with last successful scan > 60 days:   12
+
+NOTE: Devices with no successful scan in >60 days are showing compliance
+status from their most recent completed scan. Their status does not reflect
+any updates released after that scan date.
+
+
+DEVICES WITH LAST SUCCESSFUL SCAN > 60 DAYS (sample — 12 total)
+-----------------------------------------------------------------
+Device           Last Successful Scan  Days Since Scan  Status     Required Updates
+---------------  --------------------  ---------------  ---------  ----------------
+WORKSTATION-047  2026-01-09            72               Compliant  0
+WORKSTATION-083  2026-01-13            68               Compliant  0
+WORKSTATION-091  2026-01-06            75               Compliant  0
+WORKSTATION-104  2026-01-17            64               Compliant  0
+WORKSTATION-109  2026-01-11            70               Compliant  0
+[+7 additional devices — full list available in SCCM console: Devices > Filter by
+ Last Scan > 60 days]
+
+
+INCIDENT CONTEXT
+----------------
+Security team note (added 2026-03-21):
+  Ransomware confirmed active on WORKSTATION-047, WORKSTATION-083, and
+  WORKSTATION-091. Forensic timestamps indicate earliest confirmed attacker
+  activity: 2026-01-15. Incident response ongoing.
+
+SCCM administrator note (added 2026-03-22):
+  During the February 2026 Patch Tuesday cycle, cumulative update KB5034763
+  caused boot loops on approximately 8% of endpoints that received it.
+  WORKSTATION-047, WORKSTATION-083, and WORKSTATION-091 did not receive
+  KB5034763 and were unaffected by this issue. This was flagged as a positive
+  outcome for those devices at the time. Remediation for affected endpoints
+  involved using WinRE recovery to uninstall the update.
+
+
+REPORT NOTES
+------------
+- "Compliant" status means: at the time of the device's most recent successful
+  scan, SCCM found 0 required updates pending for that device.
+- Compliance status is not updated between successful scans.
+- Scan failures are not surfaced in the main compliance summary view.
+- For scan health details, see the Software Update Point Scan Health dashboard
+  or the hardware inventory data referenced in this report.
+
+================================================================================
+END OF REPORT
+================================================================================

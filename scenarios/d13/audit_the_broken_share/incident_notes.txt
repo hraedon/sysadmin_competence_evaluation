@@ -1,0 +1,134 @@
+================================================================================
+HELPDESK TICKET #2026-03-3847
+================================================================================
+Opened:    2026-03-08 09:14
+Priority:  High
+Reporter:  J. Okafor, Data Engineering
+System:    LINPROC01 (Ubuntu 18.04)
+Target:    \\FILESRV01\DataShare
+
+DESCRIPTION:
+Our batch processing job on LINPROC01 has been unable to connect to
+\\FILESRV01\DataShare since approximately 2026-03-08. The job runs overnight;
+the first failure was reported on 2026-03-09 morning when the output files
+were missing. The job has been running successfully against this share for
+over two years without issue.
+
+Error observed: "Connection refused" / SMB negotiation failure in the Samba
+log on LINPROC01. No changes have been made to LINPROC01 or to the batch
+job configuration.
+
+--------------------------------------------------------------------------------
+UPDATE — 2026-03-09 11:42 (J. Okafor):
+Samba log extract from LINPROC01 attached below. Job has now failed on two
+consecutive nights.
+--------------------------------------------------------------------------------
+
+
+================================================================================
+SAMBA LOG EXTRACT — LINPROC01
+Ubuntu 18.04.6 LTS / Samba 3.6.25
+Log file: /var/log/samba/log.filesrv01
+Collected: 2026-03-09 09:00
+================================================================================
+
+[2026/03/09 02:14:31.209044,  2] ../source3/libsmb/clientgen.c:742(cli_negprot)
+  Connecting to FILESRV01 at 10.10.4.21:445
+
+[2026/03/09 02:14:31.902217,  1] ../source3/libsmb/clientgen.c:779(cli_negprot)
+  cli_negprot: server offered dialects: LANMAN1, LANMAN2, NT LM 0.12
+
+[2026/03/09 02:14:33.481212,  0] ../source3/libsmb/clientgen.c:791(cli_negprot)
+  cli_negprot: SMB signing is mandatory and we have disabled it.
+
+[2026/03/09 02:14:33.481290,  0] ../source3/libsmb/clientgen.c:799(cli_negprot)
+  cli_negprot: protocol negotiation failed
+
+[2026/03/09 02:14:33.482101,  1] ../source3/client/client.c:7764(do_connect)
+  Connection to FILESRV01 failed (Error NT_STATUS_CONNECTION_REFUSED)
+
+[2026/03/09 02:14:34.003884,  0] ../source3/param/loadparm.c:4219(lp_do_parameter)
+  WARNING: global parameter "security" can only be set once per config file.
+
+[2026/03/09 02:14:34.004001,  0] ../source3/client/client.c:7800(do_connect)
+  Abandoning connection to FILESRV01
+
+
+NOTE: Identical error sequence observed on 2026-03-10 02:14 (following night's
+batch run). No log entries from FILESRV01 present in earlier log files from
+before 2026-03-09.
+
+
+================================================================================
+WINDOWS SERVER TEAM RESPONSE
+Ticket update — 2026-03-09 14:05
+Responder: Windows Infrastructure, T. Bergman
+================================================================================
+
+We've checked FILESRV01 and there have been no recent changes to the file
+server configuration. The share \\FILESRV01\DataShare is accessible from all
+Windows clients we've tested. FILESRV01 is healthy.
+
+We applied Windows Updates on 2026-03-07 and the server rebooted as part of
+the standard monthly patch cycle, but that was routine maintenance and
+shouldn't affect file sharing functionality.
+
+Please check whether LINPROC01 has had any changes or whether there is a
+network issue between the two systems.
+
+
+================================================================================
+NETWORK DIAGNOSTIC OUTPUT — LINPROC01
+Captured by J. Okafor, 2026-03-09 10:30
+================================================================================
+
+$ ping -c 4 FILESRV01
+PING FILESRV01 (10.10.4.21): 56 data bytes
+64 bytes from 10.10.4.21: icmp_seq=1 ttl=127 time=0.831 ms
+64 bytes from 10.10.4.21: icmp_seq=2 ttl=127 time=0.744 ms
+64 bytes from 10.10.4.21: icmp_seq=3 ttl=127 time=0.788 ms
+64 bytes from 10.10.4.21: icmp_seq=4 ttl=127 time=0.801 ms
+--- FILESRV01 ping statistics ---
+4 packets transmitted, 4 received, 0% packet loss
+
+$ (echo >/dev/tcp/10.10.4.21/445) && echo "Port 445 OPEN" || echo "Port 445 CLOSED"
+Port 445 OPEN
+
+$ smbclient -L FILESRV01 -N
+session request to FILESRV01 failed (Called name not present)
+NT_STATUS_CONNECTION_REFUSED
+
+Network reachability: confirmed (ping and port 445 both accessible).
+smbclient fails at SMB session layer despite port being open.
+
+
+================================================================================
+GROUP POLICY INFORMATION
+Retrieved from domain by Windows Infrastructure team, 2026-03-10
+================================================================================
+
+GPO Name:         Security Baseline - File Servers
+GPO GUID:         {4A7F2E91-003B-4C88-B4D1-9F2E3A5C8D04}
+GPO Last Modified: 2026-01-28 16:42 UTC
+GPO Scope:        Linked to OU=File Servers,OU=Servers,DC=corp,DC=local
+                  FILESRV01 is a member of this OU.
+
+Relevant setting:
+  Computer Configuration > Preferences > Windows Settings > Registry
+  Key:   HKLM\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters
+  Value: SMB1
+  Type:  REG_DWORD
+  Data:  0x00000000 (Disabled)
+
+Registry verification on FILESRV01 (collected 2026-03-09):
+  HKLM\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters\SMB1 = 0
+  (Confirmed present. Value consistent with GPO setting.)
+
+GPO application history (from gpresult on FILESRV01):
+  Last Group Policy application: 2026-03-07 03:22 UTC
+  (Applied during post-reboot startup — this is consistent with the patch
+   reboot on 2026-03-07. GPO was previously applied: 2026-01-28 18:07 UTC.)
+
+================================================================================
+END OF INCIDENT NOTES
+================================================================================

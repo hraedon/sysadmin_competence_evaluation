@@ -1,0 +1,5 @@
+The junior admin missed the subnet-level NSG. In Azure, NSGs can be applied at two independent layers: the NIC level and the subnet level. Both must allow the traffic for a connection to succeed. The junior admin checked the NIC NSG (nsg-portal-nic) and confirmed it allows HTTPS from Any — that check is correct. But the subnet NSG (nsg-webapp-subnet) was not checked until the network team provided it on request.
+
+Reading the subnet NSG rules: priority 100 allows TCP 443 from 10.0.0.0/8 only. There is no rule allowing TCP 443 from internet (non-RFC1918) sources. External partner traffic on port 443 hits the default DenyAllInbound at priority 65500 and is dropped. Corporate and VPN traffic works because those source IPs fall within 10.0.0.0/8, which the priority 100 rule covers.
+
+The fix is to add an inbound allow rule to nsg-webapp-subnet for TCP 443 from Internet (or Any), at a priority below 100 to sit after the corporate-specific rule. Once the subnet NSG allows the traffic through, the NIC NSG allow rule will then apply and the connection will succeed.

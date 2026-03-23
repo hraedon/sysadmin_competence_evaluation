@@ -1,0 +1,72 @@
+Incident: INC-6108
+Priority: High
+Opened: 2026-03-17 09:03
+Reported by: DataOps team lead
+
+Title: Azure Storage unreachable from on-premises — broken since Monday morning
+
+Description:
+The nightly ETL pipeline that reads from our Azure Storage account (stgproddata01)
+started failing at 01:00 Monday (2026-03-16). All on-premises job runners report
+"connection refused" or "access denied" when attempting to connect to
+stgproddata01.blob.core.windows.net. Azure-hosted jobs connecting to the same storage
+account continue to work normally. No changes were made to the pipeline or to Azure
+infrastructure over the weekend, to our knowledge.
+
+---
+
+Update 09:45 — infrastructure team:
+DNS resolution results from on-premises runner (via Resolve-DnsName):
+
+  Resolve-DnsName stgproddata01.blob.core.windows.net
+
+  Name                              Type  TTL  Section  IPAddress
+  ----                              ----  ---  -------  ---------
+  stgproddata01.blob.core.windows.net  A  60   Answer   20.150.47.130
+
+  (20.150.47.130 is a Microsoft public IP — confirmed via WHOIS)
+
+DNS resolution from an Azure VM (CorpJumpBox01, same subscription):
+
+  Resolve-DnsName stgproddata01.blob.core.windows.net
+
+  Name                                                    Type  TTL  Section  IPAddress
+  ----                                                    ----  ---  -------  ---------
+  stgproddata01.privatelink.blob.core.windows.net         CNAME  10  Answer
+  stgproddata01.blob.core.windows.net                     A     10   Answer  10.0.2.5
+
+  (10.0.2.5 is the private endpoint IP assigned within our VNet)
+
+Connectivity test from on-premises runner:
+
+  Test-NetConnection -ComputerName stgproddata01.blob.core.windows.net -Port 443
+  TcpTestSucceeded : False
+  (Connection refused at IP 20.150.47.130:443)
+
+Azure portal — stgproddata01 networking settings (no changes in activity log):
+  Public network access: Disabled
+  Private endpoint connections: stgproddata01-pe01 (Approved, Connected)
+  Selected virtual network: corp-vnet-eastus (10.0.0.0/16)
+
+---
+
+Update 10:30 — network team response:
+"We ran a DNS cleanup project over the weekend (2026-03-14 to 2026-03-15). We
+audited and removed several conditional forwarder rules on our on-premises DNS
+servers that were identified as stale or redundant. One of the rules removed was
+a forwarder for blob.core.windows.net pointing to 168.63.129.16.
+
+We did not make any changes in Azure — no NSG changes, no firewall changes, no
+routing changes. This is not a network infrastructure issue on our end. The Azure
+storage configuration should be reviewed."
+
+Current on-premises DNS configuration (after cleanup):
+  Conditional forwarders present: corp.contoso.com → 192.168.1.10
+                                   contoso.com → 192.168.1.10
+  No forwarder for blob.core.windows.net or privatelink.blob.core.windows.net
+
+Pre-cleanup on-premises DNS configuration (recovered from change record):
+  Conditional forwarders present: corp.contoso.com → 192.168.1.10
+                                   contoso.com → 192.168.1.10
+                                   blob.core.windows.net → 168.63.129.16
+                                   privatelink.blob.core.windows.net → 168.63.129.16

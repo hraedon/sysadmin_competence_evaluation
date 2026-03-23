@@ -1,0 +1,11 @@
+The 97.5% compliance figure is not reliable for answering the CTO's questions. There is a significant problem with the scan data for the three compromised machines.
+
+Looking at the Scan Health section: WORKSTATION-047, WORKSTATION-083, and WORKSTATION-091 — the three machines with confirmed ransomware — all have last successful scans from January 6–13. The report itself states that devices with no successful scan in over 60 days "are showing compliance status from their most recent completed scan" and that their status "does not reflect any updates released after that scan date." All three compromised machines fall into this category. Their "Compliant: 0 required" status is a 70-plus day old snapshot, not a current assessment.
+
+This means two things for the CTO's questions:
+
+First, the remaining machines cannot be stated to be protected without qualification. There are 12 machines total with scans older than 60 days. All 12 have compliance status that reflects a point in time 60+ days ago, not today. That population cannot be counted as reliably compliant.
+
+Second, patching cannot be ruled out as a contributing factor in the compromise. The three affected machines last reported a clean patch state in early January. Attacker activity began January 15. What happened to their patch state between January 13 and January 15, or between January 15 and today, is not visible in this report. The "Compliant" label on those three machines is not evidence that they were fully patched when the attacker arrived.
+
+The four machines flagged as non-compliant (WORKSTATION-112, -118, -133, LAPTOP-044) should still be remediated, but they are not the primary concern this report raises. The primary concern is that the compliance summary headline cannot be taken at face value.

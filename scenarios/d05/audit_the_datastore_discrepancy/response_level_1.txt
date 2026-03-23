@@ -1,0 +1,5 @@
+The datastore report shows DS-PROD-01 is at 90.3% utilisation, which is why the alert fired. Looking at the VM inventory, the four VMs provisioned on this datastore — PROD-APP01, PROD-DB01, PROD-WEB01, and PROD-UTIL01 — add up to 6.0 TB, which is only 60% of the 10 TB datastore. That leaves about 3 TB unaccounted for in the inventory.
+
+Something else is using that space. It could be snapshots that have built up over time, or old template files, or possibly VMs that are on the datastore but not showing up in the main inventory view. I would recommend looking at the datastore directly to see what files are actually there, rather than relying on the vCenter inventory summary. The datastore browser should show everything on the filesystem.
+
+Until we know what is using the extra space, I would not delete anything. The immediate action is to figure out what is there.

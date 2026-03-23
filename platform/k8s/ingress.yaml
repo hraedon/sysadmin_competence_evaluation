@@ -8,9 +8,9 @@ metadata:
     traefik.ingress.kubernetes.io/router.entrypoints: websecure
     traefik.ingress.kubernetes.io/router.tls: "true"
 spec:
-  ingressClassName: traefik-internal
+  ingressClassName: traefik-external
   rules:
-    - host: assessment.k8s.hraedon.com
+    - host: learning.hraedon.com
       http:
         paths:
           - path: /
@@ -22,5 +22,5 @@ spec:
                   name: http
   tls:
     - hosts:
-        - assessment.k8s.hraedon.com
-      secretName: assessment-tls
+        - learning.hraedon.com
+      secretName: learning-tls

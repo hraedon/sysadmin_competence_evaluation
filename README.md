@@ -29,7 +29,14 @@ scenarios/               Exercise definitions and artifacts
   d02/                   Domain 2 — Identity & Hybrid IAM (8 scenarios)
   d03/                   Domain 3 — Networking (5 scenarios)
   d04/                   Domain 4 — PKI & Certificates (5 scenarios)
-  d11/                   Domain 11 — Log Reading & Diagnosis (1 scenario)
+  d05/                   Domain 5 — Storage Architecture (5 scenarios)
+  d06/                   Domain 6 — Compute & Virtualisation (1 scenario)
+  d07/                   Domain 7 — Cloud Infrastructure (2 scenarios)
+  d08/                   Domain 8 — Security Reasoning (1 scenario)
+  d09/                   Domain 9 — Change Management (4 scenarios)
+  d10/                   Domain 10 — Backup & Recovery (1 scenario)
+  d11/                   Domain 11 — Log Reading & Diagnosis (3 scenarios)
+  d13/                   Domain 13 — Cross-domain Synthesis (3 scenarios)
 
 platform/
   frontend/              React + Vite + Tailwind SPA
@@ -110,13 +117,13 @@ node run.mjs --provider custom --endpoint http://my-server:8080/v1 --model my-mo
 
 Results are written to `calibration/results/`. See `calibration/README.md` for the full procedure and troubleshooting guide.
 
-**Current calibration status:** 33 scenarios calibrated against claude-sonnet-4-6 — 128/132 passing (97%). Four accepted structural ceiling failures:
+**Current calibration status:** 42 scenarios calibrated against claude-sonnet-4-6 — 164/168 passing (97%). Four accepted structural ceiling failures:
 - `d01-audit-is-this-safe` L3→L4: L4 differentiator is "propose fixes"; evaluator rounds up when all findings are caught
 - `d01-commission-write-the-spec` L3→L4: Mode B structural ceiling (comprehensive specs naturally imply L4 completeness)
 - `d05-commission-specify-storage-architecture` L3→L4: Mode B structural ceiling (all named findings caught, null gap)
 - `d09-commission-write-the-pre-mortem` L3→L4: evaluator rounds up on comprehensive Mode B narrative; misses named L4 findings but rates on reasoning quality
 
-Local model (qwen3-next-80b-a3b-instruct-mlx via LM Studio): calibrated to 96% against 19 scenarios. Run the harness against any new model before using it with learners — smaller models (below ~30B) produce inconsistent JSON and poor level calibration.
+Local model (qwen3-next-80b-a3b-instruct-mlx via LM Studio): calibrated to 96% against 24 scenarios. Run the harness against any new model before using it with learners — smaller models (below ~30B) produce inconsistent JSON and poor level calibration.
 
 ---
 
@@ -147,14 +154,18 @@ The k8s manifests target a Traefik ingress with cert-manager TLS. Update `platfo
 | D02 | Identity & Hybrid IAM | 8 |
 | D03 | Networking | 5 |
 | D04 | PKI & Certificates | 5 |
-| D05 | Storage Architecture | 4 |
-| D06–D08 | Compute, Cloud, Security | 0 |
-| D09 | Change Management | 3 |
-| D10 | Backup & Recovery | 0 |
+| D05 | Storage Architecture | 5 |
+| D06 | Compute & Virtualisation | 1 |
+| D07 | Cloud Infrastructure | 2 |
+| D08 | Security Reasoning | 1 |
+| D09 | Change Management | 4 |
+| D10 | Backup & Recovery | 1 |
 | D11 | Log Reading & Diagnosis | 3 |
-| D12–D14 | Linux, Cross-domain Synthesis, Org Effectiveness | 0 |
+| D12 | Linux Administration | 0 |
+| D13 | Cross-domain Synthesis | 3 |
+| D14 | Organisational Effectiveness | 0 |
 
-33 of ~60 planned scenarios are currently authored across 7 domains. Domains 6–8, 10, and 12–14 are the next expansion targets. Mode C (Socratic/branching dialogue) and Mode E (live lab) scenarios require additional infrastructure and are planned for later phases.
+42 of ~60 planned scenarios are currently authored across 10 domains. Domains 7, 10, 12, and 14 are the next expansion targets. Mode C (Socratic/branching dialogue) and Mode E (live lab) scenarios require additional infrastructure and are planned for later phases.
 
 ---
 

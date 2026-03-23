@@ -1,0 +1,50 @@
+Root cause: FILESRV01 no longer offers SMB1, and Samba 3.6.25 on LINPROC01
+can only negotiate SMB1-era dialects. This is confirmed by the Samba log, which
+shows the client offering LANMAN1, LANMAN2, and NT LM 0.12 — all SMB1 — followed
+by immediate negotiation failure. Port 445 is open and ping succeeds, so the
+failure is definitively at the SMB protocol negotiation layer, not the network.
+
+Why now, if the GPO was set on 2026-01-28?
+
+The GPO application history answers this directly. The GPO setting
+LanmanServer\Parameters\SMB1 = 0 was applied to FILESRV01 on 2026-01-28, but
+the LanmanServer registry parameters are not dynamically applied — they take
+effect when the service restarts. FILESRV01 rebooted on 2026-03-07 for the
+monthly patch cycle. That reboot started LanmanServer with SMB1 disabled for
+the first time. The GPO application history in the notes confirms this: it
+shows a GP application on 2026-03-07 03:22 UTC corresponding to the post-reboot
+startup, with a prior application on 2026-01-28 18:07 UTC when the policy was
+first set.
+
+So the Windows server team's "no recent changes" is technically accurate: the
+GPO was set six weeks ago and the reboot was routine maintenance. Neither of
+those is a "recent change" to the file server from their perspective. But the
+effective change — SMB1 being disabled in the running LanmanServer service —
+happened on 2026-03-07 when the server came back up from the patch reboot.
+
+The Samba version adds a further constraint. Ubuntu 18.04 ships Samba 4.7.6 as
+its standard package. Samba 3.6.25 on Ubuntu 18.04 is not a default installation
+— it has been manually installed, pinned, or built from source at some point.
+Samba 3.6 does not reliably support SMB2 negotiation; production-grade SMB2
+support requires Samba 4.x.
+
+Remediation options:
+
+1. Re-enable SMB1 on FILESRV01 (set SMB1=1 via GPO or directly). This is a
+   security regression — SMB1 has well-documented critical vulnerabilities —
+   and should not be the long-term fix. May be acceptable as a temporary measure
+   while a proper remediation is implemented, but must be time-bounded.
+
+2. Upgrade Samba on LINPROC01 to version 4.x and configure SMB2 negotiation.
+   This is the correct fix for the immediate problem. Requires testing the batch
+   job against the new Samba version and verifying the authentication method is
+   compatible with the Windows file server.
+
+3. Migrate LINPROC01 off Ubuntu 18.04. Ubuntu 18.04 reached end of standard
+   support in April 2023 and extended security maintenance has also ended. The
+   Samba version issue is a symptom of a broader problem: this system is running
+   an OS with an unusual, aged Samba build. A migration to a current Ubuntu LTS
+   resolves the Samba version issue as part of a necessary platform upgrade.
+
+Option 2 as an immediate fix, with option 3 as the planned remediation, is the
+recommended path. Do not re-enable SMB1 on the file server as the default fix.

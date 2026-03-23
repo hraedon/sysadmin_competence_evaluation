@@ -1,0 +1,7 @@
+Overall the patch compliance picture looks quite good. 97.5% of devices are compliant, which is above the 90% threshold, and there are zero devices in an unknown state — so SCCM has visibility across the full estate.
+
+The main action item is the four non-compliant machines. WORKSTATION-133 is the most concerning — it has five outstanding updates, with the oldest going back to November 2025, and it sounds like the user has been ignoring restart prompts. That should be escalated more firmly, or the machine should be forced to update outside business hours. The other three non-compliant machines are only one to three updates behind, which is manageable.
+
+On the CTO's questions: the compliance data suggests the remaining machines are in good shape. As for the three compromised workstations — WORKSTATION-047, WORKSTATION-083, and WORKSTATION-091 — the report shows them as compliant with zero required updates at the time of the incident. That would suggest patching probably wasn't the entry point for the ransomware. The attackers likely used a different vector, such as a phishing email, a compromised credential, or an application vulnerability rather than an unpatched OS vulnerability.
+
+Recommendation: get the four non-compliant machines patched, continue monitoring compliance weekly, and focus the incident investigation on non-patch attack vectors given the clean compliance status on the affected machines.

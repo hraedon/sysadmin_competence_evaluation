@@ -1,0 +1,21 @@
+The manager's "we should be fine" assessment is wrong and should be corrected immediately. This is an active emergency.
+
+RAID 5 with one failed drive has zero fault tolerance. The hot spare rebuild is reading all seven surviving drives and writing to the spare — until that completes in 18+ hours, any second drive failure means total data loss. There is no parity left to protect against it.
+
+What makes this worse than a typical degraded array:
+
+The production I/O load is significant. The array is running at 87% controller throughput during business hours — 14,280 read IOPS and 8,950 write IOPS from the SQL Server database. The rebuild process adds its own I/O across all seven surviving drives on top of that workload. That additional I/O elevates thermal and mechanical stress on drives that are already between 5 and 7 years old. Drives fail under stress, and the surviving drives are already old. This is not a worst-case scenario in theory — it's a reasonably probable scenario given what the SMART data shows.
+
+Looking at the surviving drives: Slot 03 has an estimated 2.6 years remaining and Slot 07 has 2.9 years — under normal load. Under the current rebuild plus production I/O, that estimate degrades further. These are the most vulnerable drives during the rebuild window.
+
+Immediate actions required:
+
+1. Verify backup recency and restorability right now — before anything else. When did the last SQL Server backup complete? Has it been tested? If a second drive fails, restore from backup is the only recovery path. If the last backup was four hours ago, the exposure is four hours of transactions plus whatever it takes to restore. If it was 30 hours ago, that's a different conversation.
+
+2. Escalate to management with an accurate risk description — not "we should be fine," but "we have an 18-hour window of zero storage redundancy on a production order management database. The backup state needs to be confirmed and we need to decide whether to reduce production load during the rebuild."
+
+3. Evaluate whether to throttle or redirect the production workload during the rebuild. Can the order management database run in a reduced mode? Can reporting workloads be suspended? Reducing I/O from 87% controller throughput would reduce stress on surviving drives and potentially accelerate the rebuild.
+
+4. Increase monitoring frequency on all surviving drives — SMART polls every 15 minutes rather than hourly or less.
+
+5. Watch Slot 03 (2.6 years remaining) and Slot 07 (2.9 years remaining) most closely — these are the most vulnerable drives during the rebuild window and are the most likely second-failure candidates.

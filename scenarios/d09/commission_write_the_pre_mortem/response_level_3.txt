@@ -1,0 +1,39 @@
+Pre-Mortem: FILESRV01 VLAN Migration — 2026-03-28
+
+Assuming the change executed Saturday night and something went wrong, the three failure scenarios I would expect to explain it:
+
+---
+
+Failure Scenario 1: DNS caching — clients resolving old IP after record update
+
+What happened: The DNS record was updated in Step 4, but clients and application servers still have the old record (192.168.10.44) cached. They continue attempting to reach 192.168.10.44, which is no longer reachable after the server moved to VLAN 220.
+
+Observable indicator during the window: Step 6 succeeds on the 3 flushed servers. But calls from other servers and clients fail. The failure pattern is: some hosts work, others don't; direct connection to 10.20.30.15 works; name resolution varies by host. This is distinct from Failure Scenario 2 below.
+
+Detection criterion: After updating DNS, verify resolution from hosts across multiple subnets — not just the 3 manually-flushed servers. If any host still resolves the old IP, the DNS scope problem is not resolved.
+
+---
+
+Failure Scenario 2: Hardcoded IP in application configuration files or scripts
+
+What happened: One or more applications connect to the file server using the IP 192.168.10.44 directly rather than the DNS name. After migration, 192.168.10.44 is unreachable. These applications fail regardless of DNS flush.
+
+Observable indicator during the window: Application-specific failure pattern — specific applications fail to connect while other applications using the DNS name work. This distinguishes Scenario 2 from Scenario 1: DNS caching produces broad failure across many hosts, while hardcoded IPs produce narrow failure in specific applications.
+
+Detection criterion: Before the change window, search application servers for "192.168.10.44" in config files and scripts. During verification, test each application's connection using its actual connection method, not just a generic SMB test.
+
+---
+
+Failure Scenario 3: Firewall rules scoped to old VLAN or old IP
+
+What happened: Firewall rules permitting access to the file server are scoped to 192.168.10.44 or the VLAN 110 source segment. After migration, traffic from application server subnets to 10.20.30.15 on VLAN 220 is blocked.
+
+Observable indicator during the window: Step 3 (admin workstation) succeeds. Step 6 fails from the application servers. The failure from application servers is network-level (TCP timeout), not a DNS error. This is distinct because the admin workstation may be on a segment with an existing allow rule.
+
+Detection criterion: Before the change window, confirm that firewall rules explicitly permit 10.20.30.15 from all source subnets that need access. During Step 6, test from hosts on multiple source VLANs, not just the admin workstation.
+
+---
+
+Additional finding: Existing abort criterion is too narrow
+
+The change plan's only abort criterion is "abort if connectivity test in Step 3 fails." Failure Scenarios 1 and 3 can both produce Step 3 success while the change has actually failed. Abort and verification criteria need to extend through the verification step, with pass/fail conditions that distinguish between the three failure modes above.

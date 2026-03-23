@@ -1,0 +1,9 @@
+The change plan looks reasonable overall. The eight steps cover the main actions needed for an in-place upgrade, and testing was done in advance. A few improvements would make it stronger:
+
+1. The rollback section says "restore from backup if needed" — it would be better to specify which backup and confirm a recent backup exists before starting the change.
+
+2. The test was done on a standalone VM rather than a domain-joined server. A domain-joined test would be more representative.
+
+3. Step 5 says "estimated 60–90 minutes" — it would be worth confirming there's enough maintenance window time for the upgrade plus verification.
+
+Overall the plan covers the basic steps. The risk rating of "low" seems appropriate for an in-place upgrade that preserves the existing AD configuration. I would approve this change with a note to specify the backup restore procedure.

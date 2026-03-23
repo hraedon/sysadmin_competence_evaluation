@@ -1,0 +1,151 @@
+id: d05-audit-cloud-storage-complaint
+domain: 5
+domain_name: "Storage Architecture"
+level: 2
+title: "The Test That Didn't Test"
+delivery_mode: A
+subtype: null
+
+difficulty: 4
+difficulty_note: >
+  Two separate failure modes must be identified and distinguished: the test methodology
+  flaw (cached dataset means storage was never exercised) and the burst-vs-sustained
+  IOPS mismatch (P20 baseline vs. burst under production load). Candidates must also
+  recognize that the VM-level uncached disk throughput limit is a separate constraint
+  from the disk-level IOPS limit, and that both need to be checked before a solution
+  can be specified. The Standard_D4s_v3 VM spec and P20 disk spec are not memorizable —
+  the candidate is expected to know what questions to ask, not the specific numbers.
+  Recommending "upgrade to a P30" without checking which limit is binding is a common
+  wrong move that needs to be identified as insufficient.
+
+# Scenario note (for scenario authors and evaluators):
+# Most similar to: d11-audit-exchange-patch-gap (both test whether candidates recognize
+# that a status indicator or test result is accurate within its scope but does not
+# cover what the complaint is actually about).
+# How the reasoning challenge differs: the Exchange scenario tests whether a compliance
+# report's silence on a component is a coverage gap. This scenario tests whether a
+# performance test's passing result is valid evidence that storage is adequate — which
+# it is not, because the test workload was entirely served from buffer cache. The
+# testing never exercised storage. This is a testing methodology flaw rather than a
+# reporting scope issue, and the second critical finding (burst vs. sustained IOPS)
+# requires understanding Azure managed disk performance tiers.
+
+presentation:
+  type: environment_description
+  artifact_file: "scenarios/d05/audit_cloud_storage_complaint/incident_details.txt"
+  context: |
+    A developer has escalated a performance complaint to the infrastructure team.
+    The attached document contains the support ticket, the VM and disk configuration,
+    and the developer's test results from earlier today.
+
+    The developer is requesting that the infrastructure team upgrade the database
+    disk to a premium tier. Assess the root cause of the performance issue and
+    determine whether the requested upgrade would resolve it.
+
+rubric:
+  critical_findings:
+    - id: testing_never_exercised_storage
+      description: >
+        The developer's test was conducted with a 4GB dataset that fits entirely in
+        the database engine's buffer cache (configured at 6GB). When a query's data
+        is in the buffer cache, the database engine serves reads from memory — the
+        storage disk is not accessed at all. The test's passing result is valid within
+        its scope: it confirms the VM and disk can serve the test workload. But that
+        workload was served from memory, not from disk. The test produced no evidence
+        about actual storage I/O performance. The production workload (28GB dataset
+        in a 6GB buffer cache) generates sustained random reads from disk on every
+        query that touches data not currently cached. These are categorically different
+        workloads. Recommending or approving a disk upgrade based on the test results
+        treats passing test as evidence about storage performance when it is evidence
+        about memory performance.
+      severity: critical
+      miss_signal: >
+        Candidate accepts the developer's test results as evidence that the disk
+        configuration is adequate and focuses the investigation on other causes
+        (network, CPU, query plan). Or: candidate correctly identifies the production
+        workload hits disk but does not explicitly identify the testing methodology flaw —
+        i.e., does not explain why the test couldn't have detected the storage issue.
+
+    - id: burst_vs_sustained_iops_mismatch
+      description: >
+        Azure managed disks have two performance modes: burst (short-duration peak
+        performance, credit-based) and baseline (sustained performance available
+        indefinitely). A P20 managed disk (512 GB) has a baseline of 2,300 IOPS and a
+        burst ceiling significantly higher. The production workload generates sustained
+        random reads against the 28GB dataset that exceeds the buffer cache. Once the
+        burst credit bucket is exhausted — which occurs within minutes under sustained
+        I/O — the disk operates at its baseline IOPS rate. The developer's test was
+        short-duration and cache-served, so burst credits were never consumed and the
+        baseline was never reached. Production workload sustains I/O continuously,
+        consuming burst credits and then running at baseline. Before recommending a disk
+        tier upgrade, the actual baseline IOPS consumption must be measured during a
+        production I/O period to confirm the P20 baseline is the constraint, not the
+        VM-level uncached disk throughput limit.
+      severity: critical
+      miss_signal: >
+        Candidate identifies the burst/sustained distinction but does not note that
+        measurement is required before specifying a solution — recommends upgrading to
+        P30 or higher without establishing that the P20 baseline is actually the
+        binding constraint. Or: candidate does not address the burst/sustained distinction
+        at all and treats the disk spec as a simple throughput ceiling.
+
+  secondary_findings:
+    - id: vm_uncached_throughput_limit_also_suspect
+      description: >
+        The Standard_D4s_v3 VM (4 vCPUs, 16GB RAM) has a maximum uncached disk throughput
+        limit that applies regardless of the attached disk's performance tier. If the
+        production workload is generating enough I/O to hit the VM-level limit rather than
+        the disk-level limit, upgrading the disk tier will not resolve the performance
+        issue — the VM itself is the constraint. Both limits need to be measured during
+        production I/O before a solution can be specified. The correct investigation is:
+        measure IOPS consumption and disk queue depth on the P20 disk during a production
+        workload period, and separately measure whether the VM is hitting its uncached
+        disk throughput ceiling.
+      severity: high
+
+    - id: right_disk_tier_for_workload
+      description: >
+        If measurement confirms the P20 baseline IOPS is the binding constraint, the
+        appropriate upgrade path depends on the sustained IOPS requirement, not the peak
+        burst performance. A P30 (1024 GB) has a higher baseline than a P20. Alternatively,
+        Ultra Disk or Premium SSD v2 provides configurable IOPS without tier-locking.
+        The developer's request to "upgrade to premium tier" is ambiguous — the P20 is
+        already a premium tier disk. Clarifying what they mean and what IOPS target the
+        workload actually requires is necessary before specifying a solution.
+      severity: moderate
+
+  level_indicators:
+    level_1: >
+      Reads the ticket and recognizes the production workload is larger than the test
+      workload. Recommends investigating the disk performance and possibly upgrading
+      the disk tier. Does not identify the testing methodology flaw (cached dataset means
+      storage was never exercised) or the burst/sustained IOPS distinction. May recommend
+      upgrading to a P30 or higher based on the developer's request without establishing
+      what the constraint actually is.
+    level_2: >
+      Identifies the testing methodology flaw: the test dataset fits in buffer cache, so
+      the test was served from memory and did not exercise storage I/O. Notes that the
+      production workload exceeds buffer cache and generates sustained disk reads. Identifies
+      that the P20 has burst vs. sustained IOPS characteristics and that production sustained
+      load may be hitting the baseline limit. Recommends measuring actual disk I/O during
+      production before specifying a solution. Does NOT address the VM-level uncached
+      throughput limit as a separate constraint to check.
+    level_3: >
+      All of the above plus: explicitly identifies the VM-level uncached disk throughput
+      limit as a separate constraint from the disk-level IOPS limit, and notes that both
+      must be measured before specifying a solution (since upgrading the disk tier does not
+      help if the VM is the constraint). Describes the specific measurements needed: IOPS
+      consumption and disk queue depth on the P20 during production load, and the VM's
+      uncached disk throughput utilization. Does NOT address the ambiguity in the developer's
+      upgrade request ("upgrade to premium tier" when the disk is already premium).
+    level_4: >
+      All of the above plus: identifies the ambiguity in the developer's upgrade request
+      (P20 is already premium tier — they likely mean a higher premium tier), and notes
+      that the correct upgrade path depends on the measured sustained IOPS requirement,
+      not the developer's assumption. Addresses the broader question of whether the workload
+      architecture is appropriate for the VM/disk combination: a 28GB production dataset
+      on a VM with 6GB buffer cache generates structural cache miss pressure that cannot
+      be resolved by disk tier alone — a larger VM with more RAM to expand the buffer cache
+      may resolve the issue without any disk changes, or may be required alongside a disk
+      upgrade. The investigation should include whether the RAM/buffer cache size is a
+      co-constraint.

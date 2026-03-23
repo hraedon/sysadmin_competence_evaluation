@@ -1,0 +1,5 @@
+The logs cannot establish that the DC Kerberos error caused the application timeout — not yet. The timestamps need to be verified before any cross-source correlation can be trusted.
+
+The issue: the application server log is in "local time (timezone not confirmed)" and the DC log is in UTC. The application server shows the Kerberos failure at 10:23:18; the DC shows KDC_ERR_S_PRINCIPAL_UNKNOWN at 14:23:22. Those are 4 hours apart. A 4-hour difference is consistent with the application server being in EDT (UTC-4) — which would make the events simultaneous. But "consistent with EDT" is not the same as "confirmed to be EDT." If the application server is in a different timezone, or if its clock has drifted, the timestamps don't align the way they appear to.
+
+Before drawing any conclusion about causation, confirm the timezone on DYN365-APP01 (System Properties → Time Zone, or Get-TimeZone in PowerShell). If the server is in EDT (UTC-4), the events are simultaneous and the correlation can be investigated. If it's in a different timezone, the apparent 4-hour gap may have a different explanation entirely.

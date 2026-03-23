@@ -1,0 +1,17 @@
+Do not follow the SOP. This is an emergency, not a change management scenario.
+
+The thin-provisioning failure mode is different from a thick-provisioned datastore running low. When physical capacity on a thin-provisioned datastore is exhausted, every VM on the datastore that is attempting a write gets an I/O error simultaneously. For the three SQL Server VMs with active transaction logs, this means transaction log write failures and database engines going offline or entering read-only emergency states. For the file VMs with users uploading files, it means write failures mid-operation. This happens instantaneously — there is no proportional degradation, no warning period, no graceful slowdown.
+
+The 221 GB/day average trend understates the risk. SQL Server transaction logs are the key factor. Transaction logs write synchronously for every committed transaction. When a batch job, index rebuild, or bulk insert runs, log write volume spikes dramatically — sometimes by an order of magnitude over the average. The 2.55 TB remaining could be consumed in hours if any of the three SQL Server instances runs a large batch operation this afternoon.
+
+The "available to VMs: 3.82 TB" figure is also misleading — that includes logical space that hasn't been written to yet, not physical space that exists. The physical space is 2.55 TB.
+
+Immediate actions, in order:
+
+1. Notify the SQL Server DBAs immediately that storage is in a critical state. They need to defer batch operations, maintenance jobs, and index rebuilds that would generate high transaction log volume.
+
+2. Expand the datastore capacity now. If additional physical capacity is available, add it. If not, migrate the lowest-priority VMs to a different datastore with available space to reduce physical write pressure.
+
+3. If neither is immediately feasible, suspend non-critical VM writes temporarily — stop the development VMs from writing while the expansion is arranged.
+
+4. Notify management that this situation requires action now, not at Saturday's maintenance window. The SOP was designed for planned capacity work, not for an emergency failure mode that will take all twelve VMs offline simultaneously without warning.

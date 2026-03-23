@@ -1,0 +1,12 @@
+This plan has critical gaps that should block approval.
+
+1. No abort criteria
+The plan does not define conditions under which the executor should stop the upgrade and initiate rollback. Without pre-committed abort criteria, the executor has no rule to anchor against when deciding whether to continue or stop. Abort criteria must be defined before the change window.
+
+2. Rollback procedure is not viable
+"Restore from backup if needed" is not a procedure. The plan does not identify which backup, confirm it exists, estimate restore time, or describe the steps to bring the domain back to a functional state after a restore. The rollback section needs to be a complete procedure with specific steps and time estimates.
+
+3. Authentication blast radius not assessed
+LABDC01 is the primary DC and DNS server. Taking it offline for the upgrade interrupts authentication services — Kerberos, LDAP, and DNS — for all domain members. The plan does not assess what services and users are affected during the window, or whether other DCs can absorb the load. The risk assessment of "low risk" does not reflect this impact.
+
+These three gaps together mean the plan has no trigger for stopping, no viable path to recovery if it fails, and no understanding of the impact scope.

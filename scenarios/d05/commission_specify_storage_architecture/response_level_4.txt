@@ -1,0 +1,48 @@
+Storage Architecture Specification — Four Workloads
+
+Workload A — Business Application VMs (OLTP Database)
+Tier: All-flash storage — dedicated block storage from an all-flash array or HCI (e.g., vSAN, Nutanix, Azure Stack HCI)
+Rationale: SQL Server OLTP workloads require consistent low latency, not just high average throughput. Spinning disk under concurrent access introduces variable mechanical seek latency that becomes application response time variability — the firm's "slow application affects client work" concern maps directly to storage latency. All-flash provides consistent sub-millisecond response times regardless of concurrent access patterns or queue depth.
+Redundancy: RAID 10 or HCI replication factor 2. RAID 10's key advantage is rebuild speed — mirrors rebuild by copying from the surviving drive, not by reconstructing from parity. For a production database array, rebuild time under production load is a meaningful risk factor; RAID 10 minimizes it. RAID 5 or RAID 6 is acceptable for cost reasons but requires acknowledging the longer rebuild window during which the array runs degraded.
+Capacity: 60 GB data today, 20 GB/year. 5-year data: ~160 GB. SQL Server provisioning rules of thumb: 3–4x data size for OS, TempDB (size to the largest temp operation the application generates), transaction log (size for peak daily transactions before backup clears it), and free working space. Provision: ~600 GB usable. At RAID 10 (50% efficiency): ~1.2 TB raw across 4+ drives minimum.
+Note: With 60 GB of database data, a small all-flash HCI node or a NAS appliance with NVMe drives (Synology FlashStation, QNAP QM2 series) is cost-appropriate at this scale. Enterprise SAN is over-provisioned for the size.
+
+Workload B — File Server
+Tier: High-capacity spinning disk NAS
+Rationale: File server access patterns combine many simultaneous small reads/writes with occasional large sequential transfers. Spinning disk handles both adequately at moderate latency. The high cost sensitivity strongly favors spinning disk: enterprise high-density drives (18–22 TB) cost approximately $15–25/TB versus $100–200/TB for comparable NVMe SSD. At 18 TB usable requirement, this is a $2,000 vs. $15,000 decision for equivalent capacity — unjustifiable for a workload that doesn't need SSD performance.
+Redundancy: RAID 6 (2-drive failure tolerance). High-density drives (18+ TB) have rebuild times of 12–24 hours under load. RAID 5 with 18TB drives means any second drive failure during a rebuild — which takes half a day or more — causes total data loss on 8+ TB of staff files. RAID 6 provides the additional fault tolerance that makes this risk manageable. Provision 6 drives in a RAID 6 set: 4 data + 2 parity = ~72 TB raw with 18TB drives → ~72×(4/6) = 48 TB usable, providing significant growth capacity.
+Capacity: 8 TB today, 2 TB/year, 5-year horizon: ~18 TB. A 6-drive RAID 6 NAS with 18TB drives (48 TB usable) provides comfortable growth capacity. Provision with expansion bays available.
+
+Workload C — Backup Target (trust tier requirement)
+The insurance requirement — "restorable without access to the production environment" — is an architectural constraint that defines what "separate backup storage" actually means. It is not about physical separation; it is about credential separation and access control isolation.
+
+What does NOT meet the requirement:
+- Backup share on a production-domain-joined NAS using domain credentials. A compromised domain account can reach and delete or encrypt the backup share.
+- Separate NAS with shared domain administrator credentials. Same issue — same trust tier.
+
+What DOES meet the requirement:
+Option 1 — Dedicated NAS with local-only credentials: A NAS device (Synology, QNAP) configured with local administrator accounts only, not joined to the production domain. Veeam's backup job stores the NAS credentials in its own encrypted credential store. Production domain accounts cannot reach the backup share. Cost: appropriate for this scale. Limitation: no immutability unless the NAS supports WORM features.
+
+Option 2 — Veeam Hardened Repository: A dedicated Linux server (Ubuntu 22.04) running Veeam Hardened Repository. The XFS file system is configured with immutability flags; backup files cannot be overwritten or deleted by the Veeam backup service account even if that account is compromised. Cost: a modest server + Linux license (free). This is the most operationally robust option for this scale and provides actual immutability, not just access control.
+
+Option 3 — Cloud object storage with immutability: Azure Blob Immutable Storage or AWS S3 Object Lock. Backup files are written once and cannot be overwritten or deleted for the retention period, regardless of API credential compromise. Cost per GB is higher than on-premises at this scale, but retrieval for restore is fast. Appropriate if the firm prefers not to manage another on-premises device.
+
+Recommended: Option 2 (Veeam Hardened Repository) for a small firm that wants maximum protection at minimum cost. The Linux server can be a modestly-specced physical machine or a dedicated VM on separate hypervisor infrastructure.
+
+Tier: High-capacity spinning disk (backup workloads are sequential large writes — spinning disk throughput advantage applies, SSD latency advantage does not).
+Redundancy: RAID 6 on the backup repository disks. The backup IS a redundant copy of production — backup storage redundancy protects the backup medium itself. RAID 6 is appropriate for high-density drives with the same rebuild-time rationale as Workload B.
+Capacity: 90-day retention. Raw data to back up: Workload A VMs (~200 GB including OS) + Workload B file server (8 TB) = ~8.2 TB. Veeam deduplication ratios: file server data deduplicates well (30–50% reduction typical); database data deduplicates less well (5–15% reduction typical). Without operational data, do not assume a specific ratio. Provision at 2× raw data per full backup × retention multiplier: initial estimate 24–32 TB. Revisit after 60 days of operation with actual dedup ratios.
+
+Workload D — Compliance Archive
+Tier: Cold cloud object storage — Azure Blob Archive tier, AWS S3 Glacier Deep Archive, or equivalent
+Rationale: 7-year retention, monthly-or-less retrieval, hours-to-days retrieval tolerance, and very high cost sensitivity defines this workload exactly. Cold archive tiers provide the lowest cost per GB per month of any generally available storage. On-premises alternatives (tape with offsite rotation) are competitive for very large archives but add operational complexity (media management, rotation schedules, reader availability) that is not justified at 3.5 TB scale.
+Capacity: 500 GB/year × 7 years = 3.5 TB. Lifecycle policy: files auto-transition to Archive tier after 90 days (retain in Cool tier for recent-year retrieval, then archive). Set up from day one with the full 7-year capacity headroom.
+Legal hold consideration: regulatory archives should be write-once/read-many from the moment of creation. Configure immutability at the object storage level (Azure Blob immutability policy, S3 Object Lock) to prevent deletion or modification by any credential for the retention period. This protects against inadvertent deletion as well as malicious modification.
+
+Architecture summary:
+| Workload | Tier | Rationale |
+|---|---|---|
+| A: OLTP VMs | All-flash (NVMe or SSD) | Consistent low latency for OLTP |
+| B: File server | Spinning disk NAS, RAID 6 | Cost efficiency, adequate throughput |
+| C: Backup | Spinning disk, separate trust tier, Hardened Repo | Throughput + credential isolation + immutability |
+| D: Archive | Cold cloud object storage, immutable | Lowest cost per TB, meets retention requirement |

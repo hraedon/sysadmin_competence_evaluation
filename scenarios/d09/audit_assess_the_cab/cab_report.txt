@@ -1,0 +1,44 @@
+== CHANGE ADVISORY BOARD — OPERATIONAL SUMMARY ==
+Period:          2025-04-01 through 2026-03-31 (12 months)
+Prepared by:     Change Management Office
+Requested by:    Infrastructure Manager
+
+MEETING STATISTICS
+  Meetings held:                52 (weekly; no meetings missed)
+  Avg changes reviewed/meeting: 15.0
+  Total changes reviewed:       780
+  Avg meeting duration:         87 minutes
+
+APPROVAL OUTCOMES
+  Approved as submitted:        740  (94.9%)
+  Approved with minor edits:     37   (4.7%)
+  Rejected or substantially
+    modified:                     3   (0.4%)
+
+  Of the 3 rejections/modifications:
+    CR-2025-0214: Rejected — insufficient rollback plan (firewall ACL change)
+    CR-2025-0508: Returned for revision — maintenance window too short
+    CR-2025-1103: Rejected — no test environment results for production schema change
+
+CHANGE OUTCOME REVIEWS
+  Post-change outcome reviews conducted:  0
+  Reviews of successful changes:          0
+  Reviews of failed changes (incident-linked): 0
+  Reviews of changes requiring significant
+    deviation from approved plan:         0
+
+CHANGE OUTCOMES (from change management system, not reviewed by CAB)
+  Changes executed in period:   764  (some approved changes deferred or cancelled)
+  Incidents linked to changes:   18  (2.4% of executed changes)
+  Changes requiring significant
+    deviation from plan:         47  (6.2% of executed changes)
+  Changes completed as planned: 699  (91.5% of executed changes)
+
+BOARD COMPOSITION
+  Members:  7 (Infrastructure Lead, Network Lead, Security Lead, DBA Lead,
+              Operations Manager, Change Coordinator, IT Director)
+  Quorum:   4 members required for approval
+
+NOTES FROM CHANGE COORDINATOR
+  "The board continues to meet its mandate of reviewing all standard changes
+   before execution. Approval times are within SLA. No backlog."

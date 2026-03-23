@@ -1,0 +1,21 @@
+(1) Do the logs establish that the DC Kerberos error caused the application timeout?
+
+No. Not yet. The logs are suggestive but not conclusive, because the timestamps cannot be directly compared until their provenance is verified.
+
+The two logs use different time references: DC log is UTC, application server log is "local time (timezone not confirmed)." The events appear 4 hours apart — 10:23:18 on the app server vs. 14:23:22 UTC on the DC. A 4-hour difference is consistent with the app server logging in EDT (UTC-4), which would make these events simultaneous. The KDC error pattern (KDC_ERR_S_PRINCIPAL_UNKNOWN for MSSQLSvc/dynamics-db.corp.local, affecting multiple users in sequence) is also consistent with the application-level Kerberos failures.
+
+But "consistent with" is not "confirmed." If the application server is in UTC-5, UTC-6, or has a 4-hour clock offset from some other cause, the correlation breaks down. The conclusion that the KDC error caused the application failure cannot be stated with confidence until we know the application server's timezone and NTP synchronization status.
+
+(2) What additional information is needed?
+
+Two things, both required before trusting the correlation:
+
+a) Application server timezone: Check DYN365-APP01's configured timezone. This must match "UTC-4" or equivalent (EDT) for the 14:23:22 UTC event to correspond to the 10:23:18 local time event. A PowerShell check (Get-TimeZone) or a look at the Windows system settings resolves this in under 2 minutes.
+
+b) NTP synchronization status: Even with the correct timezone, clock drift can shift timestamps enough to misidentify causation. Verify that DYN365-APP01 is synchronized to the domain NTP hierarchy (w32tm /query /status) and check its current offset from CORPDC01. Domain-joined Windows systems should sync to the PDC Emulator; if this server is not domain-synchronized or has significant drift, the timezone confirmation alone is insufficient.
+
+(3) Other investigation steps
+
+The scope of impact should be reconciled with the log data. The complaint mentions "several users." The DC log extract shows KDC errors for mwright, kpatel, and jbaker — three users in a pattern consistent with the application log's failure sequence. This is coherent so far, but confirming the full list of affected users and whether any users were unaffected during the window would help confirm or challenge the hypothesis.
+
+The DC log extract is also narrow (a 4-minute window). Before concluding the SPN error is new, pull a broader DC Security log extract to check whether KDC_ERR_S_PRINCIPAL_UNKNOWN failures for MSSQLSvc/dynamics-db.corp.local have appeared before today. A recurring error would indicate the SPN has been missing for some time; a one-time appearance today would suggest a recent change that removed the SPN. These are different problems requiring different investigations.

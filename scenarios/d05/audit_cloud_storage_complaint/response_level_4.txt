@@ -1,0 +1,30 @@
+The developer's test result is not evidence that the disk is adequate. The test was entirely served from the SQL Server buffer cache — the disk was not exercised in any meaningful way.
+
+The mechanism: SQL Server pre-loads frequently accessed data into its buffer pool (maximum 6GB on this instance). The test dataset is 4GB — smaller than the buffer pool. After the first pass loaded the data into memory, subsequent queries were served from the buffer pool, not from disk. The test's disk IOPS (average 280 during test vs. 2,180 average in production) confirms this clearly. The test was a memory performance test, not a storage performance test. The developer's conclusion that "the disk handles our workload" is based on a test that did not involve the disk for the overwhelming majority of its duration.
+
+The structural production problem: 28GB dataset, 6GB buffer pool, 34% cache hit ratio. Two-thirds of all data reads go to disk. Every query that touches data not currently cached requires physical disk I/O to complete. This generates continuous, sustained random read load throughout the production day — exactly the workload profile that exhausts burst credits and forces operation at baseline IOPS.
+
+The P20's performance model has two modes:
+- Burst: approximately 3,500 IOPS, credit-based, finite duration (designed for spiky workloads)
+- Baseline: 2,300 IOPS, sustainable indefinitely
+
+Production metrics show 2,180 average IOPS. This is consistent with burst credits depleting during the first 20-30 minutes of production load each day, after which the disk operates at its 2,300 IOPS baseline — which is barely above the actual observed average, explaining why queue depth reaches 18.4. A disk queue depth of 18 means the disk is receiving requests 18x faster than it can complete them; latency accumulates proportionally.
+
+Two constraints, both requiring measurement:
+
+Constraint 1 — Disk IOPS: P20 baseline 2,300 IOPS. Production average 2,180 IOPS suggests this is likely binding during peak load periods when the workload exceeds the average.
+
+Constraint 2 — VM uncached disk throughput: Standard_D4s_v3 maximum 96 MB/s uncached. This is a VM-level ceiling that applies regardless of the attached disk tier. At the production's I/O profile (random reads, 8KB pages for SQL Server), 2,180 IOPS at 8KB per I/O = approximately 17 MB/s — well below the 96 MB/s VM ceiling. The VM throughput limit is unlikely to be binding here. However, if the I/O is not all small-page reads, the calculation changes, and this should be confirmed with measurement rather than assumed.
+
+The investigation before specifying any solution:
+1. During peak production hours, capture disk performance counters: IOPS, throughput (MB/s), queue depth, avg latency. Confirm the P20 baseline is the binding constraint.
+2. Capture VM-level disk throughput to confirm the Standard_D4s_v3 ceiling is not reached first.
+3. These measurements take 30 minutes and cost nothing.
+
+If the P20 baseline is confirmed as the binding constraint, the upgrade decision:
+
+A P30 (1TB) provides 5,000 IOPS baseline and 30,000 IOPS burst — more than 2x the P20 baseline. For a sustained random read workload at the production scale, this would likely resolve the latency issue. Premium SSD v2 (if available in East US 2) allows configuring IOPS independently of disk size, which avoids paying for 1TB capacity to get P30 IOPS if the database is 28GB.
+
+However, disk tier is not the only lever. The root cause is structural: 28GB dataset on a 6GB buffer pool produces a 34% cache hit ratio. This is a memory problem as much as a storage problem. Increasing the VM's RAM (moving from Standard_D4s_v3 to Standard_D8s_v3 or adding a memory-optimized SKU) would allow a larger buffer pool, reduce cache miss rate, and decrease the disk I/O demand at the source. Depending on the query distribution and working set concentration, a larger buffer pool may reduce disk I/O by 40-60%, which might make the P20 adequate without any disk change.
+
+The complete solution likely involves both: a larger VM SKU (more RAM → larger buffer pool → fewer disk reads) and a higher disk tier (higher baseline IOPS for the reads that must still go to disk). The developer's request for a disk upgrade is addressing a real problem but is not the complete picture. Both constraints should be addressed together rather than iteratively.

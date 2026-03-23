@@ -1,0 +1,60 @@
+== INVESTIGATION NOTES: INC-2026-0411 ==
+Investigator:  D. Walsh (Junior Administrator)
+Date:          2026-03-23
+Incident:      Possible unauthorized access to Accounting share on FILESRV01
+               (reported 2026-03-23; alleged incident window: 2026-03-02, approx. 14:00–16:00)
+
+BACKGROUND
+HR notified IT that a former employee account (T.Nakamura, terminated 2026-03-01)
+may have been used to access the Accounting file share on 2026-03-02. The account
+was scheduled for disabling 5 business days post-termination per policy, which
+would place the disable date at 2026-03-08. Investigators want to determine whether
+T.Nakamura's account accessed the Accounting share on 2026-03-02.
+
+INVESTIGATION STEPS TAKEN
+
+Step 1: Reviewed Windows Security log on FILESRV01 for 2026-03-02, 14:00–16:00.
+  Filter applied: Account Name = nakamura
+  Result: No logon events (4624) or logon failure events (4625) found for nakamura
+          in the specified time window.
+
+Step 2: Confirmed T.Nakamura's account status.
+  Account: CORP\t.nakamura
+  Status on 2026-03-02: Active (not yet disabled per policy)
+  Disabled date: 2026-03-08 09:14 (per IT service desk ticket)
+
+CONCLUSION
+No logon events for T.Nakamura's account were found in the FILESRV01 Security log
+during the alleged incident window. Based on this evidence, T.Nakamura's account
+was not used to access FILESRV01 or the Accounting share on 2026-03-02.
+
+---
+
+== SUPPORTING EVIDENCE ==
+
+FILESRV01 AUDIT POLICY (retrieved 2026-03-23 via auditpol /get /category:*)
+
+  Account Logon         Audit Kerberos Authentication Service:   No Auditing
+  Account Logon         Audit Kerberos Service Ticket Operations: No Auditing
+  Account Logon         Audit Other Account Logon Events:         No Auditing
+  Account Management    Audit Computer Account Management:        Success
+  Account Management    Audit Security Group Management:          Success and Failure
+  Account Management    Audit User Account Management:            Success and Failure
+  Logon/Logoff          Audit Logon:                             Success and Failure
+  Logon/Logoff          Audit Special Logon:                     Success
+  Object Access         Audit File System:                       No Auditing
+  Object Access         Audit File Share:                        No Auditing
+  Object Access         Audit Other Object Access Events:        No Auditing
+  Policy Change         Audit Policy Change:                     Success
+  System                Audit System Integrity:                  Success and Failure
+
+FILESRV01 SECURITY LOG SETTINGS (from Event Viewer):
+  Maximum log size:  20 MB
+  When maximum log size is reached:  Overwrite events as needed (oldest events first)
+  Current log entries:  Earliest entry: 2026-03-16 08:22
+
+FILESRV01 SHARES (net share output, current):
+  Accounting   C:\Shares\Accounting   Remark: Finance department documents
+  IT_Tools     C:\Shares\IT_Tools     Remark: IT team utilities
+  IPC$         Remote IPC
+  ADMIN$       Remote Admin

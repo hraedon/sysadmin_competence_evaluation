@@ -1,0 +1,8 @@
+The CAB report shows the board is meeting consistently and reviewing all standard changes. The approval rate of 94.9% and the low rejection rate suggest the team is generally writing good change plans. The board has rejected 3 changes in 12 months, which shows it is applying scrutiny when needed.
+
+A few improvements that could strengthen the CAB:
+- Reduce changes per meeting from 15 to 10 to allow more discussion time per change
+- Add a requirement for more detailed testing documentation in change requests
+- Consider adding more members to the board to broaden the expertise available
+
+Overall the CAB appears to be functioning as intended. The high approval rate reflects a mature team that understands what a good change plan looks like.

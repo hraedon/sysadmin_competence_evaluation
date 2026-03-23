@@ -1,0 +1,47 @@
+== CHANGE REQUEST CR-2026-0189 ==
+Submitted:      2026-03-20
+Submitted by:   M. Reeves (Infrastructure Team)
+Change type:    Standard (infrastructure)
+Priority:       Normal
+Scheduled:      2026-03-29 02:00 (Sunday)
+
+Title: Domain Controller OS Upgrade — LABDC01
+       Upgrade Windows Server 2019 to Windows Server 2022 in-place
+
+Business Justification:
+  Windows Server 2019 extended support ends October 2029. Upgrading now aligns
+  with the infrastructure refresh cycle and avoids last-minute migration work.
+
+Environment:
+  Server:  LABDC01.corp.local
+  Current: Windows Server 2019 Standard, build 17763.6414
+  Target:  Windows Server 2022 Standard
+  Role:    Active Directory Domain Services (primary DC), DNS Server
+
+Vendor:
+  Microsoft support case #2026-08821 opened 2026-03-18 re: upgrade compatibility.
+  Awaiting response. Support case not escalated.
+
+Change Procedure (8 steps):
+  Step 1: Take a VM snapshot of LABDC01 before beginning.
+  Step 2: Mount the Windows Server 2022 installation ISO.
+  Step 3: Run setup.exe to initiate the in-place upgrade.
+  Step 4: Accept the license terms and confirm upgrade settings.
+  Step 5: Allow the upgrade process to complete (estimated 60–90 minutes).
+  Step 6: Verify that the server has booted into Windows Server 2022.
+  Step 7: Confirm Active Directory and DNS services are running.
+  Step 8: Remove the VM snapshot.
+
+Rollback:
+  Restore from backup if needed.
+
+Test Results:
+  Successfully completed the same upgrade on a test VM last week.
+  Test VM was a standalone server (not domain-joined).
+
+Risk Assessment:
+  Low risk. In-place upgrade preserves existing AD configuration.
+  Hot spare has been confirmed available.
+
+---
+[No further sections. Change request ends here.]

@@ -1,0 +1,164 @@
+id: d05-audit-the-degraded-array
+domain: 5
+domain_name: "Storage Architecture"
+level: 2
+title: "The Rebuild Window"
+delivery_mode: A
+subtype: null
+
+difficulty: 3
+difficulty_note: >
+  The hot spare rebuilding automatically is a convincing distractor — it looks like the
+  system is handling the failure correctly. The reasoning challenge is recognizing that
+  the rebuild window creates 18+ hours of zero fault tolerance on an array whose surviving
+  drives are already aging, under production I/O load that elevates the probability of a
+  second failure. Three factors must be held simultaneously: RAID 5 math, drive age
+  distribution, and the effect of rebuild I/O competing with production I/O.
+
+# Scenario note (for scenario authors and evaluators):
+# Most similar to: d04-audit-assess-this-environment (both test whether candidates
+# read a system status indicator critically rather than accepting it at face value;
+# both require recognizing that "healthy-looking" indicators mask elevated risk).
+# How the reasoning challenge differs: the PKI scenario tests whether candidates can
+# identify multiple independent risk categories from a static environment description.
+# This scenario tests a Domain 5 skill: understanding what a degraded RAID array with
+# an automatic hot spare rebuild actually means for fault tolerance during the rebuild
+# window. The array is "doing the right thing" — the hot spare activated — but the
+# critical insight is that redundancy has not been restored and will not be restored
+# for 18+ hours, during which any second failure causes total loss. The production
+# database load during business hours is not background noise; it is a material factor
+# in the probability of a second drive failure during the rebuild window.
+
+presentation:
+  type: environment_description
+  artifact_file: "scenarios/d05/audit_the_degraded_array/storage_alert.txt"
+  context: |
+    It is 09:14 on a Monday. You receive an automated alert that the storage array
+    serving SQLSRV01 (production order management database) has entered a degraded
+    state. The storage management console output is attached.
+
+    The facilities team confirms the replacement drive will arrive tomorrow morning.
+    Your manager sees the alert and notes: "Looks like the hot spare kicked in — we
+    should be fine."
+
+    Assess the risk profile of the current situation and describe what actions, if
+    any, should be taken now rather than waiting for the replacement drive to arrive.
+
+rubric:
+  critical_findings:
+    - id: rebuild_window_zero_fault_tolerance
+      description: >
+        A RAID 5 array with one failed drive has consumed all of its redundancy. The
+        hot spare rebuilding does not restore protection during the rebuild — it restores
+        protection after the rebuild completes successfully. Until then, any second drive
+        failure among the seven surviving drives causes total data loss with no recovery
+        path other than restore from backup. The estimated rebuild time is 18h 15m
+        remaining. The array will be in a zero-fault-tolerance state throughout business
+        hours today and into the evening. The statement "the hot spare kicked in — we
+        should be fine" reflects a misunderstanding of what the hot spare actually provides
+        during the rebuild window.
+      severity: critical
+      miss_signal: >
+        Candidate reads the alert, notes the hot spare is rebuilding, and agrees with the
+        manager's assessment that the situation is being handled. Or: candidate recognizes
+        the degraded state but characterizes the risk as "monitor and wait for the
+        replacement drive" without identifying that the 18-hour rebuild window represents
+        a period of zero fault tolerance during which a second failure causes total loss.
+      learning_note: >
+        RAID 5 provides fault tolerance by writing parity information distributed across
+        drives. When one drive fails, the array can reconstruct the missing data from the
+        remaining drives and the parity. But this reconstruction is what the hot spare
+        rebuild is doing — and until that reconstruction is complete, there is no parity
+        information protecting against a second failure. The array is operating as if it
+        were a JBOD (just a bunch of disks) from a fault tolerance perspective for the
+        duration of the rebuild. The hot spare's automatic activation is the correct
+        response to the failure — but it does not compress the rebuild window or
+        meaningfully reduce the risk during it. An 18-hour rebuild on a production
+        database array is 18 hours of zero redundancy.
+
+    - id: production_io_elevates_second_failure_probability
+      description: >
+        The array is servicing 14,280 read IOPS and 8,950 write IOPS from the production
+        database, running at 87% of controller throughput during business hours. The rebuild
+        process generates additional I/O across all surviving drives (reading from seven
+        drives to reconstruct the failed drive's content, writing to the hot spare). This
+        I/O competes with production workload and increases thermal and mechanical stress
+        on drives that are already 5.1–6.7 years old. The SMART data shows concerning
+        sector counts on at least two of the surviving drives. The combination of high
+        sustained production I/O, rebuild I/O overhead, and aged drives with visible SMART
+        degradation makes this a meaningfully elevated risk compared to a rebuild on an
+        idle array with young drives.
+      severity: high
+      miss_signal: >
+        Candidate identifies the zero-fault-tolerance window but does not address the
+        production I/O load as a contributing risk factor during the rebuild. Treats the
+        rebuild as a background process that does not interact with production workload.
+
+  secondary_findings:
+    - id: backup_verification_required
+      description: >
+        The correct risk response includes verifying backup recency and restorability
+        immediately — not as a future action after the rebuild completes. If a second drive
+        failure occurs during the rebuild, the only recovery path is restore from backup.
+        A backup that has not been tested or whose last successful backup was more than 24
+        hours ago materially changes the risk profile of the current situation. The backup
+        state should be confirmed before any decision about workload reduction or other
+        mitigations.
+      severity: high
+
+    - id: smart_warnings_on_surviving_drives
+      description: >
+        The storage management console shows SMART data for the surviving drives. Slots 01
+        and 03 have estimated remaining lifetimes under 3.5 years based on written TB data,
+        and Slot 07 shows 2.9 years remaining. On an array that is currently in a rebuild
+        state with elevated I/O, SMART degradation on surviving drives is directly relevant
+        to the probability of a second failure during the rebuild window. These specific
+        drives should receive the most attention during monitoring; if either fails during
+        the rebuild, the array loses all data.
+      severity: moderate
+
+    - id: unread_predictive_alert_process_failure
+      description: >
+        The SMART warning alerts for Slot 05 (the failed drive) were sent three days before
+        the failure and went unread. These predictive failure alerts existed and were not
+        acted on. If they had been reviewed, there would have been time to proactively
+        replace the drive before failure, avoiding the degraded array situation entirely.
+        The unread alerts represent a process failure — the alert delivery, routing, and
+        review process did not work as intended. This should be addressed as part of the
+        incident response: ensuring that predictive storage alerts reach someone who
+        reviews and acts on them, so the next predictive alert generates a proactive
+        replacement rather than a reactive emergency.
+      severity: moderate
+
+  level_indicators:
+    level_1: >
+      Can read the alert and describe what it shows: RAID 5 array with a failed drive, hot
+      spare rebuilding, estimated 18+ hours to completion, production database workload.
+      Agrees with or does not challenge the manager's "we should be fine" assessment. May
+      note the replacement drive is arriving tomorrow. Does not identify the rebuild window
+      as a period of zero fault tolerance or address the risk of a second drive failure.
+    level_2: >
+      Identifies that the hot spare rebuild does NOT restore fault tolerance during the
+      rebuild — the array is in a zero-redundancy state for the duration of the rebuild
+      window. Notes that a second drive failure during the rebuild causes total data loss.
+      Recommends escalating urgency beyond "monitor and wait" and verifying backup state.
+      Does NOT address the production I/O load as an elevating factor, or the SMART
+      degradation on surviving drives, or propose specific contingency steps for a
+      second-failure scenario.
+    level_3: >
+      All of the above plus: specifically addresses the production database workload as
+      a contributing risk factor (rebuild I/O competes with 87% controller throughput,
+      elevating stress on aged drives). Recommends verifying backup recency and
+      restorability as the first action. Notes the SMART data on surviving drives as
+      relevant context. Considers whether the production workload should be reduced or
+      migrated during the rebuild. Does NOT note the SMART alert history for the failed
+      drive or address the process failure of unread predictive alerts.
+    level_4: >
+      All of the above plus: addresses the pre-existing SMART warning history (alerts
+      for Slot 05 were sent three days before the failure and went unread — this is a
+      process failure that should be corrected, not just the current emergency resolved).
+      Proposes a documented second-failure response plan with specific steps: who to call
+      (on-call DBA, storage vendor support), what commands to verify backup state, go/no-go
+      criteria for declaring a restore scenario or initiating an emergency storage migration.
+      Assesses whether the risk profile justifies an emergency storage migration before
+      the replacement drive arrives.

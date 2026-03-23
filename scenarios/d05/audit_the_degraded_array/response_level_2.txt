@@ -1,0 +1,12 @@
+The manager's assessment is incorrect. The hot spare rebuilding does not mean we're fine — it means we're currently in the most dangerous phase of a drive failure.
+
+When a RAID 5 array loses a drive, it loses all redundancy. The hot spare rebuild reconstructs the lost drive's data by reading from the seven remaining drives and writing to the hot spare. Until that rebuild completes, if any of those seven drives fails, the array loses data entirely — there is no second layer of protection during the rebuild. The array is currently in a zero-fault-tolerance state, and that state will persist for the next 18+ hours.
+
+This is not a normal operating condition. It's an emergency that happens to look orderly because the automation is running. The risk is: 18 hours of exposure on an array whose drives have been in service for several years, with no backup recovery possible from storage redundancy alone if a second drive fails.
+
+Immediate actions:
+1. Do not tell management "we should be fine." Escalate this as an active risk requiring attention today.
+2. Verify backup state: when was the last successful backup of SQLSRV01's databases? Has a restore been tested? The only recovery path if a second drive fails during rebuild is restore from backup.
+3. Increase monitoring frequency on the array — poll drive health every 15 minutes rather than whatever the default interval is.
+
+The replacement drive arriving tomorrow is not relevant to managing today's risk. The rebuild window is the exposure period.

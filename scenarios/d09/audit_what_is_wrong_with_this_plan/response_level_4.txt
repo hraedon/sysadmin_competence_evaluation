@@ -1,0 +1,53 @@
+Do not approve this plan. There are four critical gaps and an important interaction between two of them that makes the overall situation worse than the sum of the parts.
+
+CRITICAL GAP 1: No abort criteria
+
+The plan has no pre-committed conditions under which the executor stops and initiates rollback. This is the most important gap because it interacts directly with Gap 2 (the inadequate rollback).
+
+Abort criteria are not just documentation — they are a cognitive mechanism. The executor at 2am on a Sunday, having been awake for hours and invested 90 minutes in a complex upgrade, is in the worst possible cognitive state to make a balanced stop/continue decision. Sunk cost bias, time pressure, and the availability of "just a few more steps" will all push toward continuing. Pre-committed abort criteria provide a rule that anchors the decision before these factors are in play: "if Step 5 has not completed by 04:00, we abort regardless of progress."
+
+The missing abort criteria also makes the inadequate rollback academic in many failure scenarios. Without abort criteria, the executor may continue past the point where rollback is feasible, at which point the rollback procedure's quality is irrelevant.
+
+Specific additions required: which steps are abort-safe (can be cleanly abandoned before execution), which steps are not (must proceed to completion once started — the upgrade process itself, once initiated, cannot be safely interrupted mid-step), and what observable conditions trigger the abort decision.
+
+CRITICAL GAP 2: Rollback procedure is unexecutable as written
+
+"Restore from backup if needed" is a statement of intent, not a procedure. For a domain controller, a restore is a multi-hour, multi-step operation with domain-specific requirements that differ from restoring any other server type.
+
+What a viable DC rollback procedure must address:
+- Which backup: specific job name, estimated age (the plan does not verify that a recent backup exists before starting the change)
+- Restore time: not the happy-path estimate — the actual time to restore a DC from backup under conditions where the DC is offline, the restore media is accessed from the backup server, and potentially other DCs are handling load
+- Post-restore domain state: AD replication must reconverge after the restored DC comes back online. If LABDC01 held the PDC Emulator FSMO role, that role may need to be seized by another DC if the restore takes extended time. Tombstone lifetime implications: if the DC is offline long enough, AD tombstones from that DC may have expired on other DCs before the restored DC reconnects, which requires specific intervention
+- Success criteria for rollback: what does "the rollback is complete" look like? Not "the server is running" — specifically: AD replication shows no errors, DNS resolution is functioning, authentication is confirmed working for a test account
+
+CRITICAL GAP 3: Authentication blast radius undisclosed and understated
+
+LABDC01 is the primary DC and DNS server. The plan's risk rating of "low risk" is incorrect. During the upgrade window (60–90 minutes minimum, potentially longer):
+
+Authentication services affected: Kerberos ticket issuance (new tickets cannot be issued if the KDC is unavailable), LDAP queries (services that authenticate on each connection will fail), Group Policy processing (background refresh will fail for the domain without a responding DC).
+
+If LABDC01 is the PDC Emulator FSMO role holder: domain time synchronization is affected (all domain members synchronize from PDC Emulator), and certain AD operations that always target the PDC Emulator will fail.
+
+Even at 2am: scheduled tasks that run overnight, backup jobs that authenticate to network resources, monitoring agents that validate domain credentials, and services that re-authenticate on a schedule will all fail during the window.
+
+The plan must address: Does the domain have other DCs? If so, can they absorb the authentication load? If not, the impact during the upgrade window is domain-wide authentication outage. The PDC Emulator role should be assessed and potentially transferred before the upgrade. The plan's "Low risk. In-place upgrade preserves existing AD configuration" assessment conflates "upgrade process preserves AD data" with "upgrade is low impact" — the former may be true; the latter is not.
+
+CRITICAL GAP 4: Vendor dependency + off-hours + unescalated support
+
+The vendor dependency is load-bearing and the support escalation is missing. These two facts, in combination with the off-hours scheduling, create a specific failure scenario: the upgrade encounters a compatibility issue that requires vendor involvement, the on-call engineer reaches Microsoft support and discovers the open case has not been escalated to a tier that can help, and LABDC01 remains in a partially-upgraded non-functional state until business hours Monday.
+
+The off-hours scheduling alone is not the problem. The problem is the combination: a change that has a vendor dependency that could produce an indeterminate state, scheduled at a time when the vendor support capable of addressing that dependency is not available, with a support case not escalated to the tier that would be needed.
+
+Remediation options for this gap: (a) escalate the support case before the change window and confirm tier-3 availability off-hours, (b) reschedule to business hours when vendor escalation is available, or (c) explicitly accept the risk of a weekend-long outage and document that acceptance at the appropriate organizational level. Option (c) is a valid choice — it may be that the organization accepts this risk — but it must be a deliberate, documented acceptance, not an invisible assumption.
+
+STRUCTURAL GAPS
+
+5. Missing expected outputs per step: Each step describes an action without expected output or verification criterion. Steps 6 and 7 ("verify server booted" and "confirm AD and DNS services are running") are better than most but still vague — "confirm services are running" should specify which health checks confirm actual functionality vs. services in a running-but-not-responding state.
+
+6. No maintenance window end time: The change starts at 02:00 but has no stated end time. Without a window duration, there is no elapsed-time trigger for the abort decision. "If the upgrade is not complete and verified by 05:00, we abort" is the missing element.
+
+SUMMARY: Do not approve. Return to submitter for:
+- Abort criteria (which steps are abort-safe, what conditions trigger abort, what time-based abort threshold applies)
+- Viable rollback procedure (specific backup, restore time estimate, post-restore domain reconvergence steps)
+- Blast radius assessment (number of DCs, FSMO role assessment, authentication impact description)
+- Vendor support escalation confirmation before the window, or explicit documented risk acceptance

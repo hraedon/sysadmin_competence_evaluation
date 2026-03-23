@@ -1,0 +1,159 @@
+id: d05-audit-thin-provisioning-alarm
+domain: 5
+domain_name: "Storage Architecture"
+level: 2
+title: "The 87 Percent Problem"
+delivery_mode: A
+subtype: null
+
+difficulty: 3
+difficulty_note: >
+  The 87% figure reads like a capacity planning threshold, not an emergency — the
+  automatic framing is "schedule storage expansion." The reasoning challenge is
+  understanding that thin provisioning decouples logical allocation from physical
+  capacity, which changes the failure mode from "VMs slow down as capacity fills"
+  to "all VMs stop writing simultaneously when physical capacity exhausts." The
+  database transaction log workload adds a second factor: write amplification from
+  transaction log growth will consume remaining capacity faster than utilization
+  trend data implies. Both the failure mode and the timeline require domain knowledge
+  to recognize correctly.
+
+# Scenario note (for scenario authors and evaluators):
+# Most similar to: d02-audit-mfa-exclusion-outlived (both scenarios present a
+# quantitative indicator that looks like a planning concern but is actually an
+# operational emergency requiring immediate action).
+# How the reasoning challenge differs: the MFA exclusion scenario tests whether
+# candidates recognize temporal drift in a policy context. This scenario tests a
+# Domain 5 skill: understanding that thin provisioning's failure mode is non-linear.
+# A thick-provisioned datastore at 87% gives each VM proportionally less space —
+# a gradual, recoverable problem. A thin-provisioned datastore at 87% with database
+# workloads is approaching simultaneous write failure across all VMs on the datastore,
+# because physical capacity exhaustion causes all writes to fail instantly, not
+# gradually. The 3.8TB remaining sounds like a buffer; the transaction log workloads
+# will consume it faster than the utilization trend suggests.
+
+presentation:
+  type: environment_description
+  artifact_file: "scenarios/d05/audit_thin_provisioning_alarm/monitoring_alert.txt"
+  context: |
+    A monitoring alert fires at 14:23 on a Tuesday afternoon. You are the on-call
+    sysadmin. The attached alert contains the details from the vSphere storage
+    monitoring system.
+
+    Your team's standard operating procedure says datastore capacity alerts at 85%
+    trigger a change request to expand the datastore at the next maintenance window,
+    which is next Saturday at 2am.
+
+    Assess whether the standard response is appropriate, and describe what actions,
+    if any, should be taken now.
+
+rubric:
+  critical_findings:
+    - id: thin_exhaustion_simultaneous_vm_failure
+      description: >
+        At 87% of a thin-provisioned datastore, the remaining physical capacity is 3.8TB.
+        Thin provisioning means VMs are allocated logical space (e.g., 2TB each for 12 VMs
+        = 24TB logical) but only consume physical space as data is written. When physical
+        capacity is exhausted, all VMs on the datastore lose the ability to write
+        simultaneously — not gradually, not proportionally. Every VM that attempts a write
+        receives an immediate I/O error. For the three database VMs with active transaction
+        logs, this means database engine failures, log write errors, and likely transaction
+        rollbacks or database offline states. For all twelve VMs, this means simultaneous
+        storage failure. Waiting until Saturday's maintenance window is not appropriate —
+        this is an active emergency requiring same-day action.
+      severity: critical
+      miss_signal: >
+        Candidate treats the 87% alert as a capacity planning concern and endorses the
+        change request for Saturday's maintenance window. Or: candidate recognizes the
+        urgency but frames it as "the datastore is almost full" without identifying the
+        specific thin-provisioning failure mode (simultaneous write failure rather than
+        proportional degradation). The key miss is not understanding that thin
+        provisioning's failure is binary, not gradual.
+      learning_note: >
+        Thin provisioning decouples the logical space presented to VMs from the physical
+        space that storage actually occupies. VMs see (and can write to) their full
+        logical allocation, but physical blocks are only consumed as data is written.
+        This is efficient when VMs are not all simultaneously filling their logical space —
+        but it creates a specific failure mode at physical capacity exhaustion: all VMs
+        that are actively writing hit write failures at the same moment. Unlike a thick-
+        provisioned datastore where running out of space affects VMs in proportion to their
+        writes, a thin-provisioned datastore exhaustion event hits every VM simultaneously
+        regardless of their individual utilization. This is why 87% physical utilization
+        on a thin-provisioned datastore with active database workloads is an emergency,
+        not a planning item.
+
+    - id: database_write_amplification_accelerates_exhaustion
+      description: >
+        Three of the twelve VMs are running database workloads with active transaction
+        logs. Database transaction logs have high write amplification — every transaction
+        generates multiple log writes, and transaction logs grow faster than the
+        application-level transaction rate implies. Transaction log growth is also
+        non-uniform: heavy batch operations, bulk inserts, or index rebuilds generate
+        log writes orders of magnitude larger than normal OLTP load. The remaining 3.8TB
+        of physical capacity will be consumed faster than the overall utilization trend
+        suggests, because the trend reflects historical average writes, not the potential
+        peak write rate from the database workloads. The timeline for exhaustion is not
+        deterministic from the monitoring data alone — it could be hours, not days.
+      severity: high
+      miss_signal: >
+        Candidate recognizes the urgency but estimates the time to exhaustion as "a few
+        days" based on the utilization trend without accounting for the database transaction
+        log write amplification that could compress this timeline significantly.
+
+  secondary_findings:
+    - id: immediate_action_not_change_request
+      description: >
+        The standard operating procedure — change request for Saturday's maintenance window
+        — is not appropriate here. The correct immediate response is one or more of:
+        (a) expand the datastore immediately by adding physical capacity, (b) migrate some
+        VMs to a different datastore with available physical capacity, or (c) stop
+        non-critical VM writes temporarily to slow the consumption rate while a permanent
+        solution is arranged. The maintenance window process exists for planned changes to
+        reduce risk; using it as the response to an active storage emergency increases risk
+        by introducing a 4-day delay.
+      severity: high
+
+    - id: medium_term_thin_provisioning_management
+      description: >
+        The medium-term response should address the underlying thin-provisioning risk
+        architecturally: either convert the VMs to thick provisioning (eliminating the
+        overcommit and the simultaneous-failure risk entirely), or establish a hard capacity
+        reservation that prevents physical storage from being allocated beyond a safe
+        threshold (e.g., 70% for datastores with active database workloads). Expanding the
+        datastore solves today's emergency but does not eliminate the risk — if the datastore
+        fills again, the same failure mode applies. The architectural fix prevents recurrence.
+      severity: moderate
+
+  level_indicators:
+    level_1: >
+      Can read the alert and describe what it shows: vSphere datastore at 87% physical
+      capacity, 12 VMs, thin provisioned. Notes the datastore is nearly full and should
+      be expanded. Follows the standard operating procedure and endorses the change
+      request for Saturday. Does not identify the thin-provisioning failure mode or
+      recognize why 87% is an emergency rather than a capacity planning concern.
+    level_2: >
+      Identifies that thin provisioning creates a different failure mode than thick
+      provisioning: physical capacity exhaustion causes simultaneous write failures across
+      all VMs, not gradual degradation. Recognizes that waiting until Saturday is
+      inappropriate and that action is needed today. Recommends expanding the datastore or
+      migrating VMs. Does NOT address the database transaction log write amplification,
+      or describe specific immediate steps to halt non-critical writes while the expansion
+      is arranged.
+    level_3: >
+      All of the above plus: specifically addresses the database transaction log
+      write amplification as a factor that makes the timeline-to-exhaustion shorter than
+      the utilization trend implies. Recommends concrete immediate steps (expand capacity,
+      migrate VMs, or suspend non-critical writes). Escalates appropriately — notifies
+      management that this requires action outside the normal change window with clear
+      justification. Does NOT address medium-term architectural remediation (thick
+      provisioning or hard capacity reservation) or monitoring threshold recalibration.
+    level_4: >
+      All of the above plus: addresses the medium-term architectural remediation with
+      specific options (convert to thick provisioning, establish hard capacity reservation,
+      or separate database workload VMs onto a dedicated thick-provisioned datastore).
+      Identifies that the monitoring SOP is miscalibrated for thin-provisioned datastores
+      with database workloads — the 85% threshold with "schedule for Saturday" is
+      appropriate for thick-provisioned datastores but wrong for thin-provisioned datastores
+      with database workloads, where the threshold should be 70–75% with an immediate
+      response requirement. Notes this as a systemic monitoring design failure to correct,
+      not just an incident to resolve.

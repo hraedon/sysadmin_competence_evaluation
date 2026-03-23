@@ -1,0 +1,5 @@
+The junior administrator's conclusion appears correct based on the evidence. No logon events for T.Nakamura were found in the FILESRV01 Security log during the incident window. Since the Security log captures successful and failed logon attempts, the absence of these events means the account was not used to log into the server.
+
+One additional step to confirm: check whether T.Nakamura's account was actually active and unlocked on 2026-03-02. The notes confirm the account was active until 2026-03-08, so there was no technical barrier to access, but the logs show no access occurred.
+
+The investigation can be considered closed pending this confirmation. The HR report may have been based on incorrect information about which account or which date was involved.

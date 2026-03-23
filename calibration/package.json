@@ -8,7 +8,10 @@
     "calibrate:d1": "node run.mjs --domain 1",
     "calibrate:d2": "node run.mjs --domain 2",
     "calibrate:d3": "node run.mjs --domain 3",
-    "calibrate:d4": "node run.mjs --domain 4"
+    "calibrate:d4": "node run.mjs --domain 4",
+    "calibrate:d5": "node run.mjs --domain 5",
+    "calibrate:d9": "node run.mjs --domain 9",
+    "calibrate:d11": "node run.mjs --domain 11"
   },
   "dependencies": {
     "openai": "^4.98.0",

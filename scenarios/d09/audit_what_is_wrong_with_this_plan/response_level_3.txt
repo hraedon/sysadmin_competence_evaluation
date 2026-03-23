@@ -1,0 +1,16 @@
+This plan should not be approved. There are four critical gaps.
+
+1. No abort criteria
+The plan contains no abort criteria — no pre-committed conditions for when to stop. Abort criteria must be defined before the change window: specific observable conditions (step timeout, error code, service check failure) that trigger the decision to stop, and a clear statement of what stopping means.
+
+2. Rollback is not a procedure
+"Restore from backup if needed" is a placeholder. The rollback section must answer: which backup, what is its age, where is it stored, and how long does the restore take? Without these, the executor has no recovery path if the upgrade fails.
+
+3. Authentication blast radius undisclosed
+LABDC01 is the primary DC and DNS server. Taking it offline interrupts Kerberos ticket issuance, LDAP authentication, Group Policy processing, and DNS resolution for the domain. The plan does not assess what services and users are affected during the 60-90 minute window, or whether other DCs can absorb the load. "Low risk" is not accurate for a change that takes the primary authentication service offline.
+
+4. Vendor support not escalated — combined risk with off-hours scheduling
+The Microsoft support case is open but not escalated. Off-hours Microsoft support cannot reach engineers familiar with this configuration. Combined with the 2am Sunday timing, a vendor-dependent failure would leave the change in an indeterminate state until business hours Monday. The support case must be escalated before the change window.
+
+5. Missing expected outputs per step
+Each step describes an action but not an expected result. Without a verification criterion per step, the executor cannot confirm correct state before proceeding. Each step should specify what a successful completion looks like.

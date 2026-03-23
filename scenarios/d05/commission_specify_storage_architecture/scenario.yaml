@@ -1,0 +1,191 @@
+id: d05-commission-specify-storage-architecture
+domain: 5
+domain_name: "Storage Architecture"
+level: 3
+title: "Four Workloads, Four Tiers"
+delivery_mode: B
+subtype: null
+
+difficulty: 3
+difficulty_note: >
+  Open-ended specification with four distinct workloads that require different storage
+  tiers. The main difficulty is recognizing that production storage and backup storage
+  are not interchangeable, and that backup storage must have access control isolation
+  from production credentials — which is an architectural constraint, not just a
+  performance preference. Candidates who default to "one storage pool for everything"
+  or who treat backup storage as a smaller version of production storage have not
+  internalized this constraint. The 7-year compliance archive adds a third tier
+  that many candidates will under-specify.
+
+# Scenario note (for scenario authors and evaluators):
+# Most similar to: d03-commission-write-the-escalation (both are Level 3 Mode B
+# exercises requiring a structured specification with specific named decisions).
+# How the reasoning challenge differs: the escalation tests whether candidates can
+# produce a structured diagnostic handoff with specific hypotheses. This scenario
+# tests whether candidates can map workload requirements to storage tiers, recognize
+# the architectural constraint that backup storage must be on a separate trust tier
+# from production, and justify each decision with the workload's specific requirements
+# rather than defaulting to a single-tier architecture.
+
+presentation:
+  type: environment_description
+  artifact_file: null
+  context: |
+    You are specifying the storage architecture for a small professional services
+    firm migrating from aging direct-attached storage to a consolidated storage
+    infrastructure. The firm has four distinct storage workloads:
+
+    **Workload A — Business application VMs (3 VMs)**
+    Three virtual machines running the firm's case management application.
+    The application is database-backed (SQL Server) with an active OLTP workload
+    during business hours. Response time is a competitive concern — slow application
+    performance affects client-facing work. 60 GB total data today; projected 20 GB
+    annual growth. Requires consistent low latency and high random IOPS.
+
+    **Workload B — File server (shared network storage)**
+    A file share used by 35 staff for document storage, collaborative editing, and
+    project file storage. Access pattern: many simultaneous small file reads/writes
+    during business hours, occasional large file transfers. 8 TB today; projected
+    2 TB annual growth. Latency tolerance: moderate (users expect responsive but
+    not instant access for large files). Cost sensitivity: high — this is the highest
+    capacity workload and the firm is cost-conscious.
+
+    **Workload C — Backup target**
+    Daily full backups of all VMs and file server data retained for 90 days. Backup
+    software is Veeam. Workload pattern: sustained large sequential writes during the
+    nightly backup window (23:00–05:00), infrequent large sequential reads during
+    restore operations. No performance requirement during business hours. The backup
+    storage must meet the firm's insurance requirement for backup integrity: backups
+    must be restorable without access to the production environment.
+
+    **Workload D — Compliance archive**
+    Regulatory requirement: client matter records retained for 7 years in read-only
+    form. Approximately 500 GB added per year. Total in year 7: approximately 4.5 TB.
+    Retrieval frequency: very low (monthly or less). Retrieval time tolerance: hours
+    to days is acceptable. Cost sensitivity: very high — the firm views this as a
+    pure compliance cost with no business value beyond regulatory adherence.
+
+    Specify the storage architecture for all four workloads. For each workload,
+    state: the storage tier you recommend, the redundancy model, a capacity estimate
+    for initial provisioning, and the rationale for your choices. For Workload C,
+    address the backup integrity requirement explicitly.
+
+rubric:
+  critical_findings:
+    - id: production_vs_backup_credential_separation
+      description: >
+        The backup integrity requirement — "backups must be restorable without access
+        to the production environment" — is an access control and trust tier requirement,
+        not a performance requirement. Backup storage that is accessible with the same
+        credentials as production storage can be deleted, corrupted, or encrypted by
+        ransomware that compromises a production account. The specification must place
+        backup storage on a separate trust tier: different authentication credentials,
+        different management plane, and ideally immutability that prevents overwrite or
+        deletion even by the backup service account. Co-hosting backup storage and
+        production storage on the same array or NAS with shared credentials does not
+        meet this requirement regardless of how it is implemented technically. A separate
+        NAS with a dedicated local admin account (not joined to the production domain),
+        or a cloud object storage bucket with immutability and separate API credentials,
+        or a Veeam hardened repository on a dedicated Linux host are all valid approaches.
+        A production SAN with a backup LUN using the same domain credentials is not.
+      severity: critical
+      miss_signal: >
+        Specification describes a unified storage system (one SAN, one NAS) with
+        a separate volume or share for backups but does not address the credential
+        separation requirement. Or: specification acknowledges "separate storage" for
+        backups but proposes production domain-joined NAS for both production and backup,
+        which does not meet the access isolation requirement because both shares are
+        accessible with the same domain credentials.
+
+    - id: appropriate_tier_per_workload
+      description: >
+        Each workload has different storage requirements that imply different tiers:
+        Workload A (OLTP database VMs): all-flash or high-performance NVMe storage is
+        required for consistent low latency and high random IOPS. Spinning disk at any
+        RAID level cannot provide the latency consistency required for OLTP workloads
+        under concurrent access.
+        Workload B (file server): high-capacity spinning disk NAS is appropriate and
+        cost-justified. The moderate latency tolerance and high cost sensitivity eliminate
+        all-flash. Sequential throughput for large file transfers is better served by
+        high-density spinning disk than by unnecessarily expensive SSD.
+        Workload C (backup target): high-capacity spinning disk, separate trust tier.
+        Backup workloads are sequential large-block writes — the workload profile where
+        high-density spinning disk's throughput advantage is maximized and SSD's low-
+        latency advantage is irrelevant.
+        Workload D (compliance archive): cold storage — cloud object storage cold tier,
+        tape, or equivalent low-cost archival medium. Multi-year retention at very low
+        retrieval frequency with hours-to-days acceptable retrieval time eliminates any
+        need for performance storage.
+        A specification that uses the same tier for two or more of these workloads has
+        not addressed the workload requirements correctly.
+      severity: critical
+      miss_signal: >
+        Specification uses all-flash or premium SSD for the file server or backup
+        workloads (over-provisioned, adds cost without benefit). Or: specification uses
+        spinning disk NAS for the OLTP database VMs (insufficient IOPS consistency for
+        database workloads). Or: specification uses any performance storage tier for
+        the 7-year compliance archive (unnecessary cost for cold retrieval). Or:
+        specification uses a single storage tier for all workloads.
+
+  secondary_findings:
+    - id: redundancy_model_per_tier
+      description: >
+        Each storage tier needs a redundancy model appropriate to its workload and
+        recovery requirements. Production VMs (Workload A): RAID 10 or mirroring for
+        performance and fast rebuild; or all-flash HCI with replication factor 2+.
+        File server (Workload B): RAID 6 (tolerates 2 drive failures) appropriate for
+        high-capacity spinning disk arrays where drives are large and rebuild times are
+        long. Backup target (Workload C): RAID 5 or RAID 6 acceptable (backup storage
+        has lower performance requirements; rebuild risk is mitigated by the existence
+        of another copy of the data on production). Compliance archive (Workload D):
+        redundancy model depends on the medium — cloud cold storage provides geographic
+        redundancy by default; tape requires offsite rotation.
+      severity: high
+
+    - id: capacity_estimates_with_growth
+      description: >
+        Capacity estimates should be stated with a growth projection, not just point-in-
+        time requirements. Workload A: 60 GB today + 20 GB/year, provision for 3-5 years.
+        Workload B: 8 TB today + 2 TB/year, provision for 3-5 years; size the NAS for
+        expansion. Workload C: backup retention calculation — 90-day retention of all
+        VMs and file server data. Raw data: ~8.06 TB (Workload A + B data, not OS).
+        With deduplication (Veeam default), effective storage needed is workload-dependent;
+        without assuming deduplication ratios, provision at least 2-3x raw data size for
+        90 days: 16-24 TB minimum. Workload D: 500 GB/year × 7 years = 3.5-4.5 TB;
+        provision for the full 7-year retention from day one or plan for growth.
+      severity: moderate
+
+  level_indicators:
+    level_1: >
+      Identifies that the firm needs storage for its workloads. May recommend a single
+      NAS or SAN for all workloads, or recommend separate storage without specifying
+      appropriate tiers. Does not identify the trust tier requirement for backup storage
+      or the IOPS requirement for OLTP database VMs. May treat the compliance archive
+      as the same as the file server or backup storage.
+    level_2: >
+      Recognizes that production VMs need higher-performance storage than the file server.
+      Recommends separate storage for backups. Does not address the credential/trust
+      tier separation requirement for backup storage — proposes separate backup volume
+      on the same system with the same credentials. Does not specify cold storage for
+      the 7-year compliance archive. Capacity estimates are approximate without growth
+      projections. Redundancy models are mentioned but not justified per workload.
+    level_3: >
+      Specifies a different storage tier for each of the four workloads with appropriate
+      justification: all-flash for OLTP VMs, spinning disk NAS for file server, separate-
+      trust-tier spinning disk for backup, cold storage for 7-year archive. Addresses the
+      backup integrity requirement with a specific credential isolation mechanism
+      (separate admin account, dedicated host not domain-joined, or cloud object storage
+      with separate credentials). Includes capacity estimates for each workload. Does NOT
+      address the redundancy model for each tier in detail, or the deduplication
+      considerations for backup capacity estimation.
+    level_4: >
+      All of the above plus: specifies a redundancy model for each tier with justification
+      (RAID 10 or HCI mirroring for production VMs for performance + fast rebuild; RAID 6
+      for file server because high-density drives have long rebuild times; discusses backup
+      storage redundancy in context of the existing production copy; geographic redundancy
+      for cold archive). Addresses backup capacity estimation with a deduplication
+      consideration — notes that Veeam's deduplication ratio depends on the workload
+      type and recommends baseline capacity without assuming a specific ratio, then
+      adjusting after 30-60 days of operational data. Notes that Workload D's archive
+      should consider legal hold implications — regulatory compliance archives should be
+      immutable from the point of creation, not just retained.

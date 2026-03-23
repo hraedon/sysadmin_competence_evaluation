@@ -1,0 +1,7 @@
+The developer's test results are not valid evidence that the disk is adequate for production. The test was run against a 4GB dataset with a VM that has a 6GB buffer pool. When the dataset fits in memory, the database engine serves queries from the buffer cache — the disk is not accessed at all. The disk IOPS during the test (average 280, peak 1,140) are consistent with initial cache loading followed by cache-served reads, not with the production workload's sustained disk reads.
+
+In production, the dataset is 28GB against a 6GB buffer pool. The buffer cache hit ratio of 34% confirms this — 66% of reads are going to disk, not to memory. The disk queue depth of 18.4 (versus a normal threshold of 4) shows the disk is consistently saturated. The test did not test storage performance at all; it tested in-memory query performance.
+
+The burst/sustained IOPS issue: the P20 disk has a burst capability of 3,500 IOPS, but burst is credit-based and only lasts up to 30 minutes. The production workload generates sustained random reads well into the production day. After burst credits are exhausted, the disk runs at its 2,300 IOPS baseline. The production metrics show average read IOPS of 2,180 — near the baseline limit. This is consistent with the burst credits being depleted by mid-morning.
+
+Before recommending a disk upgrade, measure actual disk IOPS and queue depth during a production workload period. If sustained read IOPS are consistently near 2,300 and queue depth stays elevated, the P20 baseline is the bottleneck and an upgrade to P30 or higher is warranted.

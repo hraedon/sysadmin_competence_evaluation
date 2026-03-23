@@ -1,0 +1,11 @@
+For the four workloads I would recommend the following storage architecture:
+
+Workload A (Business application VMs): Use a NAS or SAN with RAID 5 for the three application VMs. This provides good performance and redundancy at reasonable cost.
+
+Workload B (File server): Use the same NAS as the application VMs with a dedicated share for file storage. This consolidates management and reduces hardware costs.
+
+Workload C (Backup target): Set up a backup share on the same NAS with Veeam pointing to it. 90-day retention of approximately 8 TB of data will require around 20-30 TB of backup storage with multiple restore points. Use RAID 5 for the backup volume.
+
+Workload D (Compliance archive): Create a separate archive folder on the file server NAS with read-only permissions. 7-year retention at 500 GB/year is approximately 3.5 TB — well within the file server's capacity.
+
+Summary: One NAS device with RAID 5, multiple shares for different workloads. This simplifies management and keeps costs down for a small firm.

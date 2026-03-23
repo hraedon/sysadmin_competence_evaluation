@@ -1,0 +1,25 @@
+The SOP does not apply here. This is not a capacity planning alert — it is a pre-failure condition for a simultaneous multi-VM storage failure event.
+
+Thin-provisioning failure mode: when a thin-provisioned datastore exhausts physical capacity, all concurrent writes fail simultaneously. The VMs do not slow down, fill proportionally, or receive warnings. Every in-flight write operation — across all 12 VMs — receives an I/O error at the same moment physical blocks run out. For SQLVM-01, -02, and -03, this means transaction log write failures. SQL Server requires synchronous log writes for transaction commits; a log write failure causes the database engine to take the database offline or enter an emergency read-only state immediately. This is not a hypothetical: it is the expected failure mode for thin-provisioned datastores under database workloads at physical capacity exhaustion.
+
+The 221 GB/day trend is not a reliable timeline. Transaction log write amplification from SQL Server is the reason. Under normal OLTP load, log writes scale roughly with transaction rate. Under batch operations, index rebuilds, or statistics updates, log growth can be 10–50x the average OLTP rate. If any of the three SQL Server instances runs a maintenance job this afternoon — index rebuild, DBCC, large bulk insert — the 2.55 TB remaining could be exhausted in under an hour. "11 days at current rate" is a best-case projection on an assumption that may be violated within the next few hours.
+
+Immediate response sequence:
+
+1. Contact SQL Server DBAs now, before doing anything else. Their immediate action is to defer any scheduled batch operations, maintenance plans, or index rebuild jobs until storage is expanded. They should also check current transaction log sizes and growth rates in real time. This is a 5-minute call that can prevent an escalating emergency.
+
+2. Initiate an emergency vMotion migration for DEVVM-01 and DEVVM-02 to PROD-DS-03 or PROD-DS-01. These are dev/test VMs — migrating them off-hours or during business hours carries low operational risk and frees approximately 1.1–1.6 TB of physical space immediately while buying time for a permanent solution.
+
+3. Expand PROD-DS-02 now. This is an online operation in vSphere — adding an extent to a VMFS datastore does not require powered-off VMs. If the storage tier backing PROD-DS-02 has free physical capacity, the expansion can be done in minutes without a maintenance window.
+
+4. Escalate to management with an accurate risk description: "PROD-DS-02 is at 87.3% physical capacity. At current growth rates we have approximately 11 days, but SQL Server batch operations could exhaust remaining capacity in hours. We are taking emergency action now — migrating dev VMs and expanding the datastore — to prevent simultaneous write failures across 12 production VMs. We are not waiting for Saturday."
+
+Medium-term architectural remediation:
+
+The immediate fix is capacity. The medium-term fix is architectural. Two options:
+
+Option A: Convert PROD-DS-02 to thick provisioning (or migrate the SQL Server VMs to a dedicated thick-provisioned datastore). This eliminates the overcommit and the simultaneous-failure risk permanently. The operational cost is storage efficiency — thick provisioning reserves physical space that may not be fully used. Given that this datastore is already at 87% physical with an overcommit ratio of 1.23x, the efficiency gain from thin provisioning is not large enough to justify the failure risk.
+
+Option B: Establish a hard capacity reservation policy: alert at 70%, action required by 75%, no new thin-provisioned VMs allocated above 80% physical utilization on any datastore with production database workloads. This preserves thin provisioning's efficiency benefits while ensuring the dangerous operating zone is never approached without a clear response.
+
+The monitoring SOP is also a process failure. The 85% threshold with "schedule for Saturday" is the correct response classification for thick-provisioned datastores. For thin-provisioned datastores — especially those with database workloads — 85% is inside the danger zone, not the warning zone. The SOP should be split: one response path for thick-provisioned datastores (capacity planning, next maintenance window acceptable), one for thin-provisioned datastores with production workloads (immediate action required above 75%, escalation above 80%). This incident should trigger a review of all thin-provisioned datastores and their response thresholds.

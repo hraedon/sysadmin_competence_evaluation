@@ -1,0 +1,8 @@
+The logs clearly show that a Kerberos authentication error on the domain controller caused the application timeout. The DC log shows a Kerberos Service Ticket failure for MSSQLSvc/dynamics-db.corp.local at 14:23:22 UTC, and the application server shows a Kerberos authentication failure for the same service at 10:23:18 local time. These are the same event seen from two sides.
+
+The root cause is KDC_ERR_S_PRINCIPAL_UNKNOWN — the DC cannot find the SPN for MSSQLSvc/dynamics-db.corp.local. This means the SQL Server SPN is either not registered or was recently deleted. The fix is to register the missing SPN using setspn.
+
+Next steps:
+1. Run setspn -L on the SQL Server service account to check current SPNs
+2. If the SPN is missing, register it: setspn -S MSSQLSvc/dynamics-db.corp.local CORP\svc_sql
+3. Test database connectivity after the SPN is registered

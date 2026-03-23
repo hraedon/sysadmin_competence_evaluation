@@ -1,0 +1,3 @@
+The developer's testing confirms the disk and VM can handle the workload — queries ran in 312ms average during testing. The production issue is likely related to peak concurrent load during business hours. The developer's request to upgrade to a higher disk tier makes sense as a way to provide more headroom.
+
+The P20 disk has a baseline of 2,300 IOPS, and the production metrics show average read IOPS of 2,180 — we're running close to the disk's capacity. Upgrading to a P30 would increase the baseline IOPS and should help with the production latency. I'd recommend approving the disk upgrade request.

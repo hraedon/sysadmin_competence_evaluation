@@ -1,0 +1,71 @@
+Pre-Mortem: FILESRV01 VLAN Migration — 2026-03-28
+
+The change executed Saturday night. Something went wrong. Working backward from the failure, the three most likely specific causes, their observable indicators during the window, and the abort/detection criteria the plan should have included:
+
+---
+
+Failure Scenario 1: DNS TTL not pre-reduced — stale cache across unflipped hosts
+
+Root cause: The TTL on filesrv01.corp.local was not reduced 24-48 hours before the change window. At change time, the old record (192.168.10.44) is cached on clients and application servers for the full original TTL duration. After Step 4 updates the record, only hosts that query DNS again get the new IP. The other hosts continue resolving 192.168.10.44, which is no longer reachable from their segment.
+
+The scope gap compounds this: Step 5 flushes DNS on "3 key application servers." The production environment likely has dozens of hosts with the record cached — other application servers, workstations, scheduled task executors, monitoring systems. The 3 flushed servers work in Step 6. The rest fail silently during the hours after the change window closes.
+
+Observable indicator during the window: Step 6 succeeds. The change is declared complete. Between 00:00 and 02:00, batch jobs and scheduled tasks start failing from application servers not in the flush list. Help desk calls begin Saturday morning when users find they cannot reach network shares. Name resolution from their workstations returns 192.168.10.44. Direct connection to 10.20.30.15 works.
+
+What the plan needs:
+
+Pre-change action (T-48 hours): Reduce filesrv01.corp.local TTL to 300 seconds. This is the single most important pre-change action and it must happen 24-48 hours before the window, not during it. A 300-second TTL means the old record expires within 5 minutes of the DNS update in Step 4. Without this, the TTL on the existing record may be 3600 seconds or more — meaning the old IP remains cached for up to an hour after the update.
+
+Detection criterion for Step 5: After the DNS record is updated, verify resolution from a broad sample — at minimum one host per major source VLAN, not just the 3 key servers. Record the IP returned from each. If any host returns 192.168.10.44 more than 5 minutes after Step 4, investigate before proceeding to Step 7.
+
+This failure mode is distinct from Scenario 2 below: DNS caching produces broad failure that is not application-specific, is not fixed by changing config files, and resolves on its own as TTLs expire — though "wait for the TTL to expire" is not an acceptable resolution when the file server is unreachable.
+
+---
+
+Failure Scenario 2: Hardcoded IP dependency in application configuration
+
+Root cause: One or more applications connect to the file server using 192.168.10.44 in their configuration — a connection string, a mount point definition, a script variable, an application.ini file. DNS resolution is irrelevant to these applications. After the migration, the IP they are configured to use is unreachable.
+
+Observable indicator during the window: Application-specific failure that persists after DNS flush. In Step 6, the 3 key application server tests pass if those servers use DNS names. But specific applications — the payroll processor, the document management system, the nightly archival job — fail. The failure is not fixed by flushing DNS. Testing direct TCP connection to 10.20.30.15:445 from the application server succeeds, confirming the server is reachable and the issue is in how the application resolves the address.
+
+This is the key diagnostic: if Step 6 fails universally → DNS caching (Scenario 1). If Step 6 fails for specific applications but not others → hardcoded IP (Scenario 2). If Step 6 fails from specific source subnets but not others → firewall scope (Scenario 3). The failure pattern identifies the cause.
+
+What the plan needs:
+
+Pre-change discovery step (T-5 days): Search application servers and known configuration repositories for the string "192.168.10.44". Specifically: web.config files, application.ini, scheduled task scripts, connection string files, mount point definitions in /etc/fstab or Windows mount scripts. Document every location. Remediate before the window or create an explicit remediation list to execute during Step 2 or Step 6. This discovery step takes 30-60 minutes and its output directly informs the risk level of the change.
+
+Detection criterion for Step 6: Each of the 3 key application servers should be tested using its actual application connection method, not just a generic SMB connect. If the application uses a hardcoded IP, the test should test that specific connection path.
+
+---
+
+Failure Scenario 3: Firewall rule scope does not cover new segment
+
+Root cause: Firewall allow rules for traffic to the file server are written for 192.168.10.44 (old IP) as the destination, or for 192.168.10.0/24 (VLAN 110) as the source. The new segment (10.20.30.0/24, VLAN 220) may have firewall rules added for the server's new position — but if those rules omit specific source subnets, traffic from those subnets is blocked.
+
+The specific failure mode: the change plan adds firewall rules for VLAN 220, but the new rules may specify specific source ranges. Application servers on subnets not in the new rule are blocked. The admin workstation used in Step 3 is on a segment that is permitted — so Step 3 succeeds. Application servers in Step 6 may be on different subnets with different rule coverage.
+
+Observable indicator during the window: Step 3 succeeds. Step 6 fails from the application servers. TCP connection to 10.20.30.15:445 from an application server fails with connection refused or timeout. The same test from the admin workstation succeeds. Running a traceroute from the application server identifies the firewall as the drop point.
+
+This is the scenario the existing abort criterion ("abort if Step 3 fails") completely misses. Step 3 and Scenario 3 produce contradictory outcomes: Step 3 succeeds precisely because the test source (admin workstation) has different firewall rule coverage than the production application servers.
+
+What the plan needs:
+
+Pre-change verification: Confirm firewall rules permit TCP 445 (and any other required ports) to 10.20.30.15 from all source subnets that need access. This is a configuration review, not a connectivity test — review the actual firewall policy, not just "we submitted the firewall change request." Obtain written confirmation from the network team that the rules are in place before the window opens.
+
+Detection criterion for Step 6: Test connectivity from a host on each distinct source VLAN/subnet. If the environment has application servers on three different subnets, test from one host per subnet. A single test from "the application server" proves nothing about other source subnets.
+
+---
+
+On the existing abort criterion and rollback timing
+
+The plan's single abort criterion ("abort if Step 3 fails") creates false confidence. Three of the most likely failure scenarios produce Step 3 success followed by Step 6 failure. The plan needs abort and detection criteria at each verification step:
+
+- Step 3: Admin workstation ping + SMB succeed → proceed
+- Step 4+5: DNS resolution from ≥5 hosts on distinct subnets returns 10.20.30.15 → proceed
+- Step 6: SMB access confirmed from hosts on ≥3 distinct source VLANs → proceed to Step 7
+
+If Step 6 produces partial success (some hosts work, some fail), the decision is: identify the failure pattern (DNS? hardcoded IP? firewall?), assess whether it can be remediated within the remaining maintenance window, and if not, determine whether rollback is still feasible.
+
+On rollback: the rollback procedure has the same DNS propagation problem as the forward change, in reverse. If Step 4 (DNS update) has propagated to most clients and the rollback requires reverting DNS to the old record, clients that have cached the new record (10.20.30.15) will continue trying to reach the new IP after the server has reverted to VLAN 110. The rollback sequence should update DNS first (revert to 192.168.10.44), then revert the network configuration, with awareness that DNS cache expiry applies here too. Document the rollback sequence explicitly and note the window during which some clients will have the new IP cached while the server is back on the old segment.
+
+Recommended pre-change TTL reduction (T-48h) also benefits rollback: a 300-second TTL means the rollback DNS revert propagates within 5 minutes as well.

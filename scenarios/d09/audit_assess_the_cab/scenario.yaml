@@ -1,0 +1,155 @@
+id: d09-audit-assess-the-cab
+domain: 9
+domain_name: "Change Management Discipline"
+level: 2
+title: "The Board That Approves Everything"
+delivery_mode: A
+subtype: null
+
+difficulty: 2
+difficulty_note: >
+  The indicators are explicit and quantitative — this is not a subtle reading exercise.
+  The difficulty is recognizing that a near-zero rejection rate is diagnostic of the
+  absence of a feedback loop, not of high change quality. Candidates who accept "few
+  rejections = the team writes good plans" have misread the evidence. The second key
+  finding (no outcome review) requires understanding why reviewing approved changes
+  that required significant deviation from plan is the most valuable feedback the
+  process could receive — and why it is the most systematically absent.
+
+# Scenario note (for scenario authors and evaluators):
+# Most similar to: d02-audit-mfa-exclusion-outlived (both test whether candidates
+# read quantitative organizational data to identify a process that has outlived its
+# function or degraded from its intended purpose).
+# How the reasoning challenge differs: the MFA scenario tests temporal reasoning —
+# has the exception condition persisted beyond its justification? This scenario
+# tests organizational process reasoning — can the candidate read a CAB's operational
+# metrics and assess whether the process is functioning as a risk management mechanism
+# or as a rubber stamp? The tell is not the rejection rate in isolation; it is the
+# absence of any feedback loop that would allow the process to calibrate itself.
+
+presentation:
+  type: environment_description
+  artifact_file: "scenarios/d09/audit_assess_the_cab/cab_report.txt"
+  context: |
+    The infrastructure manager has asked you to review the Change Advisory Board's
+    recent operational data. The attached report was compiled from the change
+    management system and CAB meeting records for the past 12 months.
+
+    Assess whether the CAB is functioning as a risk management mechanism. Identify
+    specific indicators that support your conclusion, and describe what changes to
+    the process would restore its function versus what changes would be cosmetic.
+
+rubric:
+  critical_findings:
+    - id: cab_no_feedback_loop
+      description: >
+        The CAB's near-zero rejection rate (3 changes rejected or substantially modified
+        out of 780 reviewed in 12 months — 0.38%) is not necessarily evidence of high
+        change quality. It may be, but it cannot be distinguished from approval theater
+        without reviewing outcomes. A risk review process that never calibrates against
+        actual outcomes cannot develop accurate risk intuition — it has no mechanism for
+        discovering whether its risk assessments are predictive. The CAB has never reviewed
+        change outcomes, which means the board cannot know whether the 777 approved changes
+        were well-planned, whether any of them produced unexpected outcomes that would have
+        been flagged by a better review process, or whether the changes it rejected were
+        actually riskier than average. The absence of outcome review is what makes the
+        near-zero rejection rate uninterpretable as a positive signal.
+      severity: critical
+      miss_signal: >
+        Candidate treats the low rejection rate as positive evidence of high change quality
+        rather than as an uninterpretable metric without outcome data. Or: candidate
+        identifies the low rejection rate as a problem but does not specifically identify
+        the absence of outcome review as the underlying mechanism — treating the symptom
+        (low rejections) rather than the cause (no feedback loop to calibrate risk
+        assessment).
+      learning_note: >
+        A change review process without outcome feedback is like a diagnostic test that
+        never compares its results to ground truth. It might be accurate; there is no
+        way to know. The CAB's risk assessments — which changes are risky, which are not —
+        are hypotheses. The only way to evaluate those hypotheses is to compare them to
+        what actually happened. Changes that were approved and went smoothly vs. changes
+        that were approved but required significant deviation from plan vs. changes that
+        produced unexpected problems: these are the data points that calibrate risk
+        intuition. Without them, the CAB is generating unevaluated hypotheses indefinitely.
+
+    - id: deviation_changes_not_reviewed
+      description: >
+        The CAB has never specifically reviewed a change that required significant
+        deviation from the approved plan during execution. These are the most valuable
+        data points available to a change management process: they represent cases where
+        the pre-change plan was wrong in a way that the executor had to recover from in
+        real time. Understanding why the plan was wrong — what assumption was incorrect,
+        what the review process failed to catch, what would have prevented the deviation —
+        is exactly the feedback that improves future risk assessments. The systematic
+        absence of this review means the CAB is leaving the most instructive category of
+        change outcome unexamined. Every deviation that goes unreviewed is a missed
+        opportunity to calibrate the process.
+      severity: critical
+      miss_signal: >
+        Candidate identifies the absence of outcome review in general but does not
+        specifically call out the deviation category as the most instructive — treating
+        all unreviewed outcomes equivalently. Or: candidate identifies this finding but
+        does not articulate why deviation changes are specifically the most valuable
+        feedback data (as opposed to successful changes or failed changes that generated
+        incidents).
+
+  secondary_findings:
+    - id: cosmetic_vs_functional_fixes
+      description: >
+        The candidate should distinguish between cosmetic improvements and functional
+        ones. Cosmetic: reducing the number of changes reviewed per meeting (from 15
+        to 10) without changing review depth or adding feedback loops; requiring more
+        documentation in change requests without reviewing outcomes; adding more members
+        to the CAB without restructuring the review process. Functional: reviewing a
+        random sample of approved changes at each subsequent meeting; specifically
+        requiring post-change review for any change that required significant deviation
+        from the approved plan; tracking correlation between the board's risk assessment
+        (approved as low/medium/high risk) and actual change outcomes over time;
+        establishing a rejection/modification rate target with periodic calibration.
+      severity: high
+
+    - id: approval_theater_diagnosis
+      description: >
+        The combination of high volume (15 changes per meeting), near-zero rejection rate
+        (0.38%), 90-minute meeting duration, and no outcome review is consistent with
+        approval theater: a process where the organizational function is accountability
+        diffusion (if something goes wrong, many people approved it) rather than risk
+        reduction. This is a real organizational function — it is not the same function
+        as preventing bad changes, and the process should not be described as risk
+        management when it is functioning as approval theater.
+      severity: moderate
+
+  level_indicators:
+    level_1: >
+      Can read the CAB report and describe what it shows: a weekly board that reviews
+      many changes and approves nearly all of them. May note the low rejection rate as
+      positive evidence that the team writes good change plans. Does not identify the
+      absence of outcome review as the mechanism that makes the low rejection rate
+      uninterpretable, or recognize that the CAB may be functioning as approval theater
+      rather than risk management.
+    level_2: >
+      Identifies the near-zero rejection rate as a concern — not necessarily evidence
+      of good change quality, since an effective review process should reject or
+      substantially modify some percentage of what it reviews. Identifies the absence
+      of outcome review as a critical structural gap: the CAB cannot calibrate its risk
+      assessments without feedback on what actually happened to the changes it approved.
+      Does NOT specifically identify deviation-requiring changes as the most instructive
+      category to review, or distinguish cosmetic from functional process improvements.
+    level_3: >
+      All of the above plus: specifically identifies the deviation category (changes that
+      required significant deviation from the approved plan) as the most valuable and
+      most absent feedback type. Provides specific examples of functional process changes
+      that would restore the CAB's risk management function vs. cosmetic changes that
+      would address the appearance of the problem without the substance. Does NOT frame
+      the organizational function the degraded CAB is actually serving (accountability
+      diffusion) or address the dynamics that produce approval theater (high volume,
+      time pressure, norm of approval).
+    level_4: >
+      All of the above plus: explicitly identifies the organizational function the CAB
+      is currently serving — accountability diffusion rather than risk management — and
+      articulates why this is a coherent failure mode rather than incompetence. Notes
+      the structural dynamics that produce it: high change volume creates time pressure,
+      time pressure normalizes approval, the norm of approval becomes the path of least
+      resistance. Addresses how to redesign the process to resist these dynamics rather
+      than just adding requirements (which will be circumvented under the same time
+      pressure that produced the current state).

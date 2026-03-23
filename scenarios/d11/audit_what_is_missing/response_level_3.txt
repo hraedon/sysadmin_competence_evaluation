@@ -1,0 +1,27 @@
+The conclusion is not supported by the evidence. The investigation has two compounding problems that mean the current evidence cannot answer the question asked.
+
+Problem 1: The wrong audit category was checked
+
+The audit policy on FILESRV01 shows that Object Access auditing is completely disabled — both "Audit File System" and "Audit File Share" show "No Auditing." File share access events (Event ID 5140: A network share object was accessed) are generated under the Object Access category, not the Logon/Logoff category. The junior administrator searched for logon events (4624/4625). These events capture when a new logon session is established — not when an existing session accesses a specific share.
+
+A domain user connecting to a Windows file share via SMB/Kerberos typically authenticates once and then accesses the share within that session. The logon event (if any) reflects the session establishment, not the specific share or file accessed. Without Object Access auditing enabled, no event is generated when the share itself is accessed, regardless of how many files are opened or what operations are performed.
+
+The absence of logon events in the FILESRV01 Security log does not tell us whether T.Nakamura accessed the Accounting share. It tells us only that no new logon session for T.Nakamura was visible to the Logon audit category. This is a categorically different question.
+
+Problem 2: The log doesn't retain data from the incident window
+
+The Security log's earliest entry is 2026-03-16. The incident window is 2026-03-02 — 3 weeks earlier. The 20MB log with "overwrite as needed" rotation has recycled entries from the incident window. Even if logon events were the right evidence, they are gone. The absence of entries from 2026-03-02 in a 20MB rotating log is not evidence that events didn't occur — it's expected behavior of a log that recycles frequently.
+
+What the correct investigation requires:
+
+The DC authentication logs are the right evidence source. When a domain user accesses a file share via Kerberos, the domain controller issues a Kerberos service ticket (Event 4769) for the requested service — in this case, CIFS/FILESRV01.corp.local or cifs/filesrv01.corp.local. These events appear on the DC Security log, which has different retention than FILESRV01's local Security log. Check the DC Security log for:
+- Event 4769 with Account Name: t.nakamura and Service Name containing "filesrv01"
+- Time window: 2026-03-02, 14:00–16:00 (UTC offset must be confirmed per the DC's timezone)
+
+If the DC log retains 3-week-old entries, this evidence may still be available. Many organizations forward DC Security logs to a SIEM or centralized log store with longer retention — check whether that infrastructure exists here.
+
+If the DC logs also do not retain the incident window, document that finding explicitly. "The logs don't exist" is a meaningful and honest investigation conclusion. "The logs show nothing happened" — which is what the current conclusion implies — is an unsupportable statement when the logs couldn't have captured the event in question.
+
+Revised conclusion: Evidence is insufficient to support or refute the allegation. The FILESRV01 Security log does not capture file share access events (Object Access auditing disabled) and does not retain entries from the incident date (log rotated). Additional investigation required: DC Kerberos service ticket logs (Event 4769) for the incident window, subject to DC log retention.
+
+Forward-looking finding: The audit policy on FILESRV01 is inadequate for future incident investigations. Object Access auditing should be enabled with appropriate SACL configuration on sensitive shares, and the log size should be increased or logs should be forwarded to centralized storage with adequate retention.

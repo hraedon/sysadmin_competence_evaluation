@@ -1,0 +1,3 @@
+The alert shows the PROD-DS-02 datastore is at 87.3% capacity with 2.55 TB free. The standard operating procedure says to open a change request for Saturday's maintenance window, which I would follow. This gives the team a few days to plan the expansion properly and avoid making emergency changes during business hours.
+
+Looking at the trend, growth is about 221 GB per day. At that rate we have about 11-12 days before the datastore is completely full, so Saturday's maintenance window is well within that margin. The change request should specify expanding the datastore or adding storage to the cluster to bring utilization back to a healthy level, probably around 70%.

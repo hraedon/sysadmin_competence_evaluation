@@ -1,0 +1,54 @@
+== LOG EXTRACT 1: DYNAMICS 365 APPLICATION SERVER ==
+Source:     DYN365-APP01.corp.local — Application Event Log
+Time basis: Local time (timezone not confirmed)
+Extract window: 10:20:00 – 10:35:00
+
+10:20:14  [INFO]   Session initiated. User: mwright@corp.local. Request: GL report generation.
+10:20:15  [INFO]   Database connection established. Host: dynamics-db.corp.local.
+10:22:47  [INFO]   Session initiated. User: kpatel@corp.local. Request: AR batch export.
+10:23:18  [ERROR]  Kerberos authentication failure. Service: MSSQLSvc/dynamics-db.corp.local.
+                   Error: The security support provider interface (SSPI) cannot find a
+                   Kerberos service ticket. Client will retry with NTLM fallback.
+10:23:19  [WARN]   NTLM fallback failed. Target server not accepting NTLM authentication.
+10:23:21  [ERROR]  Database connection failed. Host: dynamics-db.corp.local. Timeout after 3s.
+10:23:22  [ERROR]  Transaction aborted. User: mwright@corp.local. Error: Database unavailable.
+10:24:08  [ERROR]  Session terminated with error. User: kpatel@corp.local.
+                   Error: Authentication service unavailable.
+10:27:33  [INFO]   Session initiated. User: jbaker@corp.local. Request: vendor invoice query.
+10:27:34  [ERROR]  Kerberos authentication failure. Service: MSSQLSvc/dynamics-db.corp.local.
+                   Error: SSPI cannot find Kerberos service ticket.
+10:27:35  [WARN]   NTLM fallback failed.
+10:27:36  [ERROR]  Database connection failed. Timeout after 3s.
+10:31:44  [INFO]   Service account session — scheduled GL reconciliation job.
+10:31:45  [ERROR]  Authentication failure. Job terminated.
+10:42:15  [INFO]   Session initiated. User: mwright@corp.local. Retry attempt.
+10:42:16  [INFO]   Database connection established successfully.
+10:42:17  [INFO]   GL report generation resumed.
+
+---
+
+== LOG EXTRACT 2: DOMAIN CONTROLLER ==
+Source:     CORPDC01.corp.local — Windows Security Event Log
+Time basis: UTC
+Extract window: 14:22:00 – 14:26:00
+
+14:22:04  Event 4768 [Success]  Kerberos TGT Request. Account: mwright@corp.local.
+                                Client address: 10.10.20.45. Result: Success.
+14:22:31  Event 4768 [Success]  Kerberos TGT Request. Account: kpatel@corp.local.
+                                Client address: 10.10.20.52. Result: Success.
+14:23:05  Event 4769 [Success]  Kerberos Service Ticket Request. Account: mwright@corp.local.
+                                Service: dynamics-svc/DYN365-APP01.corp.local.
+                                Client address: 10.10.20.45. Result: Success.
+14:23:22  Event 4769 [Failure]  Kerberos Service Ticket Request. Account: mwright@corp.local.
+                                Service: MSSQLSvc/dynamics-db.corp.local.
+                                Client address: 10.10.20.45.
+                                Failure code: 0x7 (KDC_ERR_S_PRINCIPAL_UNKNOWN)
+14:23:40  Event 4769 [Failure]  Kerberos Service Ticket Request. Account: kpatel@corp.local.
+                                Service: MSSQLSvc/dynamics-db.corp.local.
+                                Client address: 10.10.20.52.
+                                Failure code: 0x7 (KDC_ERR_S_PRINCIPAL_UNKNOWN)
+14:24:01  Event 4624 [Success]  Account logon. Account: CORP\DYN365-SVC. Logon type: 3 (Network).
+14:25:18  Event 4769 [Failure]  Kerberos Service Ticket Request. Account: jbaker@corp.local.
+                                Service: MSSQLSvc/dynamics-db.corp.local.
+                                Client address: 10.10.20.67.
+                                Failure code: 0x7 (KDC_ERR_S_PRINCIPAL_UNKNOWN)

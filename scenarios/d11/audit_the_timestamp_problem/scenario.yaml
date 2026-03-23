@@ -1,0 +1,165 @@
+id: d11-audit-the-timestamp-problem
+domain: 11
+domain_name: "Log Reading & Diagnosis"
+level: 2
+title: "The Four-Hour Gap"
+delivery_mode: A
+subtype: null
+
+difficulty: 3
+difficulty_note: >
+  The two log sources appear to show a causal relationship — the domain controller
+  Kerberos error looks like it caused the application timeout. The timestamps are
+  close enough to look correlated. The difficulty is recognizing that the application
+  server log header says "local time" but doesn't specify which timezone, and that
+  a 4-hour difference exactly matches UTC/EDT alignment — which is plausible but not
+  confirmed. The correct answer is that the correlation cannot be trusted until
+  timestamp provenance is verified. Candidates who accept the apparent correlation
+  and build a causal story from it have made the primary error this scenario tests.
+
+# Scenario note (for scenario authors and evaluators):
+# Most similar to: d03-audit-dns-hunch (both test whether candidates notice that
+# the diagnostic evidence was gathered from a vantage point or configuration that
+# does not give a complete or trustworthy picture of the problem).
+# How the reasoning challenge differs: the DNS scenario tests whether the test was
+# run from the right location. This scenario tests whether the timestamps from two
+# different log sources can be trusted for cross-source correlation. Both test the
+# same underlying skill — evaluating whether the evidence is valid before interpreting
+# it — but in different contexts. This is a Domain 11 core skill: verifying timestamp
+# provenance before trusting cross-source correlation.
+
+presentation:
+  type: log_extract
+  artifact_file: "scenarios/d11/audit_the_timestamp_problem/log_extracts.txt"
+  context: |
+    The helpdesk has escalated a complaint from the finance team: the Dynamics 365
+    on-premises application produced errors for several users between 10:20 and 10:45
+    this morning. The application team has pulled log extracts from two systems that
+    they believe show what happened.
+
+    Review the two log extracts and answer the following:
+    (1) Do the logs establish that the Kerberos error on the domain controller caused
+        the application timeout? Why or why not?
+    (2) What additional information would you need before you could trust this
+        correlation?
+    (3) What other investigation steps should be taken?
+
+rubric:
+  critical_findings:
+    - id: timestamp_provenance_unverified
+      description: >
+        The application server log is labeled "local time (timezone not confirmed)."
+        The domain controller log is labeled "UTC." The application server shows the
+        Kerberos ticket failure at 10:23:18, while the domain controller shows a
+        KDC_ERR_S_PRINCIPAL_UNKNOWN error at 14:23:22. These timestamps are
+        approximately 4 hours apart. A 4-hour difference is consistent with the
+        application server logging in EDT (Eastern Daylight Time, UTC-4) while the
+        DC logs in UTC — if so, both events occurred at the same time and may be
+        related. But this is an assumption, not a confirmed fact. The application server
+        log header says "timezone not confirmed" — the actual timezone offset must be
+        verified before any cross-source correlation can be trusted. If the application
+        server is logging in CST (UTC-6), the events are 2 hours apart. If the server
+        has a misconfigured clock or incorrect timezone, the offset may not correspond
+        to any standard timezone. The correct answer is: the events may be correlated,
+        but the timestamp provenance must be verified before drawing any causal
+        conclusion. Proceeding to root cause analysis based on the apparent temporal
+        correlation is premature.
+      severity: critical
+      miss_signal: >
+        Candidate correlates the DC KDC error at 14:23:22 UTC with the application
+        timeout at 10:23:18 local time, assumes a UTC-4 offset, and concludes that the
+        Kerberos error caused the application timeout without noting that the timezone
+        has not been confirmed. Or: candidate identifies the timestamp discrepancy but
+        interprets it as a definitive 4-hour clock error rather than a plausible timezone
+        offset that must be verified. Either way, the candidate has drawn a conclusion
+        about causation before verifying that the timestamps can be correlated.
+      learning_note: >
+        Cross-source log correlation requires that all log sources use the same time
+        reference — or that you know the exact offset between them. When sources use
+        different timezones or log in local vs. UTC time, the timestamps cannot be
+        directly compared. The specific mistake is treating "the events look 4 hours
+        apart, but 4 hours matches UTC/EDT" as equivalent to "the events happened at
+        the same time." The UTC/EDT hypothesis needs to be confirmed — check the
+        application server's system timezone setting and NTP synchronization status.
+        If the server's clock is wrong as well as in a different timezone, the offset
+        may not be consistent. Verifying timestamp provenance is a required step before
+        any cross-source correlation, not an optional refinement.
+
+    - id: absence_of_error_on_dc_before_application_timeout
+      description: >
+        The domain controller log extract shows one KDC error at 14:23:22 UTC for the
+        service principal "MSSQLSvc/dynamics-db.corp.local" — a missing SPN. The
+        application log shows a Kerberos authentication failure at 10:23:18 local time
+        followed by an application timeout. If the UTC/EDT timezone alignment is confirmed
+        (making both events simultaneous), the KDC error is a plausible cause of the
+        Kerberos authentication failure. However, the DC log extract shows only a
+        single-minute window around the KDC error. The candidate should note that: the
+        DC log extract may be filtered or truncated; whether this KDC error pattern has
+        been occurring before today (a one-time error vs. a recurring pattern changes
+        the diagnosis significantly); and whether the SPN absence is a new condition
+        or has existed for some time. A missing SPN that has been absent since a service
+        account change would produce recurring Kerberos failures, not a one-time event.
+      severity: high
+      miss_signal: >
+        Candidate accepts the single KDC error event as the definitive root cause
+        without asking whether the error is new or recurring, or whether the extract
+        represents the full picture of KDC errors in the relevant time window.
+
+  secondary_findings:
+    - id: ntp_synchronization_status_required
+      description: >
+        Verifying timestamp provenance requires more than confirming the timezone setting.
+        NTP synchronization must also be confirmed — specifically that the application
+        server is synchronized to the same time source as the domain controller (ideally
+        the domain hierarchy, which synchronizes from the PDC Emulator). A server with
+        correct timezone but uncorrected clock drift may show events in the right timezone
+        but at the wrong time. The investigation should include: application server system
+        timezone, NTP sync status and last sync time, and clock skew relative to the DC.
+      severity: moderate
+
+    - id: scope_of_impact_not_assessed
+      description: >
+        The complaint came from "several users" but the logs show a single KDC error
+        for a single service principal. If the Kerberos error was the cause, it should
+        have affected all users attempting to authenticate to Dynamics 365 in the window,
+        not just several. Confirming the scope (how many users were affected, were any
+        users unaffected, was the impact specific to certain operations) would help
+        confirm or refute the hypothesis that a single SPN error was the root cause.
+      severity: moderate
+
+  level_indicators:
+    level_1: >
+      Can read both log extracts and describe what each shows. Notes the Kerberos error
+      on the DC and the application timeout at approximately the same time. May conclude
+      that the DC Kerberos error caused the application timeout based on the apparent
+      temporal correlation. Does not identify the timezone discrepancy or the requirement
+      to verify timestamp provenance before trusting the correlation.
+    level_2: >
+      Identifies that the two log sources use different time formats (DC: UTC,
+      application server: "local time, timezone not confirmed") and that the timestamps
+      are 4 hours apart. Recognizes that the events may be correlated if the application
+      server is in a UTC-4 timezone (EDT), but states that this must be verified before
+      the correlation can be trusted. Does not proceed to a definitive root cause
+      conclusion. Does NOT address the NTP synchronization requirement as separate from
+      the timezone confirmation, or note the scope gap (single KDC error vs. multiple
+      affected users).
+    level_3: >
+      All of the above plus: specifies that verifying timestamp provenance requires both
+      timezone confirmation AND NTP sync status — not just the timezone setting. Notes
+      the scope gap: the complaint involves several users but the extract shows one
+      KDC error for one service principal, which should be reconciled with the scope
+      of the complaint. Notes that the DC log extract shows only a narrow window and may
+      not show whether this is a new or recurring error pattern. Does NOT address the
+      full investigation path after timestamp provenance is confirmed (SPN investigation,
+      service account change history).
+    level_4: >
+      All of the above plus: describes the full investigation path conditional on
+      timestamp provenance confirmation: if the timezone is EDT and NTP is synchronized,
+      the events are correlated and the investigation should focus on why the SPN
+      "MSSQLSvc/dynamics-db.corp.local" is absent (recent service account change? recent
+      setspn -D? domain controller promotion/demotion that didn't replicate SPNs?).
+      Notes that a missing SPN that is genuinely new (appeared this morning) points to
+      a recent change; a missing SPN that has been absent for longer points to a
+      configuration gap that is somehow only now causing failures (perhaps the affected
+      operation previously used NTLM and something changed the authentication path).
+      These are different investigations with different remediation paths.

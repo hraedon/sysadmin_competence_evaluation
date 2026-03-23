@@ -1,0 +1,21 @@
+Storage Architecture Specification
+
+Workload A — Business Application VMs (OLTP Database)
+Tier: All-flash SSD storage (dedicated iSCSI LUNs or SMB shares from an all-flash NAS/SAN)
+Rationale: SQL Server OLTP workloads require consistent low latency and high random IOPS. Spinning disk cannot provide the latency consistency needed — at concurrent access levels, seek times become the bottleneck. All-flash provides the consistent sub-millisecond latency that OLTP requires.
+Capacity: ~500 GB raw to cover current needs, overhead, and growth.
+
+Workload B — File Server
+Tier: High-capacity spinning disk NAS (QNAP, Synology, or equivalent with large SAS/SATA drives)
+Rationale: File server access patterns (many small files, collaborative editing) work well with spinning disk. The moderate latency tolerance and high cost sensitivity make all-flash unnecessary. High-density spinning disk provides the best cost-per-TB.
+Capacity: ~24 TB raw storage for current needs and growth.
+
+Workload C — Backup Target
+Tier: Separate high-capacity spinning disk storage for backups. Use a dedicated NAS or server separate from production storage.
+Rationale: Backup workloads are sequential large writes — spinning disk's throughput advantage is appropriate. Backup storage should be separate from production to protect against ransomware scenarios where production credentials are compromised.
+Capacity: ~30 TB raw storage for 90-day backup retention.
+
+Workload D — Compliance Archive
+Tier: Cloud cold storage (Azure Blob Cool/Archive tier, AWS Glacier, or similar)
+Rationale: 7-year retention at very low retrieval frequency with hours-to-days tolerance is the target workload for cloud cold storage. Cost per GB is dramatically lower than performance storage. Retrieval latency of hours is acceptable per requirements.
+Capacity: 500 GB/year × 7 years = 3.5 TB. Provision for the full 7-year total.

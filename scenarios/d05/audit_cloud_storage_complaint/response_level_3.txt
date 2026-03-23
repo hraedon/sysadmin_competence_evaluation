@@ -1,0 +1,12 @@
+The developer's test produced no useful information about storage performance. The 4GB test dataset fits within the 6GB buffer pool. When the database engine loads data into the buffer pool, subsequent queries are served entirely from memory — storage I/O drops to near zero. The test's disk IOPS (average 280 during the test vs. 2,180 average in production) make this clear: the test was served from cache, not from disk. The test confirms that the VM and SQL Server can process these queries quickly when data is in memory. It says nothing about whether the storage can sustain the required I/O rate.
+
+The production problem is structural: 28GB dataset on a VM with a 6GB buffer pool. The 34% cache hit ratio means 66% of reads go to disk. The disk queue depth of 18.4 confirms the disk cannot service the I/O demand fast enough. Queries queue behind disk reads, which is why 312ms test queries become 8-12 second production queries.
+
+The P20 disk has two performance modes: burst (up to approximately 3,500 IOPS, credit-based, sustainable for short periods) and baseline (2,300 IOPS, sustainable indefinitely). Production workload runs all day — burst credits deplete early and the disk runs at baseline IOPS. Average production IOPS of 2,180 is close to the 2,300 baseline, consistent with burst depletion followed by sustained baseline load.
+
+But there is a second constraint to check before recommending a disk upgrade: the VM-level uncached disk throughput limit. The Standard_D4s_v3 has a maximum uncached disk throughput of 96 MB/s. This limit applies regardless of the attached disk's performance tier. If the production workload is hitting the VM throughput ceiling rather than the disk IOPS ceiling, upgrading from P20 to P30 will not improve performance — the VM is the bottleneck.
+
+Investigation required before any solution is specified:
+1. During a production load period, measure disk IOPS, disk queue depth, and disk throughput (MB/s) on the P20. Compare throughput against the 96 MB/s VM ceiling.
+2. If throughput is saturating the VM limit, a VM resize is needed alongside any disk upgrade.
+3. If IOPS are saturating the P20 baseline (2,300) before the VM throughput limit is reached, a disk tier upgrade is appropriate.

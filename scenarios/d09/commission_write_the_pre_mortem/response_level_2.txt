@@ -1,0 +1,14 @@
+Pre-Mortem: FILESRV01 VLAN Migration — 2026-03-28
+
+Assuming the change executed Saturday and failed, the three most likely failure scenarios:
+
+1. DNS caching
+Clients that cached the old DNS record (192.168.10.44) before the change window will continue resolving the old IP after migration. The old IP is no longer reachable. These clients will fail to reach the file server even though the DNS record has been updated.
+
+2. Hardcoded IP addresses in applications
+Applications that connect to the file server using the IP address directly — rather than the DNS name — will fail after migration. Updating the DNS record does not help them. Configuration files and scripts on application servers should be checked for the old IP before the change.
+
+3. Firewall rules scoped to the old IP or VLAN
+Firewall rules allowing access to the file server may reference 192.168.10.44 or the old VLAN segment. After migration, traffic to 10.20.30.15 from other subnets may be blocked if the rules were not updated to cover the new IP and new segment.
+
+Each of these failure modes should be verified before the change is declared complete: confirm DNS is resolving correctly, confirm applications that use the file server can connect, and confirm firewall rules permit the new IP from all necessary subnets.

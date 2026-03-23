@@ -1,0 +1,202 @@
+id: d09-commission-write-the-pre-mortem
+domain: 9
+domain_name: "Change Management Discipline"
+level: 3
+title: "Assume It Failed"
+delivery_mode: B
+subtype: null
+
+difficulty: 3
+difficulty_note: >
+  The change plan provided is intentionally complete-looking — it has all the required
+  sections and reasonable content in each one. The difficulty is producing a pre-mortem
+  that identifies specific failure scenarios (not generic "the server might fail") and
+  maps each scenario to a specific observable indicator during the change window and
+  a concrete abort criterion. Candidates who produce generic pre-mortems ("the migration
+  might fail, check connectivity") have not demonstrated pre-mortem skill. The three
+  most likely failure modes require domain knowledge: DNS cutover timing, hardcoded IP
+  dependencies in application config, and firewall rule scope specific to the old VLAN.
+  Each has a different observable indicator and each implies a different abort criterion.
+
+# Scenario note (for scenario authors and evaluators):
+# Most similar to: d04-commission-the-template-change (both are Level 3 Mode B
+# exercises producing a structured technical specification; both require identifying
+# asymmetric risks in a change that appears straightforward).
+# How the reasoning challenge differs: the PKI scenario tests whether candidates
+# recognize a specific technical asymmetry (certificate issuance creates irreversible
+# state). This scenario tests whether candidates can think prospectively about failure
+# — assume the change has already failed and work backward to identify specific failure
+# modes, observable signals, and abort criteria. The pre-mortem format requires a
+# different cognitive posture than standard risk assessment: commit to the assumption
+# of failure, then explain what kind of failure and what would have told you during
+# the window.
+
+presentation:
+  type: change_plan
+  artifact_file: null
+  context: |
+    You are reviewing a change plan for a file server VLAN migration. The plan is
+    for moving FILESRV01 from the Legacy LAN segment (192.168.10.0/24, VLAN 110)
+    to the new Server Segment (10.20.30.0/24, VLAN 220) as part of a network
+    segmentation project. The migration includes a new IP address assignment,
+    updated DNS records, and firewall rule additions for the new segment.
+
+    **Change plan summary:**
+    - Maintenance window: Saturday 23:00–03:00 (4-hour window)
+    - Step 1: Transfer shares offline, update VM network adapter to VLAN 220
+    - Step 2: Assign new IP (10.20.30.15), update default gateway
+    - Step 3: Test connectivity from admin workstation — ping and SMB connect
+    - Step 4: Update DNS A record (filesrv01.corp.local: 192.168.10.44 → 10.20.30.15)
+    - Step 5: Flush DNS on 3 key application servers
+    - Step 6: Verify file share access from 3 key application servers
+    - Step 7: Bring shares back online; notify stakeholders of completion
+    - Rollback: Revert VM adapter to VLAN 110, restore original IP, revert DNS record
+    - Abort criteria: Abort if connectivity test in Step 3 fails
+
+    **Your task:** Write a pre-mortem for this change. Assume that the change was
+    executed this Saturday and it failed. Working backward from the failure:
+
+    1. Identify the three most likely specific failure scenarios — not generic
+       connectivity problems, but the specific conditions that would produce a failure
+       in this type of change.
+    2. For each scenario, describe the observable indicator that would have been
+       visible during the change window.
+    3. For each scenario, describe the abort criterion or detection criterion that
+       the change plan should include to catch this failure mode.
+
+rubric:
+  critical_findings:
+    - id: dns_propagation_delay_and_negative_cache
+      description: >
+        DNS records for filesrv01.corp.local are cached on client systems and
+        application servers according to the record's TTL. If the TTL was not reduced
+        well before the change window (ideally 24-48 hours in advance), clients and
+        application servers will continue to resolve the old IP address (192.168.10.44)
+        after the DNS record is updated. The old IP is no longer reachable from VLAN 220.
+        The failure mode: application servers that did not have DNS flushed (only 3 are
+        explicitly flushed in Step 5) continue to use the cached old IP and fail to
+        reach the file server. Observable indicator during the window: Step 6 succeeds
+        on the 3 manually-flushed servers but fails on other application servers or
+        clients that reach out in the hours after the change. The abort criterion should
+        include: verify the DNS record TTL was reduced at least 24 hours before the
+        window; add an explicit step to flush DNS on all production application servers
+        (not just 3 key ones); check DNS resolution from multiple VLANs before declaring
+        success.
+      severity: critical
+      miss_signal: >
+        Pre-mortem identifies "DNS issues" generically without specifying the TTL
+        pre-reduction requirement or the scope gap (3 key servers flushed out of
+        potentially many more that have cached the old record). Or: pre-mortem treats
+        the Step 5 DNS flush as adequate without noting the selective scope.
+
+    - id: hardcoded_ip_in_application_configuration
+      description: >
+        Applications that access the file server may use the IP address 192.168.10.44
+        directly in their configuration files, scripts, or connection strings rather
+        than using the DNS name filesrv01.corp.local. These applications will not
+        benefit from the DNS record update in Step 4. After the migration, 192.168.10.44
+        is unreachable from VLAN 220. Applications with hardcoded IPs fail to connect
+        regardless of DNS flush. Observable indicator: some specific applications fail
+        to access the file server while others (using DNS) succeed. The failure is
+        application-specific, not universal — which is the diagnostic signal that
+        distinguishes hardcoded IP failures from DNS propagation failures. Abort
+        criterion: a pre-change discovery step to grep application config files and
+        scripts on known servers for the string "192.168.10.44"; the result informs
+        either pre-change remediation or a specific verification list during the window.
+      severity: critical
+      miss_signal: >
+        Pre-mortem identifies DNS failure as the cause of post-migration access problems
+        without recognizing that hardcoded IP dependencies produce a different symptom
+        pattern (application-specific failure vs. universal failure) and require a
+        different remediation (config file update, not DNS flush). Or: does not include
+        a pre-change discovery step for hardcoded IPs.
+
+    - id: firewall_rules_scoped_to_old_vlan
+      description: >
+        Firewall rules that permit traffic to the file server may be scoped to the
+        source network 192.168.10.0/24 (VLAN 110) as the destination, or the rule set
+        may include allow rules for specific source IPs or subnets that need to reach
+        the file server. The new VLAN (10.20.30.0/24, VLAN 220) may not be included
+        in the existing allow rules for traffic reaching the file server on its new IP.
+        Observable indicator: network-level connectivity failure from specific source
+        subnets while connectivity from the admin workstation (which may be on the
+        Server Segment or otherwise permitted) succeeds. Step 3 (admin workstation
+        ping and SMB connect) succeeds, but Step 6 fails from the application servers
+        if they are on a different segment with different firewall rules. Abort
+        criterion: confirm that firewall rules for traffic to 10.20.30.15 on port
+        445 (SMB) exist for all source subnets that need file access before the change
+        window; test connectivity from a representative host on each source subnet
+        during Step 6, not just from the 3 key application servers.
+      severity: critical
+      miss_signal: >
+        Pre-mortem identifies generic "firewall issues" without specifying the scoping
+        failure mode: the old VLAN-specific allow rules may not extend to the new
+        segment, producing failures from specific source subnets rather than universal
+        failure. Or: does not note that the Step 3 admin workstation test may succeed
+        while Step 6 fails because of different firewall rule coverage for different
+        source segments.
+
+  secondary_findings:
+    - id: abort_criterion_scope_in_existing_plan
+      description: >
+        The existing abort criterion ("Abort if connectivity test in Step 3 fails") is
+        dangerously narrow. It only triggers abort if the admin workstation cannot reach
+        the server immediately after the network change. This test is necessary but not
+        sufficient — it will not detect DNS propagation failures (which appear after Step
+        4), hardcoded IP failures (which appear in specific applications, not in the
+        admin workstation test), or firewall scope failures (which may not affect the
+        admin workstation's source subnet). The change plan needs abort or detection
+        criteria at each subsequent verification step, not only at Step 3.
+      severity: high
+
+    - id: rollback_window_feasibility
+      description: >
+        The pre-mortem should note that the rollback procedure (revert VLAN, restore
+        IP, revert DNS) is only clean if executed before Step 4 (DNS update) has
+        propagated widely. After DNS records are cached with the new IP and clients
+        are using the new record, a network rollback without DNS rollback leaves clients
+        with a cached IP pointing to a network segment that the server has left. The
+        DNS rollback needs to happen immediately and TTL consideration applies in
+        reverse — DNS propagation delay affects rollback as much as it affects the
+        forward change. The 4-hour maintenance window is probably sufficient for a
+        clean rollback if problems are detected in Steps 3-6, but the plan should
+        specify the sequence and timing of rollback steps to avoid a mid-rollback DNS
+        state where some clients have old record, some have new record, and the server
+        is back on the old segment.
+      severity: moderate
+
+  level_indicators:
+    level_1: >
+      Produces a pre-mortem that identifies generic failure scenarios: "the server might
+      not respond," "DNS might not update correctly," "firewall might block traffic."
+      Does not map failure scenarios to specific observable indicators during the change
+      window or to specific abort criteria. Does not distinguish between failure modes
+      that produce different symptoms or require different remediation.
+    level_2: >
+      Identifies that DNS caching and firewall rules are likely failure modes. May note
+      that hardcoded IPs are a risk. Does not provide specific observable indicators
+      that distinguish these failure modes from each other during the change window —
+      e.g., does not note that hardcoded IP failures are application-specific while DNS
+      failures are broad, or that the admin workstation connectivity test does not cover
+      the firewall scope failure. Abort criteria are described at a general level rather
+      than mapped to specific steps.
+    level_3: >
+      Identifies the three specific failure modes (DNS TTL/scope, hardcoded IP
+      dependencies, firewall VLAN scoping), provides an observable indicator for each
+      that is specific enough to distinguish the failure modes from each other during
+      the window, and provides a specific abort or detection criterion for each. Notes
+      the scope gap in the existing abort criterion (Step 3 only). Does NOT address the
+      rollback window feasibility (DNS propagation affects rollback as much as the
+      forward change) or the TTL pre-reduction requirement as a pre-change action
+      distinct from the change window steps.
+    level_4: >
+      All of the above plus: addresses the TTL pre-reduction as a pre-change action
+      (24-48 hours in advance, not a change window step) with specific TTL value
+      recommended. Notes that the rollback procedure has the same DNS propagation
+      problem as the forward change in reverse, and specifies the rollback sequence
+      (DNS first, then network revert) to minimize the window in which clients have
+      a cached IP that doesn't match the server's current network position. Notes that
+      the existing abort criterion creates a false sense of security — Step 3 success
+      is a necessary condition for continuing but is not sufficient evidence that the
+      migration is working for all failure modes. Recommends expanding abort/detection
+      criteria to each verification step with specific, measurable pass/fail conditions.

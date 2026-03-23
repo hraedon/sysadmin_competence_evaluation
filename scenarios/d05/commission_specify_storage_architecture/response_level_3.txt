@@ -1,0 +1,31 @@
+Storage Architecture Specification — Four Workloads
+
+Workload A — Business Application VMs (OLTP Database)
+Tier: All-flash storage — dedicated iSCSI or NVMe-oF LUNs from an all-flash array or HCI platform
+Rationale: SQL Server OLTP requires consistent low latency and high random IOPS. The keyword is consistent — spinning disk under concurrent load produces variable seek times that translate directly to variable application response times. All-flash eliminates mechanical seek latency entirely and provides consistent sub-millisecond response times regardless of concurrent access patterns.
+Capacity: 60 GB data today, 20 GB/year growth. For 5-year horizon: ~160 GB data. Allow 3-4x for OS volumes, SQL TempDB, transaction logs, and snapshot overhead: provision 600 GB–1 TB usable.
+
+Workload B — File Server
+Tier: High-capacity spinning disk NAS
+Rationale: The file server's access pattern — many simultaneous small reads/writes plus occasional large transfers — matches spinning disk's strengths. The moderate latency tolerance makes spinning disk acceptable. The high cost sensitivity makes all-flash unjustifiable: high-density enterprise spinning disk (16–22 TB drives) costs approximately 5–10x less per TB than equivalent SSD capacity.
+Capacity: 8 TB today, 2 TB/year. 5-year horizon: ~18 TB usable. Provision a 24–32 TB array with 6 or 8 drives to allow expansion.
+
+Workload C — Backup Target (trust tier requirement)
+Tier: Separate high-capacity spinning disk storage on a dedicated trust tier
+Rationale: Backup workloads are sequential large writes — the workload profile where spinning disk's throughput advantage is maximized and SSD's latency advantage is irrelevant. The critical architectural constraint is the trust tier requirement: "restorable without access to the production environment." This means the backup storage must use credentials that are not shared with the production environment. If a ransomware event or compromised domain account can reach the backup storage, the backup is not protected.
+
+Implementation options that meet this requirement:
+- Dedicated NAS with local administrator account only (not domain-joined). Veeam connects using local credentials stored in the backup server's credential store.
+- Dedicated Linux server configured as a Veeam Hardened Repository — immutable backup storage with XFS and immutability flags set at the file system level.
+- Cloud object storage (Azure Blob Immutable Storage, AWS S3 Object Lock) with separate API credentials not stored in the production environment.
+
+Implementation options that do NOT meet this requirement:
+- A backup share on the production NAS with domain credentials (same credential scope as production).
+- A separate NAS joined to the production domain with domain admin access.
+
+Capacity: 90-day retention of all VMs and file server data, approximately 8 TB of source data daily. Provision ~16–20 TB raw storage as a starting point and adjust based on actual usage after the first 30 days.
+
+Workload D — Compliance Archive
+Tier: Cold cloud object storage (Azure Blob Archive tier, AWS S3 Glacier Deep Archive, or equivalent)
+Rationale: 7-year retention, very low retrieval frequency, hours-to-days retrieval tolerance, very high cost sensitivity. This workload profile is exactly what cold cloud storage tiers are designed for. Cost per GB per month for cold tiers (Azure Archive: ~$0.001/GB/month) is dramatically lower than any on-premises storage. Retrieval costs are the tradeoff — budget for occasional retrieval operations, not continuous access.
+Capacity: 500 GB/year × 7 years = 3.5 TB. Provision for the full 7-year total at account creation; growth is predictable and linear. Set a lifecycle policy to automatically transition files older than 90 days to the Archive tier.

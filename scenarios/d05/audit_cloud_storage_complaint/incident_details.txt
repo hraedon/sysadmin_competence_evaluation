@@ -1,0 +1,62 @@
+== SUPPORT TICKET INC-2026-0894 ==
+Submitted:  2026-03-23 08:47
+Submitter:  T. Okafor (Senior Developer)
+Priority:   High
+Subject:    Database latency in production — disk upgrade needed
+
+"Our new reporting database performs fine in testing but has unacceptable
+query latency in production. Queries that complete in 300-400ms during testing
+are taking 8-12 seconds in production. We need the database disk upgraded to a
+higher performance tier. Testing shows the current disk handles our workload,
+but production is clearly struggling. Please escalate."
+
+---
+
+== VM AND DISK CONFIGURATION ==
+VM name:       DBPROD-01
+VM SKU:        Standard_D4s_v3  (4 vCPU, 16 GB RAM, max uncached disk throughput: 96 MB/s)
+OS:            Windows Server 2022
+Disk layout:
+  OS disk:     P10 (128 GB)  — OS and SQL Server binaries
+  Data disk:   P20 (512 GB)  — SQL Server data files and transaction log
+    P20 baseline:  2,300 IOPS / 150 MB/s
+    P20 burst:     3,500 IOPS / 170 MB/s (credit-based, sustained < 30 min)
+Region:        East US 2
+
+SQL Server configuration (DBPROD-01):
+  Edition:          SQL Server 2022 Standard
+  Max server memory: 6 GB (buffer pool maximum)
+  Instance data:     Reporting database, 28 GB total size
+  Workload type:     Analytical read queries against large table scans
+
+---
+
+== DEVELOPER TEST RESULTS ==
+Test conducted:   2026-03-23 07:30
+Test environment: DBPROD-01 (production VM and disk)
+Test dataset:     Sample extract — 4 GB subset of the reporting tables
+Test method:      Ran 50 representative queries against the 4 GB dataset
+
+Results:
+  Average query duration:   312 ms
+  P95 query duration:       428 ms
+  Disk read IOPS (during test):  peak 1,140  average 280
+  Disk read throughput (during test): peak 48 MB/s  average 12 MB/s
+  CPU utilization:  12% average
+  Memory utilization: 9.8 GB used / 16 GB total
+
+Developer notes:
+  "Test confirms the disk and VM can handle the workload at acceptable latency.
+   The production issue must be related to load or disk capacity constraints at
+   peak times. Requesting disk upgrade to next premium tier to resolve."
+
+---
+
+== PRODUCTION METRICS (last 7 days) ==
+Avg disk read IOPS:     2,180  (range: 1,400–2,900)
+Avg disk queue depth:   18.4   (normal threshold: <4)
+P95 query latency:      9.8 s
+Peak query latency:     31.4 s
+SQL buffer cache hit ratio:  34%  (optimal: >90%)
+CPU utilization:        18% average
+Memory utilization:     15.6 GB used / 16 GB total

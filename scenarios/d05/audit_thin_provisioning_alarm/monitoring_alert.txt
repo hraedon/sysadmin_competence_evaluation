@@ -1,0 +1,55 @@
+== VSPHERE STORAGE MONITORING — ALERT ==
+Alert ID:   STG-2026-0323-0042
+Severity:   WARNING
+Time:       2026-03-23 14:23:18
+Source:     vCenter 8.0 / Storage Monitoring
+
+DATASTORE: PROD-DS-02
+  Type:              VMFS 6.0
+  Provisioning:      Thin
+  Physical capacity: 20.00 TB
+  Used (physical):   17.45 TB  (87.3%)
+  Free (physical):    2.55 TB  [reported available to new allocations]
+  Available to VMs:   3.82 TB  [includes unallocated thin space]
+
+  Logical committed:  24.61 TB  (total logical space presented to VMs)
+  Overcommit ratio:   1.23x
+
+VMs ON THIS DATASTORE (12 total):
+  Name            Type                  Logical  Used-Physical  Thin
+  SQLVM-01        SQL Server 2022       2.00 TB  1.72 TB        Yes
+  SQLVM-02        SQL Server 2022       2.00 TB  1.65 TB        Yes
+  SQLVM-03        SQL Server 2022       2.00 TB  1.59 TB        Yes  ← active txn logs
+  APPVM-01        Application server    1.50 TB  0.81 TB        Yes
+  APPVM-02        Application server    1.50 TB  0.77 TB        Yes
+  APPVM-03        Application server    1.50 TB  0.79 TB        Yes
+  WEBVM-01        Web/IIS               1.00 TB  0.44 TB        Yes
+  WEBVM-02        Web/IIS               1.00 TB  0.43 TB        Yes
+  FILEVM-01       File server           3.00 TB  2.61 TB        Yes
+  FILEVM-02       File server           3.00 TB  2.55 TB        Yes
+  DEVVM-01        Dev/test              2.00 TB  1.59 TB        Yes
+  DEVVM-02        Dev/test              2.11 TB  1.10 TB        Yes
+
+  SQLVM-01, SQLVM-02, SQLVM-03: Active transaction logs confirmed.
+  FILEVM-01, FILEVM-02: Users currently active; file uploads in progress.
+
+UTILIZATION TREND (physical used):
+  2026-03-16:  15.90 TB  (79.5%)
+  2026-03-17:  16.10 TB  (80.5%)
+  2026-03-18:  16.28 TB  (81.4%)
+  2026-03-19:  16.51 TB  (82.6%)
+  2026-03-20:  16.73 TB  (83.7%)
+  2026-03-21:  17.02 TB  (85.1%)
+  2026-03-22:  17.22 TB  (86.1%)
+  2026-03-23:  17.45 TB  (87.3%)  [current]
+
+Average daily growth (7-day): +221 GB/day
+
+ALERT CONDITION:
+  Threshold:  85% physical utilization
+  SOP:        Datastore capacity alert → open change request for next
+              maintenance window (Saturday 02:00–06:00)
+
+OTHER DATASTORES (same cluster):
+  PROD-DS-01:  20 TB  — 68% used  (thick provisioned, no overcommit)
+  PROD-DS-03:  10 TB  — 41% used  (thin provisioned, dev/test only)

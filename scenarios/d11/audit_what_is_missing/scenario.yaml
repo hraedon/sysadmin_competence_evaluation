@@ -1,0 +1,167 @@
+id: d11-audit-what-is-missing
+domain: 11
+domain_name: "Log Reading & Diagnosis"
+level: 2
+title: "Absence of Evidence"
+delivery_mode: A
+subtype: null
+
+difficulty: 3
+difficulty_note: >
+  The conclusion being evaluated looks reasonable on its face: the admin checked the
+  relevant log and found nothing, so nothing happened. The difficulty is recognizing
+  that the value of a log's absence of entries depends entirely on whether the log
+  would have captured the event in question. The scenario provides explicit information
+  about the audit policy that, if read carefully, shows the relevant event category
+  was not being collected. Candidates who miss this are reading selectively — they
+  see the conclusion ("Security log shows nothing") and accept it without evaluating
+  the premise ("Security log would have captured this if it happened").
+
+# Scenario note (for scenario authors and evaluators):
+# Most similar to: d11-audit-exchange-patch-gap (both test whether candidates recognize
+# that an absence in a report or log does not mean an absence in reality — only that
+# the reporting mechanism doesn't cover what's being asked about).
+# How the reasoning challenge differs: the Exchange scenario tests whether candidates
+# recognize that a compliance report's scope excludes Exchange CUs. This scenario tests
+# a Domain 11 skill: evaluating whether a log's absence of entries is meaningful
+# (evidence of absence) or uninformative (absence of evidence), based on the audit
+# policy configuration. The candidate must evaluate the evidence that was used to
+# reach the conclusion, not just assess what to do next.
+
+presentation:
+  type: log_extract
+  artifact_file: "scenarios/d11/audit_what_is_missing/investigation_notes.txt"
+  context: |
+    A junior administrator investigated a suspected unauthorized access incident and
+    submitted the attached investigation notes and supporting evidence to the security
+    team. Based on the evidence, they concluded that a specific user account was not
+    used to access a file share during the relevant time window.
+
+    Review the investigation notes and evidence. Assess whether the conclusion is
+    supported by the evidence, and identify what additional investigation would be
+    required to support or refute the conclusion.
+
+rubric:
+  critical_findings:
+    - id: audit_policy_does_not_capture_file_share_access
+      description: >
+        The junior administrator checked the Windows Security log on FILESRV01 and found
+        no logon events for the account T.Nakamura in the relevant time window. The
+        investigation notes reference Event IDs 4624 and 4625 (logon success and failure).
+        However, the attached audit policy output shows that FILESRV01's audit policy
+        captures "Logon" events (account logon/logoff) but does NOT have "Object Access"
+        auditing enabled. File share access in Windows generates Event ID 5140 (A network
+        share object was accessed) under the Object Access category — not the Logon
+        category. A user who authenticates via Kerberos and accesses a file share will
+        generate a Kerberos service ticket event on the DC and an Object Access event
+        on the file server, but may generate no logon event on the file server itself
+        (especially for subsequent accesses where no new logon session is created).
+        The absence of logon events in the Security log on FILESRV01 does not establish
+        that T.Nakamura did not access the share — it establishes that no new logon
+        session was created for T.Nakamura that was visible to the Logon audit category.
+        The conclusion is not supported by the evidence as presented.
+      severity: critical
+      miss_signal: >
+        Candidate accepts the junior administrator's conclusion that T.Nakamura did not
+        access the share because no logon events appear in the Security log. Or: candidate
+        notes that additional investigation is needed without specifically identifying
+        that the audit policy does not capture file share access events (Object Access
+        category not enabled), and therefore the log cannot answer the question that
+        was asked of it.
+      learning_note: >
+        Windows Security log event coverage depends on the audit policy. Logon auditing
+        (success/failure) captures when users open new logon sessions. Object Access
+        auditing is a separate, optional category that captures access to specific
+        resources like files, shares, and registry keys — and it must be enabled both
+        in Group Policy (audit policy) and on the specific resource (SACL on the share).
+        A Security log without Object Access enabled will show successful and failed
+        logons but will be silent on what was done during those sessions. Checking the
+        Security log for evidence that a specific file share was accessed requires both
+        Object Access auditing enabled in policy AND a SACL configured on the share.
+        Without both, absence of Security log events about file access is uninformative,
+        not exculpatory.
+
+    - id: dc_authentication_logs_not_checked
+      description: >
+        File share access via SMB on a domain requires Kerberos authentication (or NTLM
+        as a fallback). Kerberos authentication generates events on the domain controller,
+        not on the file server: Event 4768 (TGT request) and Event 4769 (service ticket
+        request for FILESRV01). These events appear on the DC that serviced the
+        authentication request regardless of what audit policy is configured on FILESRV01.
+        If T.Nakamura accessed the file share, there should be a corresponding Event 4769
+        for a service ticket to CIFS/FILESRV01.corp.local or equivalent on a domain
+        controller in the time window. The junior administrator checked only FILESRV01's
+        Security log and did not check domain controller authentication logs. The DC
+        authentication evidence is both available and not subject to the FILESRV01 audit
+        policy limitation — it is the correct log source for answering "did this account
+        authenticate to reach this file server?"
+      severity: critical
+      miss_signal: >
+        Candidate identifies the audit policy gap on FILESRV01 but does not specifically
+        identify the DC Kerberos authentication log (Events 4768/4769) as the available
+        evidence source that would answer the investigation question. Or: candidate
+        recommends "check other logs" without specifying which logs and what events to
+        look for.
+
+  secondary_findings:
+    - id: security_log_retention_on_filesrv01
+      description: >
+        The Security log on FILESRV01 is configured for 20MB maximum size with overwrite
+        when full. The incident window is 3 weeks ago. Even if Object Access auditing were
+        enabled, a 20MB Security log on an active file server may overwrite entries from
+        3 weeks ago under normal operational load. The absence of events from 3 weeks ago
+        may also reflect log rotation rather than absence of the events. The investigation
+        should confirm whether the log retains entries from the relevant time window before
+        treating any absence as meaningful.
+      severity: high
+
+    - id: share_sacl_not_confirmed
+      description: >
+        Even if Object Access auditing were enabled in the audit policy, file share access
+        events are only generated for shares and files that have a System Access Control
+        List (SACL) configured. The investigation notes do not confirm whether the
+        Accounting share has a SACL that would have generated audit events for successful
+        or failed access. If no SACL exists on the share, enabling Object Access auditing
+        in policy would not produce any events for access to that specific share.
+      severity: moderate
+
+  level_indicators:
+    level_1: >
+      Reads the investigation notes and agrees with the junior administrator's conclusion:
+      no logon events for T.Nakamura in the Security log means T.Nakamura did not access
+      the share. May suggest additional investigation in general terms ("collect more
+      evidence") without identifying the specific gaps in the audit policy configuration
+      that make the current evidence uninformative.
+    level_2: >
+      Identifies that the audit policy on FILESRV01 does not have Object Access auditing
+      enabled, which means the Security log does not capture file share access events
+      at all — only logon events. Therefore, the absence of T.Nakamura's entries in the
+      Security log cannot support the conclusion that T.Nakamura didn't access the share.
+      Identifies that the DC authentication logs (Kerberos service ticket events) should
+      be checked as an alternative evidence source. Does NOT address the log retention
+      question (20MB with overwrite may not retain 3-week-old events) or the SACL
+      requirement for Object Access auditing.
+    level_3: >
+      All of the above plus: addresses the log retention issue — 20MB rotating log on an
+      active file server may not retain 3-week-old entries regardless of audit policy.
+      Notes the SACL requirement: even with Object Access auditing enabled, evidence would
+      only be generated if the specific share had a SACL configured. Describes the correct
+      investigation path: DC Kerberos logs for Events 4769 (service ticket requests for
+      FILESRV01) in the relevant time window. Does NOT address the possibility that access
+      occurred via NTLM rather than Kerberos, or what the security implications of the
+      audit policy gap are going forward.
+    level_4: >
+      All of the above plus: addresses the NTLM fallback scenario — if the access occurred
+      via NTLM (e.g., if the Kerberos path was unavailable or the client is not domain-
+      joined), the authentication event appears differently: NTLM generates Event 4624
+      on the file server with Logon Type 3 (Network) and NTLM authentication package,
+      not a Kerberos service ticket on the DC. The current audit policy does capture
+      logon events (4624), so NTLM access would appear in the FILESRV01 Security log
+      if it occurred. The junior administrator checked for NTLM access unknowingly by
+      checking Logon events — and found nothing. This is partial exculpatory evidence for
+      NTLM access specifically, though not for Kerberos access. The complete picture:
+      Kerberos access requires DC log check; NTLM access requires FILESRV01 logon event
+      check (done, found nothing for 3-week window). Notes forward-looking: the audit
+      policy gap (no Object Access, 20MB rotating log) should be remediated — not just
+      for this investigation but because the organization cannot investigate future
+      incidents affecting this file server with the current logging posture.

@@ -1,0 +1,55 @@
+== DELL POWERVAULT ME5024 — STORAGE MANAGER ==
+Controller: Controller A (Active) | Controller B (Standby)
+Array: PROD-ARRAY-01
+Enclosure: PVME5024-PROD01 (12G SAS)
+Alert time: 2026-03-23 06:51
+
+ARRAY STATUS: DEGRADED
+  RAID Level:       RAID 5 (7+1 parity)
+  Drive Count:      8 configured (Slots 01–08) + 1 hot spare (Slot 09)
+  Drive Model:      Seagate Exos X16 14TB 7200RPM SAS 12Gb/s
+  Total raw:        112 TB
+  Usable:           98 TB
+  Allocated:        58.9 TB (60.1%)
+
+DRIVE STATUS:
+  Slot  Serial           Age       TBW        SMART Est. Remaining  Status
+  ----  ---------------  --------  ---------  --------------------  -----------
+  01    WSD3A1BX         6.4 yr    91,204 TB  3.1 yr                OK
+  02    WSD3A2BX         5.8 yr    83,017 TB  4.2 yr                OK
+  03    WSD3A3BX         6.7 yr    95,441 TB  2.6 yr                OK
+  04    WSD3A4BX         5.1 yr    74,622 TB  5.1 yr                OK
+  05    WSD3F4BX         6.2 yr    88,905 TB  N/A                   FAILED
+  06    WSD3A6BX         5.3 yr    76,388 TB  4.8 yr                OK
+  07    WSD3A7BX         6.1 yr    93,119 TB  2.9 yr                OK
+  08    WSD3A8BX         5.9 yr    85,203 TB  4.0 yr                OK
+  09    WSD3B9BX (spare) 2.1 yr    11,847 TB  9.2 yr                REBUILDING
+
+REBUILD STATUS:
+  Source drives:    Slots 01–08 (excluding Slot 05)
+  Target drive:     Slot 09 (hot spare)
+  Progress:         31% complete (5h 37m elapsed)
+  Estimated time remaining: 18h 15m
+  Current rebuild I/O rate:  312 MB/s
+
+CURRENT ARRAY I/O (snapshot at 09:14):
+  Read IOPS:         14,280
+  Write IOPS:         8,950
+  Controller throughput utilization:  87%
+  Queue depth:           42
+
+ASSIGNED WORKLOAD:
+  Host:     SQLSRV01.corp.local
+  Role:     SQL Server 2022 — order management database (production)
+  Schedule: Peak load 08:00–18:00 business hours
+  Notes:    Customer-facing; used by sales, warehouse, and logistics teams
+
+ALERT LOG (Slot 05):
+  2026-03-20 22:14  [WARN]  Slot 05: SMART threshold exceeded — reallocated sectors: 847
+  2026-03-21 11:33  [WARN]  Slot 05: SMART uncorrectable sector count increasing (current: 3)
+  2026-03-22 14:07  [WARN]  Slot 05: SMART pending sector count: 234 — predictive failure
+  2026-03-23 06:51  [CRIT]  Slot 05: Drive failure detected
+  2026-03-23 06:52  [INFO]  Hot spare Slot 09: rebuild initiated automatically
+
+Email alert recipients: storage-alerts@corp.local
+Previous alerts (2026-03-20 through 2026-03-22): sent; delivery confirmed; status: UNREAD

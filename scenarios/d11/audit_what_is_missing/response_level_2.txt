@@ -1,0 +1,11 @@
+The conclusion is not supported by the evidence. The investigation has a significant gap.
+
+Looking at the FILESRV01 audit policy attached to the investigation notes: the Object Access category shows "No Auditing" for both "Audit File System" and "Audit File Share." File share access in Windows generates events under the Object Access category — specifically Event 5140 (network share object accessed) when someone connects to a share. The logon events the junior administrator searched for (4624/4625) capture when a user opens a new logon session, not when they access a specific share.
+
+A user who accesses a file share over the network using Kerberos authentication may not generate a traditional logon event on the file server at all, or may generate one for the session but not for the specific share access. Without Object Access auditing enabled, the Security log on FILESRV01 is blind to file share access events entirely.
+
+Finding no logon events doesn't mean T.Nakamura didn't access the share. It means the log doesn't capture file share access — which is a different thing.
+
+What should have been checked: the domain controller logs. When a domain user accesses a file share via Kerberos, the KDC issues a service ticket (Event 4769) on the DC for the service principal CIFS/FILESRV01.corp.local. Those events appear on the DC, not FILESRV01, and are not subject to the FILESRV01 audit policy. Check the DC Security log for Event 4769 with Service: CIFS/FILESRV01 and Account: t.nakamura for the 2026-03-02 window. If the DC also lacks retention for that date, that should be documented as a separate finding.
+
+The conclusion should be: evidence is insufficient, not cleared.

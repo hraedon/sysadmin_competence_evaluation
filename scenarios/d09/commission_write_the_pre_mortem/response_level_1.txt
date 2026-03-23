@@ -1,0 +1,18 @@
+Pre-Mortem: FILESRV01 VLAN Migration
+
+Assuming the change failed, the three most likely causes:
+
+1. Network connectivity failure
+The server might not be reachable after the VLAN change. This could happen if the new network settings were entered incorrectly or if there was a configuration error.
+Observable: The server doesn't respond to ping from the admin workstation.
+Abort criterion: Ping failure in Step 3.
+
+2. DNS not updated correctly
+The DNS record update in Step 4 might not have applied, or might have applied with the wrong IP address.
+Observable: Clients get an error connecting to filesrv01.corp.local.
+Abort criterion: DNS resolution returns the wrong IP after the update in Step 4.
+
+3. File share permissions issue
+The migration to a new segment might affect network-level permissions or share permissions.
+Observable: Users can see the server but can't access the shares.
+Abort criterion: Share access test fails in Step 6.

@@ -1,0 +1,40 @@
+(1) Do the logs establish causation? No — with caveats.
+
+The logs are suggestive. The pattern is internally coherent: Kerberos service ticket failures for MSSQLSvc/dynamics-db.corp.local on the DC, Kerberos authentication failures for the same service on the application server, NTLM fallback rejection, and database connection timeouts — in that order, for multiple users in sequence. This is the expected failure chain when an SPN is absent.
+
+But the logs establish correlation only if the timestamps can be trusted for cross-source comparison, and they cannot be trusted until the timezone discrepancy is resolved. The DC log is UTC; the application server log is "local time (timezone not confirmed)." The events are 4 hours apart (10:23 local vs. 14:23 UTC). This is consistent with EDT (UTC-4), but consistency is not confirmation. If the application server is in a different timezone, or if its clock has drifted, the 4-hour difference may not correspond to simultaneity.
+
+Causal conclusion: premature. Correlation hypothesis: plausible and worth investigating. Required before proceeding: timestamp provenance verification.
+
+(2) Information required before trusting the correlation
+
+Two required checks, both fast:
+
+a) Application server configured timezone: Run Get-TimeZone on DYN365-APP01. If it returns Eastern Daylight Time (UTC-4), the timestamps align and the events are contemporaneous. If it returns any other offset, recalculate the alignment.
+
+b) NTP synchronization status and clock skew: Even with the correct timezone, clock drift may shift event timestamps enough to misidentify which event preceded which. Run w32tm /query /status on DYN365-APP01 to confirm it is synchronized to the domain hierarchy and check its current offset. Domain-joined Windows systems synchronize from the PDC Emulator; the PDC Emulator synchronizes from an authoritative external time source. A well-functioning domain maintains clock skew below 5 minutes (the Kerberos tolerance). If the application server's clock is off by more than a few minutes, the event ordering within the 4-minute window becomes unreliable.
+
+Verify both, not just the timezone. A server with the correct timezone but 3 minutes of clock drift can produce misleading cross-source event ordering even when the timezone is correct.
+
+(3) Other investigation steps (assuming timestamp provenance is confirmed)
+
+The scope of the complaint needs to match the log evidence. "Several users" is three named users in the DC extract (mwright, kpatel, jbaker) and matches the application log's error sequence. Confirm with the helpdesk whether three users matches "several" or whether there were more affected users not yet surfaced. If there were affected users not in the DC extract's narrow window, either the extract is incomplete or the failure persisted longer than the extract covers.
+
+The DC extract is only 4 minutes wide. Before concluding the SPN error is new or isolated, pull the DC Security log for the full 3-hour complaint window (10:00–13:00 local / 14:00–17:00 UTC) and check for:
+- All occurrences of KDC_ERR_S_PRINCIPAL_UNKNOWN for MSSQLSvc/dynamics-db.corp.local
+- Whether the error appears before 14:23:22 (indicating the SPN has been absent longer than the extract shows)
+- Whether there are additional users affected that the 4-minute extract window missed
+
+The pattern of recovery matters too. The application server log shows mwright successfully connecting at 10:42:16 local time (~14:42 UTC). This is approximately 19 minutes after the first failure. Something changed — either the SPN was re-registered, a network change restored connectivity, or a cache was cleared. Identifying what changed at ~14:40 UTC on the DC would confirm the root cause and suggest whether the fix was intentional or inadvertent.
+
+If the timezone is confirmed and the correlation holds, the investigation path:
+
+The KDC error code 0x7 (KDC_ERR_S_PRINCIPAL_UNKNOWN) means the KDC cannot find the requested service principal name in Active Directory. This is almost always a missing or incorrect SPN. The SPN in question is MSSQLSvc/dynamics-db.corp.local — the SQL Server service principal for the database backend.
+
+Diagnostic steps:
+1. setspn -L <SQL Server service account> — list current registered SPNs. The expected output includes MSSQLSvc/dynamics-db.corp.local and MSSQLSvc/dynamics-db.corp.local:1433. If absent, the SPN was never registered, was recently deleted, or the service account changed.
+2. If the service account changed recently, the SPNs registered against the old account are orphaned (on the old account object, inaccessible to the new account). The new account needs SPNs registered.
+3. AD change log or SCCM change management system: look for changes to the SQL Server service account, the dynamics-db server, or any setspn operations in the 24-48 hours before the incident. The "missing SPN that was present before" failure has a change as its cause in almost every case.
+4. DC replication status: less likely, but a DC replication failure could cause one DC to have a stale or missing SPN that another DC has correctly. Check repadmin /replsummary and Event 1566/1311 on the DC that issued the KDC errors.
+
+The conditional: all of the above assumes the timezone is EDT. If the timestamp provenance check changes the alignment, start over with the correct time reference and re-examine which events actually correlate.

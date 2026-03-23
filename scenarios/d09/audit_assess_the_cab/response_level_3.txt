@@ -1,0 +1,23 @@
+The CAB is not functioning as a risk management mechanism. The report contains two critical structural indicators and one category of missing data that makes the diagnosis clear.
+
+Indicator 1: Near-zero rejection rate without outcome data
+3 rejections out of 780 changes reviewed (0.38%). This is not interpretable as positive evidence without knowing what happened to the 777 approved changes. A review process that is genuinely assessing risk will reject or substantially modify some percentage of what it reviews — not from pessimism, but because submitters are closest to the change and have blind spots that independent review should surface. A 0.38% rate says either the team is remarkably consistent at identifying their own gaps before submission, or the review isn't reviewing. The change outcome data in the same report (47 deviations, 18 incidents) makes the first explanation implausible.
+
+Indicator 2: Zero outcome reviews — and specifically, no review of deviation changes
+The CAB has never reviewed the outcome of any change it approved. This is the structural failure. A risk management process must compare its predictions to outcomes — otherwise its risk assessments are unevaluated hypotheses that never improve.
+
+The most instructive category is not the 18 changes that produced incidents — those generate post-mortems through the incident process anyway. The most instructive category is the 47 changes that required significant deviation from the approved plan. These are the cases where the pre-change plan was wrong in a specific, recoverable way: the executor encountered something the plan didn't anticipate and had to adapt in real time. Understanding what was wrong about those plans — what assumption the review process failed to catch, what the submitter missed — is exactly the data that would improve future reviews. Every one of those 47 deviations is an unreviewed test case for the board's risk assessment process.
+
+Functional vs. cosmetic improvements:
+
+Functional (would actually restore risk management):
+1. At each meeting, review 2-3 previously approved changes: what was the outcome? Did it go as planned? Were there surprises? This takes 10 minutes per change and generates calibration data.
+2. Require a post-change review form for any change that required significant deviation from plan. The form should document: what deviated, what the plan assumed that was wrong, and what the review process could have surfaced. Make this a standing agenda item at the next CAB meeting after the change.
+3. Track the board's risk ratings (low/medium/high) against outcomes over time. At year-end, assess: were high-risk changes actually riskier than low-risk ones? If not, the risk assessment criteria need revision.
+
+Cosmetic (would change the appearance without addressing the substance):
+- Reduce changes per meeting from 15 to 10 (same dynamics, fewer changes reviewed)
+- Require more documentation per change request (more to rubber-stamp)
+- Add board members (more people approving without more calibration)
+
+The common thread in the functional improvements is feedback: comparing predictions to outcomes. The CAB currently generates assessments and approvals but no feedback. Without feedback, there is no improvement mechanism and no way to know if the process is working.

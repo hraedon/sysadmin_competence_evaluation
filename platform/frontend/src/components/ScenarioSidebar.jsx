@@ -18,20 +18,34 @@ function Badge({ children, className }) {
   )
 }
 
-export default function ScenarioSidebar({ groups, selected, profile, onSelect, onSettings }) {
+export default function ScenarioSidebar({ groups, selected, profile, onSelect, onSettings, onProfile, onOnboarding }) {
   const [filter, setFilter] = useState('')
   const query = filter.toLowerCase()
 
+  const domainCount = Object.keys(profile?.domains ?? {}).length
+
   return (
     <aside className="flex w-72 shrink-0 flex-col border-r border-gray-800 bg-gray-900">
+
       {/* Header */}
       <div className="flex items-center justify-between border-b border-gray-800 px-4 py-3">
         <span className="text-sm font-semibold text-gray-200">Scenarios</span>
-        <button onClick={onSettings}
-          title="API key settings"
-          className="rounded p-1 text-gray-500 hover:text-gray-300">
-          ⚙
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={onOnboarding}
+            title="How this works"
+            className="rounded p-1 text-gray-500 hover:text-gray-300 text-base font-bold leading-none"
+          >
+            ?
+          </button>
+          <button
+            onClick={onSettings}
+            title="Settings"
+            className="rounded p-1 text-gray-500 hover:text-gray-300"
+          >
+            ⚙
+          </button>
+        </div>
       </div>
 
       {/* Search */}
@@ -93,22 +107,21 @@ export default function ScenarioSidebar({ groups, selected, profile, onSelect, o
         })}
       </nav>
 
-      {/* Profile summary */}
-      {profile && Object.keys(profile.domains).length > 0 && (
-        <div className="border-t border-gray-800 px-4 py-3">
-          <div className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">Profile</div>
-          <div className="flex flex-wrap gap-x-3 gap-y-1">
-            {Object.entries(profile.domains).map(([d, data]) => {
-              const recent = [...data.results].sort((a, b) => b.timestamp.localeCompare(a.timestamp))[0]
-              return (
-                <span key={d} className="text-xs text-gray-400">
-                  D{d}: <span className={`font-bold ${LEVEL_COLORS[recent.level] ?? ''}`}>L{recent.level}</span>
-                </span>
-              )
-            })}
-          </div>
-        </div>
-      )}
+      {/* Profile button */}
+      <div className="border-t border-gray-800 px-3 py-3">
+        <button
+          onClick={onProfile}
+          className="w-full rounded-lg border border-gray-700 py-2 text-sm text-gray-400 hover:border-gray-500 hover:text-gray-200 transition-colors"
+        >
+          View Profile
+          {domainCount > 0 && (
+            <span className="ml-2 text-xs text-gray-600">
+              {domainCount} domain{domainCount !== 1 ? 's' : ''}
+            </span>
+          )}
+        </button>
+      </div>
+
     </aside>
   )
 }

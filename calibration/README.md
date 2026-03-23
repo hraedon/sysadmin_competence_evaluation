@@ -98,5 +98,28 @@ failure in one run but passes cleanly in another, it is not a calibration proble
 re-run the scenario to confirm. If parse failures are frequent, check for API rate
 limiting or unusually long responses exceeding context.
 
+## Local model calibration
+
+The calibration harness supports local models via `--provider local` (default endpoint:
+`http://192.168.1.28:1234/v1`). The established baseline is **qwen3-next-80b at 6-bit
+quantization** (qwen3-next-80b-a3b-instruct-mlx via LM Studio). At that quality level,
+expect ~94–96% pass rate — slightly below the Anthropic primary target — because the
+local model has a wider inferential radius and is more generous about crediting findings
+from implicit signals in the synthetic responses.
+
+**Anything below qwen3-80b-6bit is YMMV.** Smaller models (below ~30B parameters) and
+lower quantizations tend to produce inconsistent JSON formatting, poor rubric ID matching,
+and unreliable level discrimination at L2/L3 boundaries. Run the harness against any new
+local model before using it with learners — a model that fails calibration will give
+learners unreliable level estimates.
+
+**Do not modify synthetic responses to fix local model ceiling failures.** If a scenario
+passes Anthropic calibration but fails the local model at the L3→L4 boundary, accept the
+local model failure. The local model's wider inference is a model characteristic, not a
+scenario authoring problem. Weakening synthetic responses to satisfy the local model's
+inference radius degrades the pedagogical quality of the artifacts. The calibration
+hierarchy is: Anthropic first, local model second. Only fix a response if the same
+failure appears on Anthropic.
+
 See `orchestration_design.md` (Evaluation Quality Control) for the full
 calibration procedure.

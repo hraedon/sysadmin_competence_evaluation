@@ -2,7 +2,7 @@ id: d11-audit-exchange-patch-gap
 domain: 11
 domain_name: "Log Reading & Diagnosis"
 level: 2
-title: "Compliant Is Not the Same as Patched"
+title: "The Compliance Status"
 delivery_mode: A
 subtype: null
 

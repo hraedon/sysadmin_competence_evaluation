@@ -2,7 +2,7 @@ id: d02-audit-sspr-writeback
 domain: 2
 domain_name: "Identity & Hybrid IAM"
 level: 2
-title: "The Writeback That Was Never Wired Up"
+title: "SSPR Performance Check"
 delivery_mode: A
 subtype: null
 

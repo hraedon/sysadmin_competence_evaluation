@@ -2,7 +2,7 @@ id: d02-audit-dual-sync-active
 domain: 2
 domain_name: "Identity & Hybrid IAM"
 level: 2
-title: "Two Senders, One Tenant"
+title: "Attribute Conflict"
 delivery_mode: A
 subtype: null
 

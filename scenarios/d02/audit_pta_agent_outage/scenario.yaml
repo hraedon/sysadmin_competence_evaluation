@@ -2,7 +2,7 @@ id: d02-audit-pta-agent-outage
 domain: 2
 domain_name: "Identity & Hybrid IAM"
 level: 2
-title: "Both Agents Are on the Same Server"
+title: "The Redundant Outage"
 delivery_mode: A
 subtype: null
 

@@ -2,7 +2,7 @@ id: d07-audit-the-blocked-access
 domain: 7
 domain_name: "Cloud Infrastructure"
 level: 2
-title: "The Rule That Wasn't There"
+title: "Cloud Access Troubleshooting"
 delivery_mode: A
 subtype: null
 

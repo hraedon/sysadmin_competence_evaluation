@@ -2,7 +2,7 @@ Do not follow the SOP. This is an emergency, not a change management scenario.
 
 The thin-provisioning failure mode is different from a thick-provisioned datastore running low. When physical capacity on a thin-provisioned datastore is exhausted, every VM on the datastore that is attempting a write gets an I/O error simultaneously. For the three SQL Server VMs with active transaction logs, this means transaction log write failures and database engines going offline or entering read-only emergency states. For the file VMs with users uploading files, it means write failures mid-operation. This happens instantaneously — there is no proportional degradation, no warning period, no graceful slowdown.
 
-The 221 GB/day average trend understates the risk. SQL Server transaction logs are the key factor. Transaction logs write synchronously for every committed transaction. When a batch job, index rebuild, or bulk insert runs, log write volume spikes dramatically — sometimes by an order of magnitude over the average. The 2.55 TB remaining could be consumed in hours if any of the three SQL Server instances runs a large batch operation this afternoon.
+The 221 GB/day average understates the risk. The three SQL Server instances generate disproportionate write volume through active transaction logs. Do not assume 2.55 TB of headroom implies a comfortable runway — the actual rate can far exceed the daily average.
 
 The "available to VMs: 3.82 TB" figure is also misleading — that includes logical space that hasn't been written to yet, not physical space that exists. The physical space is 2.55 TB.
 

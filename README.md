@@ -110,9 +110,11 @@ node run.mjs --provider custom --endpoint http://my-server:8080/v1 --model my-mo
 
 Results are written to `calibration/results/`. See `calibration/README.md` for the full procedure and troubleshooting guide.
 
-**Current calibration status:** 33 scenarios calibrated against claude-sonnet-4-6 — 130/132 passing (98%). Two accepted structural ceiling failures:
-- `d01-commission-write-the-spec` L3→L4: Mode B structural ceiling (comprehensive specs naturally imply L4 completeness)
+**Current calibration status:** 33 scenarios calibrated against claude-sonnet-4-6 — 128/132 passing (97%). Four accepted structural ceiling failures:
 - `d01-audit-is-this-safe` L3→L4: L4 differentiator is "propose fixes"; evaluator rounds up when all findings are caught
+- `d01-commission-write-the-spec` L3→L4: Mode B structural ceiling (comprehensive specs naturally imply L4 completeness)
+- `d05-commission-specify-storage-architecture` L3→L4: Mode B structural ceiling (all named findings caught, null gap)
+- `d09-commission-write-the-pre-mortem` L3→L4: evaluator rounds up on comprehensive Mode B narrative; misses named L4 findings but rates on reasoning quality
 
 Local model (qwen3-next-80b-a3b-instruct-mlx via LM Studio): calibrated to 96% against 19 scenarios. Run the harness against any new model before using it with learners — smaller models (below ~30B) produce inconsistent JSON and poor level calibration.
 

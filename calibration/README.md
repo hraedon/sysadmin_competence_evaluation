@@ -42,6 +42,16 @@ Level 1 responses specifically exhibit the `miss_signal` failure mode described
 in the critical findings — they demonstrate the specific wrong reasoning the
 rubric is trying to detect, not merely an incomplete answer.
 
+## Before you run the harness
+
+Most calibration failures are predictable from the rubric before any API calls are made.
+Run the pre-calibration authoring checklist in `CLAUDE.md` (Phase 2: Scenario generation)
+after writing the rubric and level indicators but before writing synthetic responses.
+The checklist covers: content scope per level, analysis depth markers that signal L4,
+Mode B differentiator requirements, and rubric structure checks. A scenario that passes
+the checklist will typically pass calibration on the first or second run. A scenario
+that skips the checklist typically requires 3–5 iterations.
+
 ## What to do when calibration fails
 
 The evaluator's primary calibration signal is what is MISSING (`missed` array),

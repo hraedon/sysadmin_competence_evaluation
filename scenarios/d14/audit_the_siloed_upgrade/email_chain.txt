@@ -1,0 +1,30 @@
+From: James (Platform/Infrastructure Team)
+To: App-Dev-Leads; Ops-Managers
+Subject: RE: CRM Upgrade Failure
+
+We completed the OS patching and SQL version bump on the CRM-DB-01 server last night as requested. The server is up and the SQL service is running. 
+
+The application errors you are seeing are a code-level issue. We haven't touched the app config. Please investigate your connection strings or driver compatibility. Our job was the infrastructure and that is confirmed green.
+
+--------------------------------------------------
+From: Maya (App Team)
+To: James (Platform/Infrastructure Team)
+Subject: RE: CRM Upgrade Failure
+
+James, the app was working fine before your "maintenance." Now we have 500 users who can't log in. Our connection strings haven't changed in two years. Did you verify the SPNs after the SQL bump? 
+
+--------------------------------------------------
+From: James (Platform/Infrastructure Team)
+To: Maya (App Team)
+Subject: RE: CRM Upgrade Failure
+
+Maya, the SPNs are an identity object, not part of the server "infrastructure" scope. If the SPNs broke during the SQL upgrade because of the service account change, your team should have documented that requirement in the change request.
+
+We are busy with the Exchange migration today. If you think it’s a platform issue, please open a standard ticket with the logs and we’ll look at it in the queue. 
+
+--------------------------------------------------
+From: Bob (Sales Director / App Owner)
+To: James; Maya
+Subject: HELP
+
+Guys, I have my whole team sitting on their hands. Is the CRM coming back or not? Maya says IT broke it, James says it's Maya's code. I don't care who's "job" it is, I just need to sell. What is the plan?

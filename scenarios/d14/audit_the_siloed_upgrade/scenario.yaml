@@ -1,0 +1,111 @@
+schema_version: 2.0
+id: d14-audit-siloed-upgrade
+title: "The Siloed Upgrade"
+domain: 14
+domain_name: "Theory of Mind & Communication"
+level: 3
+delivery_modes: ["A"]
+
+difficulty:
+  score: 4
+  reasoning: >
+    The candidate must look past the technical debate (SPNs vs code) and 
+    identify that the primary failure is a breakdown in collaborative 
+    ownership. It requires recognizing that 'staying in your lane' during 
+    a production outage is a failure of responsibility.
+
+presentation:
+  modes:
+    A:
+      type: "email_chain"
+      artifact_file: "scenarios/d14/audit_the_siloed_upgrade/email_chain.txt"
+      context: |
+        A critical CRM upgrade failed last night. You are reviewing the 
+        email thread between James (Platform Team) and Maya (App Team) 
+        as they discuss the fallout. Bob (Sales Director) is cc'd.
+
+        Evaluate the communication and the approach taken by both teams. 
+        Identify the structural and interpersonal failures that are 
+        preventing the restoration of service.
+
+rubric:
+  findings:
+    - id: siloed_disclaiming_of_responsibility
+      type: "critical"
+      description: >
+        James (Platform Team) explicitly disclaims responsibility for 
+        the application failure because "it's not infrastructure." He 
+        ignores the fact that the platform change (SQL version bump) 
+        caused the breakage, choosing to define his "job" so narrowly that 
+        he can declare "green status" while the business is at a standstill.
+      miss_signal: >
+        Candidate agrees with James that "infrastructure is green" and 
+        blames the App Team for not documenting SPN requirements.
+      learning_note: >
+        Production ownership is a full-stack responsibility. A "successful" 
+        infrastructure change that breaks the business application is not 
+        a success. Professional sysadmins take ownership of the end-to-end 
+        result, not just their isolated layer.
+
+    - id: technical_elitism_as_dismissal
+      type: "critical"
+      description: >
+        James's response to Maya is dismissive and uses "scope" as a 
+        weapon to avoid troubleshooting. He tells Maya to "open a standard 
+        ticket" and "wait in the queue" during a production outage. This 
+        is an adversarial approach that treats a colleague as an 
+        unauthorized requester rather than a partner.
+      miss_signal: >
+        Candidate says James is "following the correct process" by 
+        requesting a ticket.
+      learning_note: >
+        Standard processes like ticketing queues are for non-urgent tasks. 
+        Using them as a barrier during a P1 incident is a failure of 
+        judgment and a sign of a toxic "not my job" culture.
+
+    - id: failure_to_model_stakeholder_impact
+      type: "critical"
+      description: >
+        Both teams are arguing about SPNs and connection strings while the 
+        Sales Director (Bob) is begging for a plan. Neither team has 
+        provided Bob with an assessment of the downtime or a unified 
+        response. They are effectively "fighting in front of the kids," 
+        which destroys the business's confidence in IT.
+      miss_signal: >
+        Candidate focuses only on James vs Maya and fails to address 
+        Bob's email or the reputation damage to IT.
+      learning_note: >
+        Stakeholders do not care about internal team boundaries. 
+        Presenting a fragmented, argumentative front to leadership 
+        makes IT look disorganized and incapable of managing complexity.
+
+    - id: technical_reconciliation_gap
+      type: "secondary"
+      description: >
+        Maya correctly identifies SPNs as a potential cause, but James 
+        rejects the idea on a semantic basis ("SPNs are identity, not 
+        infrastructure") rather than checking them. A senior admin should 
+        have recognized that a service account change during a SQL upgrade 
+        almost always requires SPN updates.
+      severity: high
+
+  level_indicators:
+    level_1: >
+      Blames one team or the other (usually the App Team for "bad code" or 
+      "poor documentation"). Thinks James is right to defend his scope. 
+      Misses the cultural failure entirely.
+    level_2: >
+      Identifies that James is being "unhelpful" or "rude." Notices that 
+      the ticketing request is inappropriate for an outage. Suggests that 
+      they should "talk to each other" more.
+    level_3: >
+      Identifies the core failures: disclaiming responsibility through 
+      siloed thinking, adversarial dismissal of a partner team, and 
+      failure to present a unified front to Bob. Recognizes that James's 
+      "green infrastructure" status is a false metric.
+    level_4: >
+      All of the above, plus articulates that the SPN/Identity/Infrastructure 
+      distinction is a "semantic silo" used to avoid work. Proposes a 
+      "blameless" path forward: a joint bridge call where James and Maya 
+      validate the SPNs together while one person provides Bob with a 
+      single, unified status update.

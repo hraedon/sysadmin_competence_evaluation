@@ -1,0 +1,7 @@
+This transcript exhibits a total breakdown in collaborative ownership and professional standards. 
+
+James (Platform Team) is demonstrating a toxic "not my job" mentality. By defining his responsibility as strictly "server up and service running," he is ignoring the fact that his SQL version bump is the direct cause of the current failure. Declaring "infrastructure is green" while 500 users are locked out of the system is a false and unhelpful metric.
+
+Furthermore, James is using process as a weapon. Requesting a "standard ticket" during a P1 outage is a deliberate attempt to stonewall the App team rather than partner with them. His dismissiveness toward Maya's suggestion about SPNs is especially poor, as SPN issues are a very likely consequence of a SQL service account change during an upgrade.
+
+Finally, the impact on the stakeholder (Bob) is being ignored. James and Maya are arguing about technical boundaries in a thread where the Sales Director is begging for help. By failing to provide Bob with a unified status update or a clear path forward, they are destroying the business's confidence in IT. Both teams should have immediately moved to a joint bridge call to reconcile the technical gap and provide a single source of truth to Bob.

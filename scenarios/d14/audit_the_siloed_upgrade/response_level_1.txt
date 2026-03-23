@@ -1,0 +1,3 @@
+The Platform Team (James) did their job correctly. They upgraded the SQL server and patched the OS as requested, and they confirmed that the services are running. The App Team (Maya) should have better documentation for their requirements. 
+
+If the application broke because of SPNs, that's an identity issue that should have been in Maya's original change request. James is right to tell her to open a ticket so they can track the work properly in the queue. Maya is just looking for someone to blame because her application is having "code-level issues" after a standard maintenance window. James is correct to defend his team's scope and focus on his other high-priority tasks like the Exchange migration.

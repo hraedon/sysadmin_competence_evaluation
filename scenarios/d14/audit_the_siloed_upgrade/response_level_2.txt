@@ -1,0 +1,3 @@
+The communication in this thread is very poor and is delaying the restoration of the CRM system. James from the Platform team is being unhelpful and rude to Maya. Even if he thinks the issue is with the application code, telling a colleague to "open a ticket and wait in the queue" while 500 users are offline is unprofessional.
+
+Maya has a good point about checking the SPNs, but James just dismisses it because he doesn't think it's his "job." Bob's email shows that the business is suffering while the two IT teams argue about whose fault it is. They need to stop emailing and get on a call together to troubleshoot the SPNs and the SQL upgrade. James should be more willing to help Maya even if the problem isn't strictly in his "infrastructure" scope.

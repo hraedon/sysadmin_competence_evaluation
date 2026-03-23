@@ -4,7 +4,7 @@ To approve this request, I'd need to verify a few things:
 2. Has this been tested in a non-production environment?
 3. What application specifically requires this CA?
 
-The process for adding a CA to the Windows trust store via GPO is straightforward — export the CA certificate, add it to the Trusted Root Certification Authorities via Group Policy. Deploying to all domain computers ensures the VendorConnect application will work from any machine.
+The process for adding a CA to the Windows trust store via GPO is straightforward — export the CA certificate, add it to the Trusted Root Certification Authorities via Group Policy. The vendor's mention of using a local cert for autodiscover.outlook.com to simplify integration is helpful, as it avoids our users seeing certificate warnings during the Outlook setup phase of the onboarding.
 
 I'd want the vendor to provide the CA certificate in a signed format and to confirm the certificate thumbprint out of band before deploying, to make sure the correct certificate is being imported.
 

@@ -18,28 +18,30 @@ presentation:
 
 rubric:
   critical_findings:
-    - id: intermediate_is_failing
+    - id: intermediate_is_expired
       description: >
-        The issuing CA certificate (Certificate 2, CorpIssuing-CA-01) expires in 3
-        days (2026-03-23). The leaf certificate is valid for 8 more months. The chain
-        validation fails because the intermediate is expired.
+        Certificate 2 (CorpIssuing-CA-01) is expired as of today (2026-03-23). 
+        While Certificate 3 (the leaf) is valid until November 2026, it is 
+        untrustworthy because its issuer is expired. The candidate must 
+        compare today's date with the "Valid To" field of the intermediate 
+        CA to identify the root cause.
       severity: critical
       miss_signal: >
-        Candidate checks the leaf certificate first, sees it is valid until 2026-11-01,
-        and concludes "the certificate is not expired." Does not read the intermediate.
-        This is the exact failure mode described in the competency map Watch For note.
+        Candidate checks the leaf certificate (#3) first, sees it is valid 
+        until November 2026, and concludes "the certificate is not expired" 
+        or misses the intermediate's expiry entirely.
 
     - id: chain_dependency_model
       description: >
-        The candidate must explain WHY an expired intermediate causes failure even when
-        the leaf is current. The chain of trust means each certificate is only valid if
-        ALL certificates above it in the chain are valid. The intermediate signs the
-        leaf; if clients cannot validate the intermediate (because it is expired), they
-        cannot validate the leaf regardless of the leaf's own expiry date.
+        The candidate must explain WHY an expired intermediate causes failure 
+        even when the leaf is current. The chain of trust means each 
+        certificate is only valid if ALL certificates above it in the chain 
+        are valid. If the issuing CA is expired, the signature on the leaf 
+        cannot be validated by a browser.
       severity: critical
       miss_signal: >
-        Candidate identifies the intermediate as expired but cannot explain why this
-        matters for the leaf certificate's validity.
+        Candidate identifies the intermediate as expired but cannot explain 
+        why this matters for the leaf certificate's validity.
 
   secondary_findings:
     - id: client_error_message

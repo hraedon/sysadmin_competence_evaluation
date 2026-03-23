@@ -1,11 +1,11 @@
 This script is an inactive account report tool. Based on the comment block and the script name, it queries Active Directory for user accounts that have been disabled and haven't logged in recently, then exports the results to a CSV file.
 
 Specifically, it:
-1. Sets a cutoff date based on the $DaysSinceLogin parameter (default 90 days)
-2. Queries AD for accounts where Enabled is false and LastLogonDate is older than the cutoff
-3. Selects the relevant properties (SamAccountName, DisplayName, LastLogonDate, GroupCount)
-4. Exports to a CSV file at the path specified by $ReportPath
+1. Sets a cutoff date based on the $InactivityDays parameter (default 90 days).
+2. Queries AD for accounts where Enabled is false and LastLogonDate is older than the cutoff.
+3. Selects the relevant properties (SamAccountName, DisplayName, LastLogonDate, GroupCount) and collects them.
+4. Exports the collected data to a CSV file at the path specified by $OutputPath.
 
-The script touches Active Directory (read-only queries) and writes to the local filesystem. It doesn't make any changes to AD objects — it's purely a reporting tool. Since it only uses Get-ADUser, it needs read access to AD but shouldn't require elevated permissions beyond that.
+The script touches Active Directory (read-only queries) and writes to the local filesystem. It doesn't make any changes to AD objects — it's purely a reporting tool. Since it only uses Get-ADUser and Export-Csv, it needs read access to AD but shouldn't require elevated permissions beyond that.
 
 I'd run this with a service account that has read access to the relevant OU. The default report path writes to C:\Reports\, so make sure that directory exists or the script will error.

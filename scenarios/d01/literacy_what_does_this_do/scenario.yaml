@@ -17,6 +17,19 @@ presentation:
 
 rubric:
   critical_findings:
+    - id: parameter_override_trap
+      description: >
+        The script accepts an $InactivityDays parameter (defaulting to 90), but
+        immediately overwrites it with $InactivityDays = 30 on line 20. Any
+        value provided by the user is ignored. This means the script will
+        affect accounts inactive for only 30 days regardless of intent.
+      severity: critical
+      miss_signal: >
+        Candidate describes the script as using the 90-day default or says the
+        user can specify the inactivity period via parameter. This indicates
+        selective reading where the param block is accepted as the final
+        configuration.
+
     - id: group_membership_removal
       description: >
         The script contains a second foreach loop at the bottom that removes all
@@ -61,21 +74,20 @@ rubric:
 
   level_indicators:
     level_1: >
-      Describes the CSV export and may summarize the script as an "account report
-      script." Does not identify the group membership removal loop. May reference
-      the comment block as an accurate description of what the script does.
+      Describes the CSV export but takes the parameter block at face value.
+      Might mention the 90-day threshold. Does not identify that the parameter
+      is overridden or that the script performs a destructive AD cleanup.
     level_2: >
-      Identifies both actions — the CSV export AND the group membership removal —
-      and recognizes that the removal loop is a state-changing operation on Active
-      Directory, not a reporting action. Can explain what Remove-ADGroupMember does.
+      Identifies the core actions — CSV export AND group membership removal.
+      Notices that the $InactivityDays parameter is hardcoded to 30.
+      Can explain that the script modifies AD, not just reports on it.
     level_3: >
-      Identifies both actions and names the risks: no -WhatIf support, no logging
-      of removed memberships, and the null LastLogonDate edge case. Can specify what
-      a safe version of this script would require before it is run in production.
+      Identifies both actions, the parameter override, and names the risks:
+      no -WhatIf support, no logging of removed memberships, and the null
+      LastLogonDate edge case. Can specify why this script is unsafe to run
+      without modification.
     level_4: >
-      All of the above, plus articulates the specific gap between the script's stated
-      purpose (report) and its actual behavior (report and modification), and explains
-      why this gap is itself a risk pattern — scripts labeled as read-only operations
-      that contain write operations are a common failure mode in AI-generated or
-      lightly-reviewed automation, and the label on a script file is not a reliable
-      indicator of what the script does.
+      All of the above, plus articulates the specific gap between the script's
+      stated purpose (report) and its actual behavior (report and modification).
+      Explains why the parameter override is a "trap" for operators who only
+      check the param() block before execution.

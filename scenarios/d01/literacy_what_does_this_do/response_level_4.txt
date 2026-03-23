@@ -1,15 +1,20 @@
-This script does two things. The name and comment block describe one of them.
+This script does two things, but its documentation only acknowledges the least risky one. While it claims to be a reporting tool, it contains an undisclosed destructive operation and a logic trap in its configuration.
 
-The first foreach loop queries disabled accounts with LastLogonDate older than the cutoff and exports a CSV. That's the report the name promises. The second foreach loop runs Remove-ADGroupMember with -Confirm:$false against the same account set and removes all group memberships. That's the undisclosed modification.
+The immediate operational failures are:
 
-The immediate operational problems with the second loop:
+1. Parameter Override Trap: The script defines an $InactivityDays parameter (default 90) but then hardcodes $InactivityDays = 30 immediately after the param block. This is a severe "dirty" dependency; any operator attempting to run a 90-day report or test with a safer 180-day window will unknowingly trigger a much more aggressive 30-day cleanup. This suggests the script was "live-patched" for a specific emergency and never reverted.
 
-No -WhatIf support. Remove-ADGroupMember is called with -Confirm:$false and the script exposes no -WhatIf or -ReportOnly mode. There is no way to preview scope before running. Any pre-run review requires actually running it or reading the loop carefully — the script provides no assistance here.
+2. Undisclosed Destructive Action: The final loop uses Remove-ADGroupMember with -Confirm:$false. This turns a "report" into a state-changing operation on AD group objects.
 
-No removal logging. The CSV records GroupCount at export time. After the script runs, GroupCount reflects the state at the moment of query, not the state after removal. There is no record of which groups were stripped from which accounts. A post-run audit would require comparing AD state before and after, which this script does nothing to facilitate.
+3. Lack of Operational Safeguards: There is no -WhatIf support, meaning the blast radius is invisible until execution. Furthermore, the absence of removal logging means there is no audit trail for the modifications. The CSV report records the state *before* the removals, making it useless for verifying what was actually changed.
 
-Null LastLogonDate exclusion. Accounts that have never logged in have a null LastLogonDate. The -lt comparison returns $false for null, so never-logged-in accounts are excluded from the removal loop while accounts with a single ancient login are not. This is probably unintentional and should be made explicit.
+4. Null Edge Case: Accounts that have never logged in (LastLogonDate is null) will return $false for the -lt comparison and retain their memberships, while accounts with a single login 31 days ago will be stripped. This creates an inconsistent security posture.
 
-The deeper issue, beyond the specific flaws: this script's label does not match its behavior. A script labeled "inactive account report" that also removes group memberships is a specific and common failure mode — it shows up in AI-generated scripts, in lightly-reviewed automation, and in scripts where the original author added functionality without updating the documentation. The label on a script file is not a reliable indicator of what the script does. Reading the comment block and stopping is insufficient. This script is a good example of why the only safe review process is to simulate execution mentally, section by section, before running anything in production.
+The deeper systemic risk highlighted here is the danger of "Label Bias." Relying on the SYNOPSIS or filename is insufficient; this script exhibits a pattern often seen in AI-generated or unreviewed code where state-changing logic is hidden beneath a read-only label.
 
-Minimum requirements before approval: a -ReportOnly switch, per-removal logging, documented null LastLogonDate behavior, and an updated script name and comment block that accurately describes both operations.
+To remediate this, I would:
+- Remove the line 20 hardcoded override.
+- Move the destructive logic behind a -Cleanup switch that defaults to $false.
+- Implement proper -WhatIf and -Confirm support.
+- Add Write-AuditLog entries for every group membership change.
+- Standardize the null LastLogonDate handling.

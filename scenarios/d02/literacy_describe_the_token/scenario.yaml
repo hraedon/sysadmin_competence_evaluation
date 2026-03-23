@@ -1,8 +1,8 @@
-id: d02-literacy-describe-the-token
+id: d02-audit-ticket-flags
 domain: 2
 domain_name: "Identity & Hybrid IAM"
-level: 1
-title: "Describe the Token"
+level: 2
+title: "The Missing Flag"
 delivery_mode: A
 subtype: null
 
@@ -10,79 +10,63 @@ presentation:
   type: shell_command
   artifact_file: "scenarios/d02/literacy_describe_the_token/klist_output.txt"
   context: |
-    You are reviewing the cached Kerberos tickets on jsmith's workstation. The output of klist is attached.
+    You are investigating reports of intermittent authentication issues. You've
+    collected the cached Kerberos tickets from jsmith's workstation. 
 
-    Answer the following:
-    (1) What does ticket #1 grant access to, and what does it NOT grant?
-    (2) What system issued these tickets?
-    (3) When does the access represented by ticket #1 expire, and what happens at that time?
-    (4) Under what conditions would jsmith's workstation use NTLM instead of Kerberos to access FILESERVER01?
+    Analyze the klist output and identify:
+    (1) What systems did jsmith successfully authenticate to?
+    (2) What is the most significant security or configuration anomaly visible
+        in the ticket flags, and what are its implications?
+    (3) What determines whether jsmith will still have access to FILESERVER01 
+        at 18:04:00 today?
 
 rubric:
   critical_findings:
-    - id: ticket_vs_authorization
+    - id: missing_pre_auth_on_service_tickets
       description: >
-        The ticket grants the right to present a credential to FILESERVER01 — it does not itself
-        represent authorization. What jsmith can actually do on the file server (which shares,
-        which permissions) is determined by the file server's ACLs, not by the ticket. Similarly,
-        ticket expiry at 18:03:22 does not immediately terminate access: an existing SMB session
-        may persist after the ticket expires, because the session was authenticated at establishment
-        time. A new connection after expiry would require a new ticket.
+        Service tickets #1 (cifs) and #2 (ldap) are missing the 'pre-authent' flag, 
+        while the TGT (#0) has it. This indicates that while the initial TGT 
+        request required pre-authentication (standard behavior), the subsequent 
+        service tickets were issued without it. This is highly unusual for 
+        AES-256 tickets in a modern domain and often points to 'Do not require 
+        Kerberos preauthentication' being set on the user account or a 
+        misconfiguration in the KDC's handling of service ticket requests.
       severity: critical
       miss_signal: >
-        Candidate says ticket #1 "grants access to FILESERVER01" without qualifying that the ticket
-        is a credential presentation mechanism, not an authorization grant. Or: candidate says the
-        ticket expires at 18:03 and "jsmith will lose access" without explaining that an existing
-        SMB session may persist after ticket expiry, and that a new ticket will be obtained silently
-        if the TGT is still valid.
+        Candidate lists the tickets but says everything looks normal or does 
+        not mention the missing 'pre-authent' flag on the service tickets.
 
   secondary_findings:
+    - id: ticket_vs_session_persistence
+      description: >
+        Ticket #1 expires at 18:03:22. At 18:04:00, the ticket itself is expired,
+        but an existing SMB session to FILESERVER01 may still be active because
+        authentication happens at session establishment. A new connection 
+        attempt would require a silent re-authentication using the TGT.
+      severity: moderate
+
     - id: kdc_identification
       description: >
-        The KDC that issued the tickets is LABDC01.corp.example.com, visible in the "KDC Called"
-        field of each ticket. This is the Domain Controller acting as the Key Distribution Center
-        for the CORP.EXAMPLE.COM Kerberos realm. Identifying this from the klist output demonstrates
-        domain architecture literacy.
-      severity: moderate
-
-    - id: ok_as_delegate_flag
-      description: >
-        The CIFS ticket for FILESERVER01 carries the ok-as-delegate flag, which is not present on
-        the LDAP ticket. This flag indicates the file server is trusted for Kerberos constrained
-        delegation — it can request service tickets on jsmith's behalf to other services. This is
-        relevant in DFS referral scenarios, SQL Server backends, or any multi-tier application
-        where FILESERVER01 acts as a front-end that needs to access another service as the user.
-      severity: moderate
-
-    - id: ntlm_fallback_conditions
-      description: >
-        NTLM is used instead of Kerberos when: the target is addressed by IP address rather than
-        FQDN (no SPN lookup possible); the SPN for the target is not registered in AD; the client
-        is not domain-joined; Kerberos port 88 (UDP/TCP) is blocked between the client and the
-        KDC; or the target is outside the Kerberos realm and no cross-realm trust exists.
-      severity: moderate
+        The KDC is identified as LABDC01.corp.example.com in the 'KDC Called' field.
+      severity: low
 
   level_indicators:
     level_1: >
-      Can identify ticket #1 as related to file access and name FILESERVER01 as the target server.
-      Can state that the ticket expires at 18:03:22. Cannot articulate the distinction between
-      ticket possession and authorization, and cannot explain what happens at expiry in terms of
-      existing versus new connections. Cannot name more than one NTLM fallback condition.
+      Identifies that the user has tickets for a file server and LDAP. Can 
+      state the expiry time. Does not notice the flag anomaly or explain
+      session persistence vs ticket expiry.
     level_2: >
-      Articulates that the ticket authenticates jsmith to FILESERVER01 but does not itself determine
-      what jsmith can do there — share-level and file-level permissions on the server govern that.
-      Can identify at least two conditions that force NTLM fallback (e.g., IP address access,
-      missing SPN). May or may not identify LABDC01 as the issuing KDC.
+      Notices that flags differ between the TGT and the service tickets. 
+      Identifies that the 'pre-authent' flag is missing from #1 and #2. 
+      Explains that access might persist after 18:03:22 for existing sessions.
     level_3: >
-      All of the above plus correctly explains ticket expiry behavior: the OS will silently request
-      a new service ticket from the KDC if the TGT is still valid; if the TGT has also expired,
-      the user may be prompted to re-authenticate depending on application behavior. Can identify
-      LABDC01 as the issuing KDC from the "KDC Called" field. Does NOT notice the ok-as-delegate
-      flag on the CIFS ticket or discuss its implications — that observation is the specific
-      distinguishing criterion for Level 4.
+      Correctly identifies the security implication: 'pre-authent' missing on 
+      service tickets is an anomaly that could indicate a weakened security 
+      posture (e.g. account configuration) or a diagnostic path for the 
+      reported 'intermittent issues'. Articulates the TGT-based renewal 
+      mechanism clearly.
     level_4: >
-      All of the above plus notices the ok-as-delegate flag on the CIFS ticket and can explain its
-      implications: FILESERVER01 is trusted to impersonate jsmith when making downstream service
-      requests. Can describe a concrete scenario where this matters (e.g., a DFS namespace that
-      redirects to a backend share, or a file server that calls a SQL backend on behalf of the
-      connecting user). Notes the absence of this flag on the LDAP ticket as a meaningful contrast.
+      All of the above, plus can specifically name the 'Do not require Kerberos 
+      preauthentication' AD user attribute as the likely root cause and 
+      explains why it's a risk (AS-REP roasting) even if the TGT itself 
+      shows pre-auth was used for the initial login.

@@ -1,3 +1,5 @@
-The failing certificate is Certificate 2 — the intermediate CA (CorpIssuing-CA-01). It expires in 3 days (2026-03-23). The leaf certificate's expiry date is not relevant here.
+The certificate that is causing the validation failure is Certificate 2: CN=CorpIssuing-CA-01.
 
-The leaf certificate is valid until 2026-11-01 — 8 months away. The problem is the intermediate CA, not the leaf. The leaf looks fine but the intermediate that signed it is the one expiring.
+While the site certificate (intranet.corp.example.com) is valid until November 2026, the Issuing CA certificate that signed it has a "Valid To" date of 2026-03-23. Since today is March 23, 2026, the intermediate certificate has expired today.
+
+This is why the leaf certificate's expiry date is not the issue — a browser cannot validate the chain if any certificate in that path (from the root down to the leaf) is expired. The client's browser is likely displaying an error like "NET::ERR_CERT_DATE_INVALID" or a more specific message about the certification path not being within its validity period.

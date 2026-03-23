@@ -25,7 +25,7 @@ Credentials information:
         Start Time: 3/20/2026 8:03:22 (local)
         End Time:   3/20/2026 18:03:22 (local)
         Renew Time: 3/27/2026 8:03:22 (local)
-        Ticket Flags: 0x40a50000 -> forwardable renewable pre-authent ok-as-delegate name-canonicalize
+        Ticket Flags: 0x40810000 -> forwardable renewable name-canonicalize
 
 #2>     Client: jsmith @ CORP.EXAMPLE.COM
         Server: ldap/LABDC01.corp.example.com @ CORP.EXAMPLE.COM
@@ -35,4 +35,4 @@ Credentials information:
         Start Time: 3/20/2026 8:03:22 (local)
         End Time:   3/20/2026 18:03:22 (local)
         Renew Time: 3/27/2026 8:03:22 (local)
-        Ticket Flags: 0x40a10000 -> forwardable renewable pre-authent name-canonicalize
+        Ticket Flags: 0x40810000 -> forwardable renewable name-canonicalize

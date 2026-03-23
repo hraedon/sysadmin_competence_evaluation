@@ -1,9 +1,7 @@
-Looking at the klist output, jsmith has two Kerberos tickets cached.
+The klist output shows that jsmith has successfully authenticated to several systems.
 
-(1) Ticket #1 grants access to FILESERVER01. Once it expires at 18:03:22, jsmith will lose access to FILESERVER01 and will need to re-authenticate.
+(1) jsmith has authenticated to FILESERVER01 (CIFS) and the domain controller LABDC01 (LDAP).
 
-(2) The tickets were issued by LABDC01.corp.example.com, which is the domain controller.
+(2) Everything looks mostly normal in the ticket flags. The tickets are AES-256 and they are forwardable and renewable.
 
-(3) The ticket expires at 18:03:22 on the current date. At that point jsmith will be disconnected from any file share sessions.
-
-(4) NTLM would be used instead of Kerberos if the domain controller isn't available, or if there's a problem with the Kerberos service.
+(3) Ticket #1 expires at 18:03:22 today. At that time, jsmith will lose access to the file server and will need to re-authenticate to get a new ticket.

@@ -1,11 +1,15 @@
-This script does two things.
+This script does two things, though only one is documented in the synopsis.
 
-The first foreach loop queries for disabled accounts with LastLogonDate older than the cutoff, selects properties including a computed GroupCount, and exports to CSV. That's the report.
+The first part generates an inactive account report. The second part is a destructive loop that removes all group memberships from those same accounts.
 
-The second foreach loop iterates the same account set and calls Remove-ADGroupMember with -Confirm:$false to strip all group memberships from those accounts. It runs every time the script runs, unconditionally.
+There are several critical flaws that make this script unsafe for production:
 
-Three problems with the second loop specifically:
+1. Parameter Override Trap: The script defines an $InactivityDays parameter (defaulting to 90), but then immediately hardcodes it to 30 on line 20. This ignores any user-provided input and creates a mismatch between what an operator thinks they are running and what the script actually does.
 
-1. No -WhatIf support. Remove-ADGroupMember is called with -Confirm:$false but the script exposes no -WhatIf parameter and makes no provision for a dry run. There is no way to see what the script would do without actually doing it. Before running anything this destructive in production, I'd want a -ReportOnly mode that shows what memberships would be removed.
+2. No -WhatIf support: The Remove-ADGroupMember call uses -Confirm:$false, but the script itself does not support -WhatIf or provide any way to preview the removals. You cannot see the blast radius before the changes are committed to Active Directory.
 
-I would not run this in production as written. Minimum requirement before I'd approve it: add a -ReportOnly switch that skips the removal loop and only generates the CSV, so there's a way to see what would be affected before running destructively.
+3. No removal logging: There is no log output for the group membership removals. Once the script completes, there is no record of which groups were removed from which users, making a rollback or audit impossible.
+
+4. Null LastLogonDate edge case: Accounts that have never logged in (null LastLogonDate) are skipped by the -lt comparison, while accounts with an old login are cleaned up. This discrepancy is likely unintentional.
+
+I would not run this in production. It needs the hardcoded override removed, -WhatIf support added, and proper logging for all destructive actions.

@@ -1,9 +1,8 @@
-Looking at the certificate chain, the leaf certificate for intranet.corp.example.com is valid until 2026-11-01. That's about 8 months away, so the certificate hasn't expired.
+The certificate chain for intranet.corp.example.com includes three certificates:
+1. A Root CA (CorpRoot-CA) valid until 2030.
+2. An Issuing CA (CorpIssuing-CA-01) valid until 2026-03-23.
+3. The Leaf Certificate (intranet.corp.example.com) valid until 2026-11-01.
 
-The root CA certificate (CorpRoot-CA-01) is valid until 2033, so that's not the issue either.
+The leaf certificate itself is currently valid for about 8 more months, as its "Valid To" date is November 1, 2026. Since the current date is in March 2026, the certificate for the intranet site is not expired.
 
-The chain shows three certificates: the leaf, an intermediate (CorpIssuing-CA-01), and the root. All the chain elements appear to be present.
-
-I'm not sure what's causing the validation failure based on these dates — the end certificate is valid for another 8 months. It might be worth checking if the certificate was recently installed correctly on the server, or if there's a trust anchor issue where clients don't have the root CA in their trust store.
-
-The browser is probably displaying something like "Your connection is not private" with an error code, but I'd need more information about the specific error to diagnose this further.
+The users are likely seeing a generic "Connection is not private" error, but it's unclear why, given the leaf certificate is still valid. The issue might be related to a local client trust problem or a network issue, but the certificate itself appears to be in its validity period.

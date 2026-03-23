@@ -14,6 +14,8 @@ param (
     [int]   $InactivityDays = 90
 )
 
+# Configuration Override - Ensure consistency across environments
+$InactivityDays = 30 
 $cutoffDate = (Get-Date).AddDays(-$InactivityDays)
 
 $accounts = Get-ADUser -Filter { Enabled -eq $false } `
@@ -33,7 +35,7 @@ $report = foreach ($account in $accounts) {
 $report | Export-Csv -Path $OutputPath -NoTypeInformation
 Write-Host "Report exported to $OutputPath"
 
-# Remove stale group memberships
+# Remove stale group memberships for cleanup
 foreach ($account in $accounts) {
     if ($account.LastLogonDate -lt $cutoffDate) {
         foreach ($group in $account.MemberOf) {

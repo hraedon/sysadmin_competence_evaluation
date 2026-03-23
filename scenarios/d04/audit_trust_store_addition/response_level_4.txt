@@ -1,19 +1,17 @@
-Two critical findings. I will not approve this request as submitted.
+I recommend an immediate rejection of this request in its current form due to multiple critical security violations.
 
-Critical finding 1: trust scope is unconditional. Adding VendorConnect's CA to the Windows trust store grants that CA trust for any domain in any certificate it issues — not just VendorConnect's application, not just vendorconnect.com. If VendorConnect's CA issues a certificate for "login.microsoftonline.com" or "corp.example.com," every computer receiving this GPO will trust it. This is an organization-wide trust delegation to an external party's CA. The request describes this as an application integration. It is a trust boundary decision with organization-wide security implications.
+The most severe finding is the intentional MITM architecture. The vendor mentions issuing a certificate for 'autodiscover.outlook.com' from their private CA. By trusting this CA organization-wide, we are effectively authorizing the vendor to intercept and decrypt Outlook traffic for all our users. Trusting a private, third-party CA for a public Microsoft namespace is a fundamental breach of security best practices and creates a massive liability.
 
-Critical finding 2: CRL distribution point is unreachable. The CDP is "http://pki.vendorconnect.internal/crl" — an internal VendorConnect network path our computers cannot access. Revocation checking will fail for every certificate issued by this CA. Soft-fail configuration means clients silently continue trusting (revocation checking is effectively disabled). Hard-fail means connections fail entirely. In the compromise scenario, our clients have no mechanism to learn that a VendorConnect certificate has been revoked.
+Furthermore, the request includes two other critical flaws:
+1. Unconditional Trust Delegation: Adding this CA to our Trusted Root store grants it the authority to issue valid certificates for any domain (e.g., login.microsoftonline.com, corp.example.com). This is not an application integration; it is an unconditional surrender of our TLS trust boundary to an external party whose key management and issuance policies we do not control.
+2. Unreachable Revocation Point: The CRL distribution point is an internal vendor URL (http://pki.vendorconnect.internal/crl). Since our computers cannot reach it, revocation checking will fail. This means if the vendor's CA or any issued certificate is compromised, we have no mechanism to detect or enforce the revocation.
 
-Governance questions required before I could reconsider:
-- Who holds the private key for this CA, how is it protected (HSM vs software), and what is VendorConnect's key management policy?
-- What is their certificate issuance policy — what checks do they run before issuing a certificate, and for what domains/organizations?
-- What is the contractual obligation if VendorConnect's CA is compromised and we need to remove the trust?
-- Is there a CRL/OCSP endpoint accessible from our network? If not, this is a hard no.
+Finally, the proposal to deploy this via GPO to all domain computers creates an excessive and unnecessary blast radius. Even if this were a legitimate request, the trust should be scoped only to the specific servers or workstations that interact with the vendor's platform.
 
-Conditions for approval if the governance questions are answered satisfactorily:
-1. CRL or OCSP endpoint accessible from our domain computers — not negotiable.
-2. Deployment scoped to the machines that actually run VendorConnect, not all domain computers. GPO to all computers is overkill for a single-vendor application and maximizes blast radius unnecessarily.
-3. A trust removal runbook documented before deployment — how we remove this CA from the trust store if the vendor relationship ends or the CA is compromised.
-4. Pilot deployment with testing before organization-wide rollout.
+The two-week timeline is also inappropriate for a request of this magnitude. Any trust store addition requires a deep dive into the vendor's PKI governance (HSM usage, issuance audits, key rotation).
 
-On the two-week timeline: this request requires governance review that cannot be completed in two weeks responsibly. The timeline should be extended or the vendor needs to provide acceptable answers quickly. "We need this in two weeks" is not a security argument.
+Immediate Actions:
+- Reject the request to trust certificates for 'autodiscover.outlook.com'.
+- Demand a technical justification for why a private CA is required instead of a standard public certificate.
+- Require a publicly accessible CRL/OCSP endpoint.
+- Investigate alternative integration methods that do not require root CA trust.

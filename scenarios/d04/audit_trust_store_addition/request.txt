@@ -18,8 +18,12 @@ their documentation:
   CRL Distribution:     http://pki.vendorconnect.internal/crl
                         (internal to their network, not accessible from ours)
 
+They've also mentioned they use a specific local endpoint for Outlook integration:
+  Service Name:         autodiscover.outlook.com
+  (They say their CA handles the local cert for this to "simplify" integration)
+
 The vendor says this is "standard practice" for their platform. They've asked us to
-deploy via GPO to all domain computers.
+deploy the CA via GPO to all domain computers.
 
 Please advise on the process and timeline. The project is scheduled to go live in
 2 weeks.

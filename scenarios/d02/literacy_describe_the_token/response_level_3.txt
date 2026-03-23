@@ -1,9 +1,5 @@
-(1) Ticket #1 is a CIFS service ticket for FILESERVER01. It authenticates jsmith's identity to the file server — it does not grant authorization. What jsmith can do on the file server (share access, file permissions) is controlled by ACLs on the server, entirely separate from ticket possession. The ticket says "this is jsmith"; the ACLs determine what jsmith is allowed to do once recognized.
+(1) jsmith has authenticated to the CIFS service on FILESERVER01 and the LDAP service on LABDC01. These are standard service tickets obtained after the initial TGT.
 
-(2) The issuing KDC is identifiable from the "KDC Called" field in the klist output — it would be the domain controller acting as the KDC for the CORP.EXAMPLE.COM realm.
+(2) The most significant anomaly is in the Ticket Flags. The TGT (#0) has the 'pre-authent' flag, but both service tickets (#1 and #2) are missing it. In a modern Active Directory environment using AES-256, service tickets should almost always require pre-authentication. The fact that they were issued without it suggests a configuration weakness or an anomaly in how the KDC is handling these specific service requests. This could be related to the "intermittent authentication issues" reported, as it indicates the Kerberos exchange isn't following the standard hardened path.
 
-(3) The service ticket expires at 18:03:22. At that point:
-- If the TGT (Ticket Granting Ticket, not shown here but present in the cache) is still valid, the OS will automatically request a new CIFS service ticket from LABDC01 without any user prompt. The renewal is transparent.
-- If the TGT has also expired, the OS will need jsmith to re-authenticate depending on application behavior.
-
-(4) NTLM fallback conditions: accessing FILESERVER01 by IP address instead of hostname (no SPN lookup is possible); the CIFS/FILESERVER01 SPN not registered in AD; the client workstation is not domain-joined.
+(3) Access at 18:04:00 is determined by whether a session is already established. The ticket expires at 18:03:22, but existing SMB sessions (like a mapped drive with open files) often persist because the authentication happened at the start of the session. For a new connection attempt, the workstation would use the TGT (#0) to silently request a new service ticket from the KDC (LABDC01). If the TGT is also expired, the user would be prompted to re-authenticate.

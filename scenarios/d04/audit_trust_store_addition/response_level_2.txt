@@ -4,4 +4,4 @@ First, trust scope. Adding VendorConnect's CA to the Windows trust store via GPO
 
 Second, revocation. The CRL distribution point is "http://pki.vendorconnect.internal/crl" — an internal VendorConnect network path our computers cannot reach. When clients try to validate revocation status for any certificate from this CA, the check will fail. If a VendorConnect certificate is compromised and revoked, our clients won't be able to detect that.
 
-I would not approve this request as described.
+The vendor's claim that this is "standard practice" for their platform is concerning, and the two-week timeline for live production doesn't allow for the necessary security review of such an impactful trust delegation. I would not approve this request as described.

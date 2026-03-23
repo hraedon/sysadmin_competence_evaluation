@@ -1,0 +1,9 @@
+Mike’s communication with Sarah during this P1 outage was unprofessional and failed to meet the needs of the business. 
+
+First, he used excessive technical jargon ("SQL backend," "LUN on the SAN") that provided no value to Sarah, especially after she explicitly stated she didn't understand it. He failed to translate the technical fix into a business impact.
+
+Second, he showed zero operational empathy. Sarah mentioned 12 trucks waiting and losing money, but Mike ignored these cues. He didn't acknowledge the stress Sarah was under or the operational cost of the downtime.
+
+Third, his expectation management was poor. By refusing to give even a "best case/worst case" estimate, he left Sarah unable to make critical decisions, like whether to send the truck drivers home.
+
+Finally, his last message was adversarial and rude. Telling a stakeholder that their updates are "making this take longer" destroys trust and treats the business as an obstacle rather than a partner. Mike should have set a communication cadence to prevent the constant pings instead of snapping at her.

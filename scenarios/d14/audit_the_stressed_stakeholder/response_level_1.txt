@@ -1,0 +1,3 @@
+Mike did a good job of responding to Sarah quickly and giving her specific details about what was wrong. He identified that the SQL deadlock and transaction log issues were the root cause and he was working on expanding the storage to fix it. 
+
+He was being transparent by telling her exactly what he was doing (expanding the LUN, extending the volume). Sarah was being a bit impatient by messaging him every 10 minutes while he was trying to work on a critical P1 incident. Mike was right to tell her that the pings were making it take longer so he could focus on the technical fix. Once the SAN finishes the block allocation, the system will be back up.

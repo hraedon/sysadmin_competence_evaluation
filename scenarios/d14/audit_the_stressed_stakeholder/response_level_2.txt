@@ -1,0 +1,3 @@
+Mike’s technical response seems correct, but his communication style is problematic. He used a lot of technical jargon—like "IOPS spike" and "LUN on the SAN"—even after Sarah told him she didn’t know what those terms meant. A business stakeholder in Sarah's position needs to know when the system will be back up, not the specifics of SQL deadlocks.
+
+Also, Mike’s tone was a bit blunt, especially at the end. While Sarah was messaging him frequently, he should have realized she was under pressure with 12 trucks waiting to load. Instead of being adversarial, he should have provided a clearer timeline or a more professional way to manage her expectations so she could report back to the VP.

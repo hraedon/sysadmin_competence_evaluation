@@ -92,15 +92,32 @@ export function buildClient({ provider = 'local', endpoint, apiKey }) {
  * Optionally extends with coach mode instructions.
  */
 function buildSystemPrompt(scenario, artifactContent, { coachMode = false, coachRound = 0 } = {}) {
-  const { domain_name, level, title, delivery_mode, presentation, rubric } = scenario
+  const { schema_version = 1.0, domain_name, level, title, delivery_mode, presentation, rubric } = scenario
 
-  const criticalBlock = (rubric.critical_findings ?? []).map(f =>
-    `[${f.id}] (Severity: ${f.severity}) ${f.description.trim()}`
-  ).join('\n\n')
+  let criticalBlock = ''
+  let secondaryBlock = ''
 
-  const secondaryBlock = (rubric.secondary_findings ?? []).map(f =>
-    `[${f.id}] (Severity: ${f.severity}) ${f.description.trim()}`
-  ).join('\n\n')
+  if (schema_version >= 2.0 && rubric.findings) {
+    // Schema V2 logic: unified findings array
+    criticalBlock = rubric.findings
+      .filter(f => f.type === 'critical')
+      .map(f => `[${f.id}] (Severity: critical) ${f.description.trim()}`)
+      .join('\n\n')
+    
+    secondaryBlock = rubric.findings
+      .filter(f => f.type === 'secondary')
+      .map(f => `[${f.id}] (Severity: secondary) ${f.description.trim()}`)
+      .join('\n\n')
+  } else {
+    // Schema V1 logic: separate lists
+    criticalBlock = (rubric.critical_findings ?? []).map(f =>
+      `[${f.id}] (Severity: ${f.severity}) ${f.description.trim()}`
+    ).join('\n\n')
+
+    secondaryBlock = (rubric.secondary_findings ?? []).map(f =>
+      `[${f.id}] (Severity: ${f.severity}) ${f.description.trim()}`
+    ).join('\n\n')
+  }
 
   const levelBlock = Object.entries(rubric.level_indicators ?? {}).map(([k, v]) =>
     `${k.replace('level_', 'Level ')}: ${v.trim()}`

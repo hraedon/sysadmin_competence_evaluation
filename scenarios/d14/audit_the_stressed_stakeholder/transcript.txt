@@ -1,0 +1,17 @@
+[14:02:15] Sarah (Director of Operations): @IT-Alerts The ERP system is down again. Warehouse is at a standstill. I have 12 trucks waiting to load. Status?
+
+[14:04:10] Mike (Sysadmin): Checking.
+
+[14:08:30] Mike (Sysadmin): Looks like a deadlock on the SQL backend. The transaction log is full because the snapshot process hung.
+
+[14:09:15] Sarah: Mike, I don't know what that means. When will it be back up? We are losing money every minute those trucks are sitting.
+
+[14:11:05] Mike (Sysadmin): I have to expand the LUN on the SAN first, then I can extend the volume in Windows and shrink the log. It’s a standard maintenance task but the array is being slow because of the IOPS spike.
+
+[14:12:40] Sarah: Mike. I need a time. 15 minutes? An hour? Give me something I can tell the VP.
+
+[14:15:20] Mike (Sysadmin): I can't give you a time. It depends on when the SAN finishes the block allocation. Could be 5 minutes, could be 30. Just let me work, I'll update when it's done.
+
+[14:25:10] Sarah: Mike, it’s been 10 minutes. VP is asking for an update. Should I tell the drivers to go home?
+
+[14:27:45] Mike (Sysadmin): I'm still waiting on the SAN. I told you I'd update when it's done. Messaging me every 5 minutes just makes this take longer. 

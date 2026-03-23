@@ -1,0 +1,14 @@
+Mike’s communication during this incident represents a failure of "Theory of Mind"—he failed to model Sarah’s needs or the business context, leading to a breakdown in trust that is more damaging than the technical outage itself.
+
+Key Failures:
+1. Jargon Overload: Mike used internal technical details ("deadlock on SQL," "IOPS spike") as a shield. Sarah doesn't need to know about LUNs; she needs to know the system is unusable and what IT is doing to restore it. 
+2. Lack of Operational Empathy: Sarah gave Mike the business impact (12 trucks waiting). Mike’s failure to acknowledge this pain signals to the business that IT is disconnected from the company’s core mission.
+3. Adversarial Posture: Treating a stakeholder as a distraction is a professional failure. Mike failed to realize that Sarah’s "pinging" is a symptom of his own failure to provide a reliable update cadence.
+
+Remediation and Corrective Approach:
+Mike should have used a "Translate, Empathize, Commit" pattern:
+- Translate: "We've identified a storage issue slowing down the database. We are expanding capacity now to restore service."
+- Empathize: "I understand we have trucks waiting and this is a high-priority situation. We are moving as fast as possible."
+- Commit: "I can't give an exact time yet, but conservatively, expect at least 30 minutes. I will send you a proactive update in 15 minutes, even if the status hasn't changed."
+
+By setting a 15-minute cadence, Mike would have stopped Sarah from pinging him, managed the VP's expectations, and maintained professional trust during a crisis. His current approach damages IT’s reputation and creates an 'us vs. them' dynamic that will persist long after the database is fixed.

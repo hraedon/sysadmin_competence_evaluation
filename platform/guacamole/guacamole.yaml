@@ -5,7 +5,7 @@ metadata:
   namespace: assessment
 type: Opaque
 stringData:
-  POSTGRES_PASSWORD: "<REDACTED_DB_PWD>"
+  POSTGRES_PASSWORD: "<REDACTED>"
 
 ---
 apiVersion: apps/v1

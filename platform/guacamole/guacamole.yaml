@@ -1,0 +1,136 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: guacamole-db-secret
+  namespace: assessment
+type: Opaque
+stringData:
+  POSTGRES_PASSWORD: "<REDACTED_DB_PWD>"
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: guacd
+  namespace: assessment
+  labels:
+    app: guacd
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: guacd
+  template:
+    metadata:
+      labels:
+        app: guacd
+    spec:
+      containers:
+      - name: guacd
+        image: guacamole/guacd:latest
+        ports:
+        - containerPort: 4822
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: guacd
+  namespace: assessment
+spec:
+  selector:
+    app: guacd
+  ports:
+  - port: 4822
+    targetPort: 4822
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: guacamole
+  namespace: assessment
+  labels:
+    app: guacamole
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: guacamole
+  template:
+    metadata:
+      labels:
+        app: guacamole
+    spec:
+      containers:
+      - name: guacamole
+        image: guacamole/guacamole:latest
+        ports:
+        - containerPort: 8080
+        env:
+        - name: GUACD_HOSTNAME
+          value: "guacd"
+        - name: POSTGRESQL_HOSTNAME
+          value: "mvmpostgres01.ad.hraedon.com"
+        - name: POSTGRESQL_DATABASE
+          value: "guacamole_db"
+        - name: POSTGRESQL_USER
+          value: "guacamole"
+        - name: POSTGRESQL_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: guacamole-db-secret
+              key: POSTGRES_PASSWORD
+        # Legacy fallback
+        - name: POSTGRES_HOSTNAME
+          value: "mvmpostgres01.ad.hraedon.com"
+        - name: POSTGRES_DATABASE
+          value: "guacamole_db"
+        - name: POSTGRES_USER
+          value: "guacamole"
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: guacamole-db-secret
+              key: POSTGRES_PASSWORD
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: guacamole
+  namespace: assessment
+spec:
+  selector:
+    app: guacamole
+  ports:
+  - port: 8080
+    targetPort: 8080
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: guacamole
+  namespace: assessment
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+spec:
+  ingressClassName: traefik-internal
+  rules:
+  - host: guacamole.k8s.hraedon.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: guacamole
+            port:
+              number: 8080
+  tls:
+  - hosts:
+    - guacamole.k8s.hraedon.com
+    secretName: guacamole-tls

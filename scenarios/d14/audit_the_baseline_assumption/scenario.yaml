@@ -1,0 +1,67 @@
+schema_version: '2.0'
+id: d14-audit-the-baseline-assumption
+title: The Baseline Assumption
+domain: 14
+domain_name: Theory of Mind & Communication
+level: 3
+delivery_modes:
+  - A
+difficulty:
+  score: 4
+  reasoning: |
+    Both parties are acting in good faith with internally consistent reasoning. The candidate must resist the pull toward blaming one team and instead identify the shared assumption gap. Finding the specific load-bearing phrase requires close reading under the assumption that both interpretations are simultaneously defensible — a cognitive posture that is easy to abandon when one reading seems more "obviously correct."
+presentation:
+  modes:
+    A:
+      type: email_chain
+      artifact_file: scenarios/d14/audit_the_baseline_assumption/email_chain.txt
+      context: |
+        Two weeks after Project Orion's server provisioning work closed, a dispute
+        has emerged between the Infrastructure team and Security Operations over
+        whether the project's compliance requirement was met. You are reviewing
+        the email thread as part of a CAB post-project audit.
+
+        Analyze the communication. Identify why both parties believe they are
+        correct, what assumptions each team held that the other did not share,
+        and what gap in the project specification enabled this dispute.
+rubric:
+  findings:
+    - id: spec_ambiguity_is_root_cause
+      type: critical
+      description: |
+        Neither party is wrong given their interpretation of the spec. David's team applied the baseline at deployment exactly as specified. Priya's team correctly identifies that "compliant" in a security context implies an ongoing state, not a snapshot. The dispute is not a performance failure of either team — it is a failure of the spec to define which meaning of "compliant" applied.
+      miss_signal: |
+        Candidate sides with one party. "Infrastructure should have known to enroll in patch management" or "Security is retroactively adding scope." Treats this as a performance failure rather than a specification gap.
+      learning_note: |
+        In IT, "compliant" has both point-in-time and continuous meanings. A "compliant state at deployment" and "ongoing baseline compliance" are different requirements. Project specs must define the temporal scope of security requirements explicitly — especially when both readings are operationally common.
+    - id: hidden_assumption_asymmetry
+      type: critical
+      description: |
+        Each team operated within their own internally consistent model: Infrastructure's provisioning process produces a deployment-time snapshot; Security's tooling measures ongoing state. Neither team stated their interpretation before work began because each assumed the other shared their reading. The ambiguity was invisible to both parties until the gap was discovered post-delivery — the most dangerous kind of shared assumption.
+      miss_signal: |
+        Candidate identifies that the teams disagreed but does not explain why neither team surfaced the divergence before delivery. Treats the disagreement as a communication failure rather than a mutual assumption gap where both parties had no reason to question their own model.
+      learning_note: |
+        Shared assumptions produce no visible conflict until the gap is discovered. Specs must be precise enough that two teams with different operational models would produce identical output. If a requirement can be met by two fundamentally different processes, the requirement is under-specified.
+    - id: enrollment_ownership_gap
+      type: secondary
+      description: |
+        The spec assigns baseline application to Infrastructure but says nothing about who enrolls new servers in continuous compliance monitoring at provisioning time, or who owns drift remediation afterward. This process integration gap is unresolved regardless of how the spec dispute is settled — and is the practical consequence of the ambiguity that will persist until it is explicitly assigned.
+      miss_signal: |
+        Candidate resolves the "what does compliant mean" question without addressing the unresolved ownership question for ongoing monitoring enrollment and drift remediation.
+      severity: high
+    - id: load_bearing_language_identification
+      type: secondary
+      description: |
+        The phrase "at provisioning time" is the load-bearing disambiguator. It anchors "compliant state" to a specific moment, making Infrastructure's point-in-time reading the natural reading of the sentence. A continuous-compliance requirement would not include a temporal anchor — it would say the server "must maintain" or "must remain compliant." The L4 candidate identifies this specific phrase as the mechanism that enabled both readings and proposes replacement language that closes both the temporal ambiguity and the enrollment ownership gap.
+      miss_signal: |
+        Candidate says the spec "was unclear" or "needed more detail" without identifying which specific phrase enabled both readings or what the spec should have said to foreclose the wrong reading.
+      severity: high
+  level_indicators:
+    level_1: |
+      Sides with one party. Typically blames Infrastructure ("they should have known compliance is ongoing, this is basic sysadmin practice") or defends Infrastructure and dismisses Security as adding retroactive scope. Does not recognize that both teams had a defensible reading of the spec.
+    level_2: |
+      Acknowledges both teams have a point. Notes that the spec "could have been clearer" or "was ambiguous." Does not explain why both readings are simultaneously defensible from the spec text, or why neither team surfaced the divergence before delivery.
+    level_3: |
+      Identifies both critical findings: the spec genuinely supports both interpretations (neither team is wrong), and neither team surfaced the divergence pre-delivery because each operated within a consistent internal model that gave them no reason to question their reading. Notes the enrollment ownership gap as an unresolved practical question. Does NOT identify the specific phrase that enabled both readings or propose replacement language.
+    level_4: |
+      All of the above, plus identifies "at provisioning time" as the phrase that anchored "compliant state" to a snapshot reading — explains that a continuous-compliance requirement would use "must maintain" or "must remain compliant" rather than a temporal anchor. Proposes specific replacement language that closes both the temporal ambiguity and the enrollment ownership gap. Does NOT merely say the spec needed more detail — names the specific phrase and the linguistic mechanism by which it made one reading natural and the other invisible.

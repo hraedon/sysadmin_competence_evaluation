@@ -1,153 +1,59 @@
+schema_version: '2.0'
 id: d07-audit-the-burstable-vm
+title: The Cheaper VM
 domain: 7
-domain_name: "Cloud Infrastructure"
+domain_name: Cloud Infrastructure
 level: 2
-title: "The Cheaper VM"
-delivery_mode: A
-subtype: null
-
+delivery_modes:
+  - A
 difficulty: 3
-difficulty_note: >
-  The B-series burstable VM is identified by name in the artifact, but recognising the
-  significance of "burstable" requires knowing that B-series VMs throttle to a sustained
-  CPU baseline well below the advertised vCPU count once credits deplete. The metrics
-  tell the complete story if you know what CPU Credits Remaining means — but candidates
-  who do not recognise the credit model will read "CPU at 40%" as "CPU is fine" rather
-  than "CPU is throttled to its floor." The testing period distractor is strong: three
-  days of successful testing is plausible evidence of suitability unless the candidate
-  knows that B-series VMs start with a full credit balance that makes them appear
-  capable under any load until credits exhaust.
-
 presentation:
-  type: environment_description
-  artifact_file: "scenarios/d07/audit_the_burstable_vm/incident_report.txt"
-  context: |
-    A production data processing service has shown severe performance degradation since
-    its go-live three days ago. The attached document contains the support ticket, the
-    infrastructure details, the service description, and Azure Monitor metrics for the
-    first four hours of production and the subsequent 72-hour window.
+  modes:
+    A:
+      type: environment_description
+      artifact_file: scenarios/d07/audit_the_burstable_vm/incident_report.txt
+      context: |
+        A production data processing service has shown severe performance degradation since
+        its go-live three days ago. The attached document contains the support ticket, the
+        infrastructure details, the service description, and Azure Monitor metrics for the
+        first four hours of production and the subsequent 72-hour window.
 
-    Identify the root cause of the performance degradation and assess whether the
-    current infrastructure configuration is appropriate for this workload.
-
-# Most similar to: d05-audit-cloud-storage-complaint (both involve cloud-managed resource
-# performance tiers and a testing methodology that failed to surface the constraint under
-# production conditions). How the reasoning challenge differs: the cloud storage scenario
-# tests burst credit exhaustion at the disk level, with a separate competing constraint
-# (VM-level throughput cap). This scenario tests burst credit exhaustion at the VM CPU
-# level, where the credit model is the only constraint — the diagnosis is simpler but
-# requires knowing the B-series credit model specifically. The testing methodology failure
-# here is also more prominent: three days of testing is a strong-looking validation that
-# failed because the credit balance masked the throttle.
-
+        Identify the root cause of the performance degradation and assess whether the
+        current infrastructure configuration is appropriate for this workload.
 rubric:
-  critical_findings:
+  findings:
     - id: b_series_cpu_credits_exhausted
-      description: >
-        The Standard_B2ms is an Azure burstable VM. B-series VMs earn CPU credits when
-        CPU utilisation is below the VM's baseline percentage, and spend credits when CPU
-        utilisation exceeds the baseline. For the B2ms, the baseline CPU performance is
-        40% of 2 vCPUs. When burst credits reach zero, the VM is throttled to that
-        baseline and cannot exceed it regardless of actual CPU demand. The metrics confirm
-        this exactly: CPU Credits Remaining depleted from 60 (full) to 0 within 75 minutes
-        of go-live, and CPU utilisation has been pinned at 39–41% — the B2ms baseline —
-        for three days since. The slow processing is not a service bug or a platform
-        anomaly. The VM is operating correctly within its throttled state. The constraint
-        is the VM type.
+      description: |
+        The Standard_B2ms is an Azure burstable VM. B-series VMs earn CPU credits when CPU utilisation is below the VM's baseline percentage, and spend credits when CPU utilisation exceeds the baseline. For the B2ms, the baseline CPU performance is 40% of 2 vCPUs. When burst credits reach zero, the VM is throttled to that baseline and cannot exceed it regardless of actual CPU demand. The metrics confirm this exactly: CPU Credits Remaining depleted from 60 (full) to 0 within 75 minutes of go-live, and CPU utilisation has been pinned at 39–41% — the B2ms baseline — for three days since. The slow processing is not a service bug or a platform anomaly. The VM is operating correctly within its throttled state. The constraint is the VM type.
       severity: critical
-      miss_signal: >
-        Candidate identifies CPU as high and recommends increasing VM size, or recommends
-        investigating the application for inefficiency, without identifying the B-series
-        burst credit mechanism. "CPU at 40% — not maxed, check application" is a common
-        wrong reading of the post-depletion metrics: 40% is the throttled ceiling, not a
-        moderate utilisation level. The CPU Credits Remaining metric dropping to zero and
-        correlating with the performance degradation onset is the key diagnostic indicator.
-
+      miss_signal: |
+        Candidate identifies CPU as high and recommends increasing VM size, or recommends investigating the application for inefficiency, without identifying the B-series burst credit mechanism. "CPU at 40% — not maxed, check application" is a common wrong reading of the post-depletion metrics: 40% is the throttled ceiling, not a moderate utilisation level. The CPU Credits Remaining metric dropping to zero and correlating with the performance degradation onset is the key diagnostic indicator.
+      type: critical
     - id: b_series_wrong_vm_family_for_sustained_workload
-      description: >
-        B-series VMs are designed for workloads that are mostly idle with occasional CPU
-        bursts — development environments, low-traffic web servers, intermittent batch
-        jobs. The ProcessingWorker is the opposite: a continuous processing pipeline that
-        reads from a queue and processes messages as fast as they arrive, with a sustained
-        throughput target of 50 messages/second. This workload will perpetually exceed the
-        B2ms CPU baseline, making credit exhaustion the steady state rather than an edge
-        case. The fix is not a larger B-series VM: a B4ms has a baseline of 40% of 4 vCPUs
-        (1.6 sustained vCPUs), which would delay credit exhaustion but not prevent it under
-        continuous load. The correct remediation is a non-burstable VM from a compute-
-        appropriate family — Standard_D2s_v3 (2 vCPU, 8 GiB, full sustained access)
-        provides equivalent memory at predictable CPU performance.
+      description: |
+        B-series VMs are designed for workloads that are mostly idle with occasional CPU bursts — development environments, low-traffic web servers, intermittent batch jobs. The ProcessingWorker is the opposite: a continuous processing pipeline that reads from a queue and processes messages as fast as they arrive, with a sustained throughput target of 50 messages/second. This workload will perpetually exceed the B2ms CPU baseline, making credit exhaustion the steady state rather than an edge case. The fix is not a larger B-series VM: a B4ms has a baseline of 40% of 4 vCPUs (1.6 sustained vCPUs), which would delay credit exhaustion but not prevent it under continuous load. The correct remediation is a non-burstable VM from a compute- appropriate family — Standard_D2s_v3 (2 vCPU, 8 GiB, full sustained access) provides equivalent memory at predictable CPU performance.
       severity: critical
-      miss_signal: >
-        Candidate recommends upgrading to a larger B-series VM (B4ms, B8ms) rather than
-        switching to a non-burstable family. This treats the VM size as the problem when
-        the VM family is the problem. Or: candidate recommends the D2s_v3 without
-        explaining why B-series is unsuitable for this workload class, leaving open the
-        possibility of returning to a B-series in the future.
-
-  secondary_findings:
+      miss_signal: |
+        Candidate recommends upgrading to a larger B-series VM (B4ms, B8ms) rather than switching to a non-burstable family. This treats the VM size as the problem when the VM family is the problem. Or: candidate recommends the D2s_v3 without explaining why B-series is unsuitable for this workload class, leaving open the possibility of returning to a B-series in the future.
+      type: critical
     - id: testing_did_not_catch_this
-      description: >
-        The B2ms starts with a full credit balance (60 credits — approximately 1 hour of
-        100% CPU above baseline). Three days of test load did not deplete this balance
-        because the test traffic was insufficient to sustain CPU above the 40% baseline.
-        The credit balance gave the appearance of full VM capability during testing: the
-        VM could burst to 100% CPU freely because credits were available. Production load
-        was the first workload to consistently exceed the baseline, and credit exhaustion
-        occurred within 75 minutes. The three-day test period is not valid evidence of
-        production suitability — it only confirms the service works when the VM can burst.
-        A valid performance test for a sustained processing workload requires running
-        representative throughput for long enough to exhaust the credit balance and
-        confirm performance at the throttled baseline.
+      description: |
+        The B2ms starts with a full credit balance (60 credits — approximately 1 hour of 100% CPU above baseline). Three days of test load did not deplete this balance because the test traffic was insufficient to sustain CPU above the 40% baseline. The credit balance gave the appearance of full VM capability during testing: the VM could burst to 100% CPU freely because credits were available. Production load was the first workload to consistently exceed the baseline, and credit exhaustion occurred within 75 minutes. The three-day test period is not valid evidence of production suitability — it only confirms the service works when the VM can burst. A valid performance test for a sustained processing workload requires running representative throughput for long enough to exhaust the credit balance and confirm performance at the throttled baseline.
       severity: high
-      learning_note: >
-        B-series VMs start each provisioning with a full credit bucket. Credits accumulate
-        when CPU is below the baseline and deplete when above it. A service that is tested
-        with low or intermittent load will never exhaust the initial credits, making the
-        VM appear capable of higher CPU performance than it can sustain. Testing is only
-        valid evidence of sustained performance if the test runs long enough (and at high
-        enough CPU utilisation) to deplete the credit balance and confirm behaviour at
-        the throttled baseline.
-
+      learning_note: |
+        B-series VMs start each provisioning with a full credit bucket. Credits accumulate when CPU is below the baseline and deplete when above it. A service that is tested with low or intermittent load will never exhaust the initial credits, making the VM appear capable of higher CPU performance than it can sustain. Testing is only valid evidence of sustained performance if the test runs long enough (and at high enough CPU utilisation) to deplete the credit balance and confirm behaviour at the throttled baseline.
+      type: secondary
     - id: cost_assumption_is_inverted
-      description: >
-        The deployment notes cite ~40% cost savings as the reason for choosing B2ms over
-        D2s_v3. The cost saving is real, but only valid if the workload is appropriate
-        for the burstable model. For a workload that continuously exceeds the CPU baseline,
-        the B2ms delivers approximately 0.8 sustained vCPUs against the D2s_v3's 2 vCPUs.
-        The cheaper VM produces lower throughput per dollar for this workload than the
-        D2s_v3 would have — the optimisation produced the opposite of the intended result.
+      description: |
+        The deployment notes cite ~40% cost savings as the reason for choosing B2ms over D2s_v3. The cost saving is real, but only valid if the workload is appropriate for the burstable model. For a workload that continuously exceeds the CPU baseline, the B2ms delivers approximately 0.8 sustained vCPUs against the D2s_v3's 2 vCPUs. The cheaper VM produces lower throughput per dollar for this workload than the D2s_v3 would have — the optimisation produced the opposite of the intended result.
       severity: moderate
-
+      type: secondary
   level_indicators:
-    level_1: >
-      Identifies that the VM's CPU is high and performance is degraded. Recommends
-      increasing VM size or investigating the application for a CPU-consuming bug.
-      Does not identify the B-series burst credit mechanism or recognise that CPU at 40%
-      represents a throttled ceiling rather than moderate utilisation. May read the
-      three-day successful test period as evidence that the infrastructure was adequate
-      and focus the investigation on changes since go-live.
-    level_2: >
-      Identifies the Standard_B2ms as a burstable VM and explains that CPU burst credits
-      have depleted to zero, throttling the VM to its sustained CPU baseline. Connects
-      the metric correlation (credits reach zero at 11:15, performance degrades at 11:30)
-      to the root cause. Recommends switching to a non-burstable VM family (D2s_v3 or
-      equivalent) that provides full CPU access continuously. Does NOT explain why three
-      days of testing failed to surface this, or why any B-series VM is the wrong choice
-      for this workload class regardless of size.
-    level_3: >
-      All of the above plus: explains why the test period did not catch the issue —
-      B-series VMs start with a full credit balance; test load was insufficient to sustain
-      CPU above the 40% baseline long enough to deplete it; production is the first
-      workload that continuously exceeds the baseline. Notes that a valid performance test
-      for a sustained processing workload requires running representative throughput long
-      enough to exhaust credits and confirm throttled-baseline performance. Does NOT
-      address why B-series is the wrong VM family for this workload class, or explain the
-      cost assumption failure.
-    level_4: >
-      All of the above plus: addresses the workload classification error — continuous
-      processing pipelines are structurally the opposite of the burstable workload B-series
-      is designed for, making credit exhaustion the steady state for any B-series VM under
-      this load. Articulates the correct VM family selection framework: idle/bursty workloads
-      → B-series; sustained CPU workloads → D/F/compute-optimised series. Notes that the
-      cost comparison was structurally invalid: the 40% price saving assumed equivalent
-      sustained CPU capacity, which the B2ms cannot provide for this workload.
+    level_1: |
+      Identifies that the VM's CPU is high and performance is degraded. Recommends increasing VM size or investigating the application for a CPU-consuming bug. Does not identify the B-series burst credit mechanism or recognise that CPU at 40% represents a throttled ceiling rather than moderate utilisation. May read the three-day successful test period as evidence that the infrastructure was adequate and focus the investigation on changes since go-live.
+    level_2: |
+      Identifies the Standard_B2ms as a burstable VM and explains that CPU burst credits have depleted to zero, throttling the VM to its sustained CPU baseline. Connects the metric correlation (credits reach zero at 11:15, performance degrades at 11:30) to the root cause. Recommends switching to a non-burstable VM family (D2s_v3 or equivalent) that provides full CPU access continuously. Does NOT explain why three days of testing failed to surface this, or why any B-series VM is the wrong choice for this workload class regardless of size.
+    level_3: |
+      All of the above plus: explains why the test period did not catch the issue — B-series VMs start with a full credit balance; test load was insufficient to sustain CPU above the 40% baseline long enough to deplete it; production is the first workload that continuously exceeds the baseline. Notes that a valid performance test for a sustained processing workload requires running representative throughput long enough to exhaust credits and confirm throttled-baseline performance. Does NOT address why B-series is the wrong VM family for this workload class, or explain the cost assumption failure.
+    level_4: |
+      All of the above plus: addresses the workload classification error — continuous processing pipelines are structurally the opposite of the burstable workload B-series is designed for, making credit exhaustion the steady state for any B-series VM under this load. Articulates the correct VM family selection framework: idle/bursty workloads → B-series; sustained CPU workloads → D/F/compute-optimised series. Notes that the cost comparison was structurally invalid: the 40% price saving assumed equivalent sustained CPU capacity, which the B2ms cannot provide for this workload.

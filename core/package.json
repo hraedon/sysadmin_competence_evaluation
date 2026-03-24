@@ -1,0 +1,6 @@
+{
+  "name": "@sysadmin-competence/core",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "evaluator.js"
+}

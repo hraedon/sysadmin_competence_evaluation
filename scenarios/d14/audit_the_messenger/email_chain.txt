@@ -1,0 +1,67 @@
+From: Sandra (COO)
+To: Kevin (IT Director)
+Subject: FW: Integration Project — Revised Go-Live
+
+Kevin,
+
+Regulatory approval came through this morning. The deal closes on the 19th.
+That means go-live is the 19th. I know we had been planning for end of month
+and I know what a two-week pull-forward means for your team. There is no flex
+on this date — it is written into the acquisition agreement.
+
+Legal has confirmed we can now share the approval status with direct reports
+as needed. I'd ask that you keep specifics about the deal terms out of written
+communication for now.
+
+You have my full support for whatever escalations or resource requests you need
+in the next two weeks. Please come to me directly.
+
+Sandra
+
+--------------------------------------------------
+From: Kevin (IT Director)
+To: Rachel (Infrastructure Team Lead)
+Subject: FW: Integration Project — Revised Go-Live
+
+Rachel,
+
+Forwarding Sandra's note. The short version: regulatory approval came through
+and the go-live date has moved to the 19th. I understand this is a significant
+change from what we had been planning toward.
+
+I can tell you that the date is not coming from a management decision — it's
+tied directly to the deal close, which is now fixed by the acquisition
+agreement. There is no path to an extension.
+
+I know you've had to absorb a lot of timeline uncertainty over the past few
+months. Most of that was because we genuinely didn't know when approval would
+come, and I couldn't share the details while we were waiting. I recognize
+that's been hard to work within.
+
+Let me know what you need. I can escalate resource requests to Sandra directly
+if that would help.
+
+Kevin
+
+--------------------------------------------------
+From: Rachel (Infrastructure Team Lead)
+To: Infra-Integration-Team
+Subject: FW: Integration Project — Revised Go-Live
+
+Team —
+
+Not going to sugarcoat it. See below.
+
+Go-live is now the 19th. That's two weeks from today. I know. I'm forwarding
+the chain so you have the full picture — I don't have any more context than
+what's here.
+
+We're going to need to completely re-sequence everything we've planned for the
+back half of the month. I'd ask everyone to review their current task list
+before our 3pm standup and think about what's actually possible in two weeks
+versus what we need to flag as at-risk.
+
+I'm sorry. This project has been a moving target since day one and I know
+everyone is exhausted. We'll get through it.
+
+Rachel

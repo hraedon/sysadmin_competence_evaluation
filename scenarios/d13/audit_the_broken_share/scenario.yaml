@@ -1,216 +1,74 @@
+schema_version: '2.0'
 id: d13-audit-the-broken-share
+title: No Recent Changes
 domain: 13
-domain_name: "Cross-domain Synthesis"
+domain_name: Cross-domain Synthesis
 level: 3
-title: "No Recent Changes"
-delivery_mode: A
-subtype: synthesis
-
-# Scenario note (for scenario authors and evaluators):
-# Most similar to: d01-audit-ai-gave-you-this (both present an artifact where
-# the surface evidence points away from the real cause, and the candidate must
-# reason past a plausible-but-wrong explanation).
-# How the reasoning challenge differs: the AI script scenario tests whether the
-# candidate can identify what the code actually does vs. what the requester
-# assumed. This scenario tests whether the candidate can identify a deferred
-# enforcement gap — a class of system change where the policy-set date and the
-# effective-change date are different, and the gap is invisible to anyone who
-# only tracks the policy application event. The cross-domain synthesis demand
-# is higher: the candidate must integrate GPO mechanics (Windows), Samba version
-# constraints (Linux), and change management process reasoning simultaneously.
-
-presentation:
-  type: log_extract
-  artifact_file: "scenarios/d13/audit_the_broken_share/incident_notes.txt"
-  context: |
-    A Linux batch processing system (LINPROC01, Ubuntu 18.04) has been unable
-    to connect to a Windows file server share (\\FILESRV01\DataShare) since
-    approximately 2026-03-08. The job has run successfully for over two years.
-    The Windows server team reports no recent changes to the file server.
-
-    Review the incident notes and answer the following:
-    (1) What is the root cause of the connection failure?
-    (2) Why does the Windows server team's "no recent changes" statement appear
-        to contradict the timeline of events?
-    (3) What remediation options are available, and what are the tradeoffs?
-
+delivery_modes:
+  - A
 difficulty: 4
-difficulty_note: >
-  The artifact contains a genuine exculpatory signal from the server team ("no
-  recent changes") that is technically accurate but operationally misleading.
-  Resolving this requires the candidate to understand both that LanmanServer
-  registry settings require a service restart to take effect, and that Samba 3.6
-  cannot negotiate SMB2 — two independent domain constraints (Windows GPO
-  mechanics, Linux Samba version history) that must be held simultaneously. The
-  GPO application history in the artifact provides the enforcement timing signal
-  but it is presented without explanation, requiring the candidate to interpret
-  "Last Group Policy application: 2026-03-07 03:22 UTC" in the context of the
-  patch reboot on the same date.
+presentation:
+  modes:
+    A:
+      type: log_extract
+      artifact_file: scenarios/d13/audit_the_broken_share/incident_notes.txt
+      context: |
+        A Linux batch processing system (LINPROC01, Ubuntu 18.04) has been unable
+        to connect to a Windows file server share (\\FILESRV01\DataShare) since
+        approximately 2026-03-08. The job has run successfully for over two years.
+        The Windows server team reports no recent changes to the file server.
 
+        Review the incident notes and answer the following:
+        (1) What is the root cause of the connection failure?
+        (2) Why does the Windows server team's "no recent changes" statement appear
+            to contradict the timeline of events?
+        (3) What remediation options are available, and what are the tradeoffs?
 rubric:
-  critical_findings:
+  findings:
     - id: smb1_disabled_on_server_not_supported_by_client
-      description: >
-        The root cause is a protocol mismatch: FILESRV01 no longer offers SMB1
-        (disabled by the Security Baseline GPO, enforced when LanmanServer
-        restarted on 2026-03-07), and Samba 3.6.25 on LINPROC01 can only
-        negotiate SMB1-era dialects (LANMAN1, LANMAN2, NT LM 0.12 — all SMB1
-        variants). The Samba log confirms the client offered only these dialects
-        and the negotiation failed. Port 445 is open and ping succeeds, which
-        rules out network-layer failure and confirms the failure is at the SMB
-        protocol negotiation layer.
+      description: |
+        The root cause is a protocol mismatch: FILESRV01 no longer offers SMB1 (disabled by the Security Baseline GPO, enforced when LanmanServer restarted on 2026-03-07), and Samba 3.6.25 on LINPROC01 can only negotiate SMB1-era dialects (LANMAN1, LANMAN2, NT LM 0.12 — all SMB1 variants). The Samba log confirms the client offered only these dialects and the negotiation failed. Port 445 is open and ping succeeds, which rules out network-layer failure and confirms the failure is at the SMB protocol negotiation layer.
       severity: critical
-      miss_signal: >
-        Candidate focuses on network connectivity — notes that port 445 is open
-        and ping works — and concludes the issue is not network-related, then
-        pivots to share permissions, authentication, or DNS without identifying
-        that the failure is at SMB protocol negotiation. Or: candidate identifies
-        the GPO disabling SMB1 but does not connect it to Samba 3.6's inability
-        to negotiate SMB2 or higher, framing the issue as a configuration problem
-        rather than a version constraint.
-      learning_note: >
-        When TCP port 445 is open but smbclient returns NT_STATUS_CONNECTION_REFUSED,
-        the failure is at the SMB session/protocol layer, not the network or
-        firewall layer. The Samba log dialect list (LANMAN1, LANMAN2, NT LM 0.12)
-        identifies the client's negotiation capability — these are all SMB1-era
-        dialects. SMB2 support in Samba requires version 3.6 with explicit
-        configuration, and full production-grade SMB2 support arrived in Samba 4.x.
-        A Samba 3.6.25 installation cannot negotiate SMB2 with a server that has
-        disabled SMB1. The correct diagnostic step is to correlate the client's
-        offered dialects against the server's currently enabled protocols.
-
+      miss_signal: |
+        Candidate focuses on network connectivity — notes that port 445 is open and ping works — and concludes the issue is not network-related, then pivots to share permissions, authentication, or DNS without identifying that the failure is at SMB protocol negotiation. Or: candidate identifies the GPO disabling SMB1 but does not connect it to Samba 3.6's inability to negotiate SMB2 or higher, framing the issue as a configuration problem rather than a version constraint.
+      learning_note: |
+        When TCP port 445 is open but smbclient returns NT_STATUS_CONNECTION_REFUSED, the failure is at the SMB session/protocol layer, not the network or firewall layer. The Samba log dialect list (LANMAN1, LANMAN2, NT LM 0.12) identifies the client's negotiation capability — these are all SMB1-era dialects. SMB2 support in Samba requires version 3.6 with explicit configuration, and full production-grade SMB2 support arrived in Samba 4.x. A Samba 3.6.25 installation cannot negotiate SMB2 with a server that has disabled SMB1. The correct diagnostic step is to correlate the client's offered dialects against the server's currently enabled protocols.
+      type: critical
     - id: gpo_change_effective_on_reboot_not_at_application
-      description: >
-        The GPO disabling SMB1 was applied to FILESRV01 on 2026-01-28 (6 weeks
-        before the outage), but the LanmanServer registry setting (SMB1=0) only
-        takes effect when the LanmanServer service restarts. FILESRV01 rebooted
-        on 2026-03-07 for the monthly patch cycle — this restart brought
-        LanmanServer up with SMB1 disabled for the first time. The GPO application
-        history in the incident notes records this: "Last Group Policy application:
-        2026-03-07 03:22 UTC" corresponds to the post-reboot GPO application at
-        patch time. The Windows server team's "no recent changes" is accurate from
-        their perspective: the GPO was set 6 weeks ago and the reboot was routine
-        maintenance. But the effective change — SMB1 actually being disabled in
-        the running LanmanServer service — occurred on 2026-03-07.
+      description: |
+        The GPO disabling SMB1 was applied to FILESRV01 on 2026-01-28 (6 weeks before the outage), but the LanmanServer registry setting (SMB1=0) only takes effect when the LanmanServer service restarts. FILESRV01 rebooted on 2026-03-07 for the monthly patch cycle — this restart brought LanmanServer up with SMB1 disabled for the first time. The GPO application history in the incident notes records this: "Last Group Policy application: 2026-03-07 03:22 UTC" corresponds to the post-reboot GPO application at patch time. The Windows server team's "no recent changes" is accurate from their perspective: the GPO was set 6 weeks ago and the reboot was routine maintenance. But the effective change — SMB1 actually being disabled in the running LanmanServer service — occurred on 2026-03-07.
       severity: critical
-      miss_signal: >
-        Candidate accepts the server team's "no recent changes" at face value and
-        does not investigate the relationship between the 2026-01-28 GPO
-        application and the 2026-03-07 patch reboot. Or: candidate identifies
-        the GPO and the reboot as separate facts but does not reason that the
-        registry setting is not dynamically applied — that LanmanServer must
-        restart to pick up the SMB1=0 value — and therefore does not explain why
-        a 6-week-old GPO change produced an outage coinciding with the patch reboot.
-      learning_note: >
-        Several Windows Server registry settings under LanmanServer\Parameters are
-        not dynamically applied. The SMB1 enable/disable setting (SMB1 REG_DWORD)
-        takes effect on the next service restart, not at the time the registry
-        value is written. A GPO that sets this value will write the registry entry
-        at the next Group Policy refresh, but the running LanmanServer service
-        continues to use its startup configuration until it restarts. This creates
-        a window — potentially weeks long — between "policy applied" and "change
-        enforced." Candidates should recognize that any GPO change targeting a
-        service parameter should be examined for whether the change requires a
-        service or system restart to take effect.
-
-  secondary_findings:
+      miss_signal: |
+        Candidate accepts the server team's "no recent changes" at face value and does not investigate the relationship between the 2026-01-28 GPO application and the 2026-03-07 patch reboot. Or: candidate identifies the GPO and the reboot as separate facts but does not reason that the registry setting is not dynamically applied — that LanmanServer must restart to pick up the SMB1=0 value — and therefore does not explain why a 6-week-old GPO change produced an outage coinciding with the patch reboot.
+      learning_note: |
+        Several Windows Server registry settings under LanmanServer\Parameters are not dynamically applied. The SMB1 enable/disable setting (SMB1 REG_DWORD) takes effect on the next service restart, not at the time the registry value is written. A GPO that sets this value will write the registry entry at the next Group Policy refresh, but the running LanmanServer service continues to use its startup configuration until it restarts. This creates a window — potentially weeks long — between "policy applied" and "change enforced." Candidates should recognize that any GPO change targeting a service parameter should be examined for whether the change requires a service or system restart to take effect.
+      type: critical
     - id: network_connectivity_is_not_the_issue
-      description: >
-        Ping to FILESRV01 succeeds and TCP port 445 is confirmed open. The failure
-        is not at the network layer. The diagnostic signal is that smbclient -L
-        returns NT_STATUS_CONNECTION_REFUSED while telnet/tcp-connect to port 445
-        succeeds — this combination indicates the TCP connection is established
-        but the SMB session is being refused at the protocol layer, before
-        authentication. This rules out firewall ACLs, routing failures, and DNS
-        resolution as candidate causes.
+      description: |
+        Ping to FILESRV01 succeeds and TCP port 445 is confirmed open. The failure is not at the network layer. The diagnostic signal is that smbclient -L returns NT_STATUS_CONNECTION_REFUSED while telnet/tcp-connect to port 445 succeeds — this combination indicates the TCP connection is established but the SMB session is being refused at the protocol layer, before authentication. This rules out firewall ACLs, routing failures, and DNS resolution as candidate causes.
       severity: moderate
-
+      type: secondary
     - id: samba_version_too_old_for_smb2
-      description: >
-        Samba 3.6.25 is an unusually old version. Ubuntu 18.04 ships Samba 4.7.6
-        as its default package. A Samba 3.6.25 installation on Ubuntu 18.04
-        is not a default package installation — it has been manually installed,
-        pinned, or compiled from source. Samba 3.6 has limited SMB2 support
-        (introduced experimentally in 3.6.0 but not production-ready); Samba 4.x
-        is required for reliable SMB2/3 negotiation. The Samba log's dialect list
-        (LANMAN1, LANMAN2, NT LM 0.12 — no SMB2 dialect offered) confirms the
-        client is operating in SMB1-only mode regardless of server capability.
+      description: |
+        Samba 3.6.25 is an unusually old version. Ubuntu 18.04 ships Samba 4.7.6 as its default package. A Samba 3.6.25 installation on Ubuntu 18.04 is not a default package installation — it has been manually installed, pinned, or compiled from source. Samba 3.6 has limited SMB2 support (introduced experimentally in 3.6.0 but not production-ready); Samba 4.x is required for reliable SMB2/3 negotiation. The Samba log's dialect list (LANMAN1, LANMAN2, NT LM 0.12 — no SMB2 dialect offered) confirms the client is operating in SMB1-only mode regardless of server capability.
       severity: moderate
-
+      type: secondary
     - id: remediation_options_and_security_tradeoffs
-      description: >
-        Three remediation paths exist: (1) Re-enable SMB1 on FILESRV01 by setting
-        SMB1=1 via GPO or directly — this is a security regression and should be
-        rejected as a long-term fix; SMB1 has known critical vulnerabilities
-        (EternalBlue/WannaCry class). (2) Upgrade Samba on LINPROC01 to 4.x and
-        configure SMB2 negotiation — requires testing the batch job against the
-        new Samba version and verifying authentication compatibility; this is the
-        correct fix. (3) Migrate LINPROC01 off Ubuntu 18.04 (EOL April 2023,
-        now past end of extended security maintenance) — addresses the Samba
-        version issue as part of a broader remediation and is the correct
-        long-term path. Temporarily re-enabling SMB1 while a migration plan is
-        developed may be acceptable as a short-term measure, but must be
-        time-bounded and documented.
+      description: |
+        Three remediation paths exist: (1) Re-enable SMB1 on FILESRV01 by setting SMB1=1 via GPO or directly — this is a security regression and should be rejected as a long-term fix; SMB1 has known critical vulnerabilities (EternalBlue/WannaCry class). (2) Upgrade Samba on LINPROC01 to 4.x and configure SMB2 negotiation — requires testing the batch job against the new Samba version and verifying authentication compatibility; this is the correct fix. (3) Migrate LINPROC01 off Ubuntu 18.04 (EOL April 2023, now past end of extended security maintenance) — addresses the Samba version issue as part of a broader remediation and is the correct long-term path. Temporarily re-enabling SMB1 while a migration plan is developed may be acceptable as a short-term measure, but must be time-bounded and documented.
       severity: moderate
-
+      type: secondary
     - id: change_management_gap_gpo_enforcement_timing
-      description: >
-        The 6-week gap between GPO application (2026-01-28) and effective
-        enforcement (2026-03-07 patch reboot) represents a class of change
-        management gap where the policy-set date and the effective-change date
-        diverge. The server team correctly reported "no recent changes" because
-        from their process perspective none occurred: the GPO was set weeks ago
-        and the reboot was routine. But the enforcement event — the point at which
-        the change became operationally real — was not tracked as a change event.
-        GPO changes whose enforcement depends on a service or system restart
-        should document the enforcement dependency explicitly, and the change
-        should be considered open (pending enforcement) until the restart occurs.
-        This would surface the effective change at patch-reboot time rather than
-        discovering it via a broken batch job two weeks later.
+      description: |
+        The 6-week gap between GPO application (2026-01-28) and effective enforcement (2026-03-07 patch reboot) represents a class of change management gap where the policy-set date and the effective-change date diverge. The server team correctly reported "no recent changes" because from their process perspective none occurred: the GPO was set weeks ago and the reboot was routine. But the enforcement event — the point at which the change became operationally real — was not tracked as a change event. GPO changes whose enforcement depends on a service or system restart should document the enforcement dependency explicitly, and the change should be considered open (pending enforcement) until the restart occurs. This would surface the effective change at patch-reboot time rather than discovering it via a broken batch job two weeks later.
       severity: low
-
+      type: secondary
   level_indicators:
-    level_1: >
-      Focuses on network connectivity. Notes that port 445 is open and ping
-      succeeds, and concludes the issue is not a firewall or routing problem.
-      Suggests investigating share permissions, whether LINPROC01 has a valid
-      domain account, or whether the share path changed. Does not identify SMB
-      protocol negotiation as the failure point and does not connect the Samba
-      log dialect list to the GPO disabling SMB1.
-    level_2: >
-      Identifies the failure at the SMB protocol negotiation layer: smbclient
-      fails while port 445 is open, indicating the TCP connection succeeds but
-      the SMB session is refused. Notes the GPO setting SMB1=0 on FILESRV01 and
-      that Samba 3.6 on LINPROC01 likely only supports SMB1-era dialects,
-      concluding there is a protocol mismatch. Does NOT connect the 2026-01-28
-      GPO application date to the 2026-03-07 patch reboot enforcement timing —
-      does not explain why a 6-week-old GPO change caused an outage coinciding
-      with the patch reboot. Does not identify Samba 3.6.25 as non-default on
-      Ubuntu 18.04 or address remediation tradeoffs beyond "upgrade Samba."
-    level_3: >
-      Correctly traces the full causal chain: GPO setting SMB1=0 was applied
-      2026-01-28, but LanmanServer registry parameters require a service restart
-      to take effect; FILESRV01 rebooted 2026-03-07 for the monthly patch cycle,
-      bringing LanmanServer up with SMB1 disabled for the first time; LINPROC01's
-      Samba 3.6.25 can only offer SMB1-era dialects and cannot negotiate with a
-      server that has disabled SMB1. Explains why the server team's "no recent
-      changes" is technically accurate (6-week-old GPO, routine patch reboot) but
-      operationally misleading: the effective change occurred on reboot.
-      Identifies Samba 3.6.25 as an unusually old build on Ubuntu 18.04 and
-      addresses remediation options including the security tradeoff of re-enabling
-      SMB1. Does NOT identify the change management process gap — that GPO changes
-      with service-restart-dependent enforcement should be tracked as open changes
-      until the enforcement event occurs.
-    level_4: >
-      All of the above plus: identifies the change management process gap as a
-      systemic issue. GPO changes whose enforcement depends on a service or system
-      restart represent a class of deferred enforcement where the policy-set date
-      and the effective-change date can diverge by days or weeks. The server team's
-      accurate but misleading "no recent changes" response is a predictable
-      consequence of a process that tracks policy application events but not
-      enforcement events. Recommends that GPO changes targeting service parameters
-      be documented with an explicit enforcement dependency (e.g., "requires
-      LanmanServer restart; will take effect at next patch reboot") and tracked as
-      open changes until the restart is confirmed. This would have surfaced the
-      enforcement at the 2026-03-07 patch cycle rather than discovering it through
-      a failed batch job.
+    level_1: |
+      Focuses on network connectivity. Notes that port 445 is open and ping succeeds, and concludes the issue is not a firewall or routing problem. Suggests investigating share permissions, whether LINPROC01 has a valid domain account, or whether the share path changed. Does not identify SMB protocol negotiation as the failure point and does not connect the Samba log dialect list to the GPO disabling SMB1.
+    level_2: |
+      Identifies the failure at the SMB protocol negotiation layer: smbclient fails while port 445 is open, indicating the TCP connection succeeds but the SMB session is refused. Notes the GPO setting SMB1=0 on FILESRV01 and that Samba 3.6 on LINPROC01 likely only supports SMB1-era dialects, concluding there is a protocol mismatch. Does NOT connect the 2026-01-28 GPO application date to the 2026-03-07 patch reboot enforcement timing — does not explain why a 6-week-old GPO change caused an outage coinciding with the patch reboot. Does not identify Samba 3.6.25 as non-default on Ubuntu 18.04 or address remediation tradeoffs beyond "upgrade Samba."
+    level_3: |
+      Correctly traces the full causal chain: GPO setting SMB1=0 was applied 2026-01-28, but LanmanServer registry parameters require a service restart to take effect; FILESRV01 rebooted 2026-03-07 for the monthly patch cycle, bringing LanmanServer up with SMB1 disabled for the first time; LINPROC01's Samba 3.6.25 can only offer SMB1-era dialects and cannot negotiate with a server that has disabled SMB1. Explains why the server team's "no recent changes" is technically accurate (6-week-old GPO, routine patch reboot) but operationally misleading: the effective change occurred on reboot. Identifies Samba 3.6.25 as an unusually old build on Ubuntu 18.04 and addresses remediation options including the security tradeoff of re-enabling SMB1. Does NOT identify the change management process gap — that GPO changes with service-restart-dependent enforcement should be tracked as open changes until the enforcement event occurs.
+    level_4: |
+      All of the above plus: identifies the change management process gap as a systemic issue. GPO changes whose enforcement depends on a service or system restart represent a class of deferred enforcement where the policy-set date and the effective-change date can diverge by days or weeks. The server team's accurate but misleading "no recent changes" response is a predictable consequence of a process that tracks policy application events but not enforcement events. Recommends that GPO changes targeting service parameters be documented with an explicit enforcement dependency (e.g., "requires LanmanServer restart; will take effect at next patch reboot") and tracked as open changes until the restart is confirmed. This would have surfaced the enforcement at the 2026-03-07 patch cycle rather than discovering it through a failed batch job.

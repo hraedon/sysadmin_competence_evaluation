@@ -1,0 +1,137 @@
+schema_version: "2.0"
+id: d08-commission-jit-access-spec
+title: "The JIT Access Spec"
+domain: 8
+domain_name: "Security Reasoning"
+level: 3
+delivery_modes: ["B"]
+
+difficulty:
+  score: 4
+  reasoning: >
+    This scenario requires balancing a genuine operational need (troubleshooting)
+    against the principle of least privilege. The candidate must resist the
+    "easy path" of granting local admin and instead specify a mechanism that
+    enforces temporal (time-bound) and scope-limited access.
+
+presentation:
+  modes:
+    B:
+      type: "environment_description"
+      context: |
+        A critical production database server (SQLSRV-01) is experiencing intermittent
+        'Connection Timeout' errors during peak hours. The server runs Windows Server 2022
+        with a default SQL Server 2022 (MSSQLSERVER) instance. 
+
+        The Lead Developer has requested permanent 'Local Administrator' access for 
+        three members of the dev team to "review the SQL Error Logs, check the 
+        System/Application Event Logs, and restart the SQL Server and SQL Agent 
+        services if they hang."
+
+        The server is joined to an Active Directory domain. Your organization's 
+        security policy prohibits permanent administrative access to production 
+        infrastructure.
+
+        Write a specification for a solution that satisfies the developers' needs
+        while maintaining the Principle of Least Privilege. Your spec should
+        include the mechanism for requesting access, how access is granted,
+        how it is revoked, and how it is audited.
+
+rubric:
+  findings:
+    - id: rejects_permanent_local_admin
+      type: "critical"
+      description: >
+        The candidate must explicitly reject the request for permanent local admin.
+        Accepting the permanent request is a total security failure.
+      miss_signal: >
+        Candidate grants the permanent local admin access as requested, perhaps
+        with a warning about "being careful."
+      learning_note: >
+        Permanent local admin access (standing privilege) is the primary
+        mechanism for lateral movement in a compromise.
+
+    - id: temporal_access_boundary
+      type: "critical"
+      description: >
+        The candidate must specify a time-bound (temporal) mechanism for access.
+        Privileges must automatically expire after a set period (e.g., 4 hours).
+      miss_signal: >
+        Candidate grants access without an expiration or revocation mechanism.
+      learning_note: >
+        JIT (Just-in-Time) access reduces the "attack surface over time."
+
+    - id: audit_trail_requirement
+      type: "critical"
+      description: >
+        The spec must include a logging requirement. Every request, approval,
+        and elevation event must be logged to a central location (e.g., SIEM,
+        event logs) for later review.
+      miss_signal: >
+        Candidate fails to mention how the access will be monitored or audited.
+
+    - id: request_approval_workflow
+      type: "secondary"
+      description: >
+        The candidate specifies a workflow for requesting access (e.g., via a
+        service desk ticket or a specific PAM portal) and identifies who must 
+        approve the request (e.g., a Team Lead or the Infrastructure Manager).
+      miss_signal: >
+        Candidate allows developers to self-elevate or fails to define any 
+        approval gate in the process.
+
+    - id: scope_limited_privilege
+      type: "secondary"
+      description: >
+        The candidate identifies that "reviewing logs" and "restarting services"
+        do not require full local admin. They specify a more granular permission
+        set (e.g., adding the dev team to the 'Event Log Readers' group and
+        granting specific service start/stop permissions via GPO or Security 
+        Templates).
+      miss_signal: >
+        Candidate grants full admin access via a JIT tool without questioning
+        whether the task actually requires it.
+
+    - id: l4_centralized_log_shipping
+      type: "secondary"
+      description: >
+        The candidate demonstrates "Least Privilege" maturity by proposing a 
+        centralized log management solution (e.g., Splunk, ELK, or Azure Monitor).
+        By shipping the SQL and Event logs to a central portal, the developers
+        can perform 90% of their troubleshooting without needing to log in
+        to the production server at all.
+      miss_signal: >
+        Candidate assumes the only way to read logs is to log in to the server.
+
+    - id: l4_jea_endpoint_service_control
+      type: "secondary"
+      description: >
+        The candidate specifies the use of Just Enough Administration (JEA) 
+        to create a constrained PowerShell endpoint. This endpoint would only 
+        expose the 'Restart-Service' cmdlet for the 'MSSQLSERVER' and 
+        'SQLSERVERAGENT' services, providing a surgical, non-interactive
+        way to address service hangs without granting any interactive login
+        rights.
+      miss_signal: >
+        Candidate relies on traditional interactive RDP login as the 
+        mechanism for service control.
+
+  level_indicators:
+    level_1: >
+      Grants the permanent local admin request. Fails to identify the
+      security risk of standing privileges.
+    level_2: >
+      Rejects permanent access. Suggests a time-limited approach (e.g., manual
+      removal from a group) but still grants full admin rights. Mentions
+      basic auditing.
+    level_3: >
+      Specifies a robust JIT mechanism (e.g. Entra PIM, PAM tool) with 
+      automatic expiration. Identifies that log review can be handled 
+      via the 'Event Log Readers' group. Defines a clear approval and
+      audit workflow. Does NOT propose removing the need for server access 
+      entirely (centralized log shipping) or a JEA endpoint for surgical 
+      service control.
+    level_4: |
+      All of the above, plus identifies the specific L4 findings: 
+      Centralized log shipping to remove the need for login entirely,
+      and JEA endpoints for surgical service control.

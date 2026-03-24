@@ -1,0 +1,28 @@
+# Backup Strategy: Project Aegis
+# Date: 2026-01-14
+# Status: Approved
+
+## Overview
+Our production environment is hosted on-premises on VMware vSphere 8.
+To meet our RTO/RPO targets and comply with the "3-2-1" backup rule, we
+utilize Veeam Backup & Replication.
+
+## Backup Tiers
+1.  **Tier 1 (On-site):** Daily incremental backups to a high-performance
+    QNAP NAS (RAID 6) located in Server Room A. Retention: 30 days.
+2.  **Tier 2 (Off-site):** Weekly full backups copied to an Azure Blob
+    Storage container (Immutable Storage enabled) in the 'East US' region.
+    Retention: 3 years.
+3.  **Tier 3 (Offline):** Monthly full backups to LTO-8 tapes, stored in
+    a fireproof safe in a different building. Retention: 7 years.
+
+## Access & Authentication
+To simplify management, all administrative access is centralized via
+Single Sign-On (SSO):
+-   Veeam Backup server is joined to the corp.example.com domain.
+-   Access to the Azure portal and Blob Storage is governed by Entra ID
+    (formerly Azure AD).
+-   Authentication for all IT staff requires MFA (Microsoft Authenticator).
+-   All IT admins use their primary corporate identities (sam.smith@corp.example.com)
+    which are synchronized from on-premises Active Directory to Entra ID
+    via Entra Connect.

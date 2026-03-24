@@ -1,0 +1,66 @@
+schema_version: '2.0'
+id: d12-audit-the-status-trap
+title: The Status Trap
+domain: 12
+domain_name: Linux Administration
+level: 2
+delivery_modes:
+  - A
+difficulty:
+  score: 2
+  reasoning: |
+    This tests the fundamental distinction between boot-time configuration (enabled) and runtime state (active). Many junior admins coming from Windows environments where "Automatic" often implies "Running" will miss the "inactive (dead)" indicator if they see "enabled" first.
+presentation:
+  modes:
+    A:
+      type: shell_command
+      artifact_file: scenarios/d12/audit_the_status_trap/status.txt
+      context: |
+        A developer reports that their scheduled cleanup tasks (crontab entries)
+        are no longer running on a production Ubuntu server. You run
+        `systemctl status cron` and get the output shown above.
+
+        Analyze the output. Is the cron service currently running? What does
+        "enabled" mean in this context, and does it guarantee that the service
+        is executing? What should be your next step?
+rubric:
+  findings:
+    - id: enabled_is_not_active
+      type: critical
+      description: |
+        The candidate must explicitly state that the service is NOT running. They must distinguish between 'enabled' (the service is configured to start at boot via symlinks in /etc/systemd/system) and 'active' (the process is currently in memory and executing). The output clearly shows 'Active: inactive (dead)'.
+      miss_signal: |
+        Candidate says the service is "enabled and ready" or assumes it is running because it is enabled. Fails to note the 'inactive (dead)' state.
+      learning_note: |
+        In systemd, 'enabled' only means that the unit will be started when the target it is a part of (usually multi-user.target) is reached during boot. If a service is stopped manually, crashes, or fails to start, it remains 'enabled' but becomes 'inactive'.
+    - id: identification_of_dead_state
+      type: critical
+      description: |
+        Candidate correctly identifies the 'Active: inactive (dead)' line as the definitive proof that the service is not currently executing.
+      miss_signal: |
+        Candidate focuses on the 'Loaded' line and misses the 'Active' line entirely.
+      learning_note: |
+        Always check the 'Active:' line for the current process state. 'dead' means the process has exited or never started.
+    - id: next_step_restart_and_verify
+      type: secondary
+      description: |
+        Candidate proposes starting the service (`systemctl start cron`) and immediately verifying its status again to ensure it stays active.
+      miss_signal: |
+        Candidate suggests rebooting the server to "fix" the enabled service, rather than just starting the service directly.
+      severity: medium
+    - id: check_logs_for_failure_cause
+      type: secondary
+      description: |
+        An L4-level candidate notes that `cron` usually stays active unless manually stopped or experiencing a crash. They suggest checking `journalctl -u cron` or `/var/log/syslog` to see why it stopped, rather than just blindly restarting it.
+      miss_signal: |
+        Candidate restarts the service without suggesting any investigation into why it was dead in the first place on a production system.
+      severity: high
+  level_indicators:
+    level_1: |
+      Misreads the output. Assumes the service is running because it is 'enabled'. May suggest that the developer's crontab is the problem since the service "looks fine".
+    level_2: |
+      Identifies that the service is not running ('inactive (dead)'). Understands that 'enabled' does not mean 'running', but may not be able to explain the technical difference (symlinks vs process state). Proposes starting the service.
+    level_3: |
+      All of the above, plus explains that 'enabled' refers to boot-time configuration while 'active' refers to current runtime state. Proposes `systemctl start cron` and verification. Does NOT suggest log investigation for the cause of death.
+    level_4: |
+      All of the above, plus identifies that a "dead" cron service on a production system is an anomaly that requires investigation. Suggests `journalctl -u cron` to check for crash logs or manual stop events before or after restarting. Distinguishes between a service that exited cleanly (success) and one that failed (error).

@@ -1,174 +1,61 @@
+schema_version: '2.0'
 id: d04-audit-the-revocation-test
+title: The Revocation Test
 domain: 4
-domain_name: "Certificate & PKI Management"
+domain_name: Certificate & PKI Management
 level: 2
-title: "The Revocation Test"
-delivery_mode: A
-subtype: null
-
+delivery_modes:
+  - A
 difficulty: 4
-difficulty_note: >
-  The successful authentication result is a strong distractor — J. Whitfield's conclusion
-  reads as reasonable. Understanding why the test is invalid requires knowing what
-  soft-fail revocation means and the difference between "revocation information was
-  unavailable so the client allowed the connection" vs. "revocation information confirmed
-  the certificate is valid." The CRL configuration details at the bottom of the artifact
-  contain the evidence, but connecting them to the authentication outcome requires
-  domain-specific knowledge about soft-fail behavior.
-
-# Scenario note (for scenario authors and evaluators):
-# Most similar to: d04-audit-assess-this-environment (both are Level 2 PKI audit exercises
-# that require reading a PKI configuration description and identifying a gap).
-# How the reasoning challenge differs: the environment assessment tests whether candidates
-# can triage multiple risks by severity. This scenario tests a specific, counterintuitive
-# result: a certificate that works after revocation does NOT prove revocation is working —
-# it may prove the opposite. The core reasoning challenge is understanding soft-fail
-# revocation: when a client cannot obtain revocation status, it defaults to allowing the
-# connection (soft-fail) rather than blocking it (hard-fail). J. Whitfield's test is
-# logically invalid because it cannot distinguish "revocation is working and the client
-# is correctly accepting a valid cert" from "revocation check failed and the client
-# soft-failed to allow the connection." The test proves nothing about revocation
-# infrastructure status.
-
 presentation:
-  type: log_extract
-  artifact_file: "scenarios/d04/audit_the_revocation_test/scenario_notes_and_diagnostics.txt"
-  context: |
-    A PKI administrator (J. Whitfield) revoked a certificate following a potential
-    private key exposure incident. After revoking the certificate and republishing
-    the CRL, J. Whitfield tested by attempting to authenticate with the revoked
-    certificate and found that authentication succeeded. J. Whitfield concluded
-    this confirms the revocation process completed correctly and closed the incident.
+  modes:
+    A:
+      type: log_extract
+      artifact_file: scenarios/d04/audit_the_revocation_test/scenario_notes_and_diagnostics.txt
+      context: |
+        A PKI administrator (J. Whitfield) revoked a certificate following a potential
+        private key exposure incident. After revoking the certificate and republishing
+        the CRL, J. Whitfield tested by attempting to authenticate with the revoked
+        certificate and found that authentication succeeded. J. Whitfield concluded
+        this confirms the revocation process completed correctly and closed the incident.
 
-    Review the artifact and identify:
-    (1) What is wrong with J. Whitfield's test and conclusion?
-    (2) What does the successful authentication actually indicate?
-    (3) What would a valid test of the revocation infrastructure look like?
-
+        Review the artifact and identify:
+        (1) What is wrong with J. Whitfield's test and conclusion?
+        (2) What does the successful authentication actually indicate?
+        (3) What would a valid test of the revocation infrastructure look like?
 rubric:
-  critical_findings:
+  findings:
     - id: soft_fail_invalidates_the_test
-      description: >
-        The developer portal is configured with soft-fail revocation
-        (CERT_CHAIN_POLICY_IGNORE_ALL_REV_UNKNOWN_ERRORS = true). In soft-fail mode,
-        when a client cannot obtain or evaluate revocation information, it treats the
-        certificate as valid and allows the connection — it does not block the
-        connection due to missing revocation data. J. Whitfield's test result
-        (authentication succeeded) therefore cannot distinguish between two very
-        different situations: (a) the client successfully retrieved the CRL,
-        confirmed the certificate is revoked, and... wait, that would block the
-        connection; (b) the client could not retrieve the CRL (network issue,
-        caching, or other failure) and soft-failed to allow the connection. The
-        successful authentication proves only that the client allowed the connection.
-        It does not prove the revocation information was actually evaluated. A
-        functioning revocation test requires confirming that the client is RECEIVING
-        the CRL, parsing it, and producing the expected blocked-connection result,
-        not that the connection succeeded.
+      description: |
+        The developer portal is configured with soft-fail revocation (CERT_CHAIN_POLICY_IGNORE_ALL_REV_UNKNOWN_ERRORS = true). In soft-fail mode, when a client cannot obtain or evaluate revocation information, it treats the certificate as valid and allows the connection — it does not block the connection due to missing revocation data. J. Whitfield's test result (authentication succeeded) therefore cannot distinguish between two very different situations: (a) the client successfully retrieved the CRL, confirmed the certificate is revoked, and... wait, that would block the connection; (b) the client could not retrieve the CRL (network issue, caching, or other failure) and soft-failed to allow the connection. The successful authentication proves only that the client allowed the connection. It does not prove the revocation information was actually evaluated. A functioning revocation test requires confirming that the client is RECEIVING the CRL, parsing it, and producing the expected blocked-connection result, not that the connection succeeded.
       severity: critical
-      miss_signal: >
-        Candidate accepts J. Whitfield's conclusion as valid. States that the
-        successful test confirms revocation is working because the CRL was published.
-        Does not identify the soft-fail configuration or explain what soft-fail means.
-        May recommend monitoring the CRL distribution point without addressing why the
-        current test is invalid.
-      learning_note: >
-        Revocation checking in PKI has two failure modes: hard-fail and soft-fail.
-        In hard-fail mode, if the client cannot retrieve or evaluate the CRL (or OCSP
-        response), it treats the certificate as untrusted and blocks the connection.
-        In soft-fail mode (the default in most environments), if revocation status
-        cannot be determined, the client allows the connection.
-
-        Soft-fail exists because CRL distribution points can be temporarily
-        unavailable, and hard-fail would cause widespread outages when the CDP is
-        down. But soft-fail creates a paradox for revocation testing: a certificate
-        that "works after revocation" might be working because (a) the CRL wasn't
-        checked at all due to caching or network issues and the client soft-failed
-        through, or (b) the CRL was checked and for some reason the revocation entry
-        wasn't processed. In soft-fail mode, a revoked certificate and a valid
-        certificate produce identical results when the CRL check fails: the connection
-        succeeds.
-
-        The correct test: configure a hard-fail environment, attempt to use the
-        revoked certificate, and confirm the connection is blocked with a
-        "certificate revoked" error. Or: capture the TLS handshake and confirm the
-        revocation check is occurring and the CRL is being fetched. "The application
-        works after revocation" is not evidence that revocation is working — it is
-        evidence that the application is allowing connections.
-
-  secondary_findings:
+      miss_signal: |
+        Candidate accepts J. Whitfield's conclusion as valid. States that the successful test confirms revocation is working because the CRL was published. Does not identify the soft-fail configuration or explain what soft-fail means. May recommend monitoring the CRL distribution point without addressing why the current test is invalid.
+      learning_note: |
+        Revocation checking in PKI has two failure modes: hard-fail and soft-fail. In hard-fail mode, if the client cannot retrieve or evaluate the CRL (or OCSP response), it treats the certificate as untrusted and blocks the connection. In soft-fail mode (the default in most environments), if revocation status cannot be determined, the client allows the connection.
+        Soft-fail exists because CRL distribution points can be temporarily unavailable, and hard-fail would cause widespread outages when the CDP is down. But soft-fail creates a paradox for revocation testing: a certificate that "works after revocation" might be working because (a) the CRL wasn't checked at all due to caching or network issues and the client soft-failed through, or (b) the CRL was checked and for some reason the revocation entry wasn't processed. In soft-fail mode, a revoked certificate and a valid certificate produce identical results when the CRL check fails: the connection succeeds.
+        The correct test: configure a hard-fail environment, attempt to use the revoked certificate, and confirm the connection is blocked with a "certificate revoked" error. Or: capture the TLS handshake and confirm the revocation check is occurring and the CRL is being fetched. "The application works after revocation" is not evidence that revocation is working — it is evidence that the application is allowing connections.
+      type: critical
     - id: crl_caching_concern
-      description: >
-        Even if the developer portal were configured for hard-fail revocation, there
-        is a caching concern. The CRL is valid for 14 days (Next Update: 2026-04-05).
-        Clients that previously downloaded and cached the CRL before the revocation
-        at 11:30 would continue using their cached copy until it expires. The newly
-        published CRL (containing the revocation entry) will not reach clients that
-        have cached the previous CRL until their cache expires or they explicitly
-        flush it. J. Whitfield's test was run at 11:45, 15 minutes after revocation.
-        If J. Whitfield's test machine had previously cached the CRL, the test would
-        be using a stale CRL — one that does not contain the revocation entry.
+      description: |
+        Even if the developer portal were configured for hard-fail revocation, there is a caching concern. The CRL is valid for 14 days (Next Update: 2026-04-05). Clients that previously downloaded and cached the CRL before the revocation at 11:30 would continue using their cached copy until it expires. The newly published CRL (containing the revocation entry) will not reach clients that have cached the previous CRL until their cache expires or they explicitly flush it. J. Whitfield's test was run at 11:45, 15 minutes after revocation. If J. Whitfield's test machine had previously cached the CRL, the test would be using a stale CRL — one that does not contain the revocation entry.
       severity: moderate
-      learning_note: >
-        CRL caching is a designed feature, not a bug — downloading the full CRL on
-        every connection would be expensive. But it means there is a window between
-        revocation and when all clients "know" about it: the current CRL validity
-        period. A certificate revoked today on a 14-day CRL won't be rejected by
-        clients with a fresh cached copy until their cache expires.
-
-        This is why delta CRLs exist: a delta CRL is a small, frequently-published
-        update containing only the changes since the last full CRL. Clients that
-        support delta CRLs (most modern ones do) check both the base CRL and the
-        delta, which means revocations propagate within the delta CRL's short
-        validity period (often 8–24 hours) rather than the full CRL period.
-
-        Without delta CRLs (as in this environment), the effective revocation
-        propagation delay is up to the full CRL validity period — 14 days here.
-        For key compromise scenarios, this is a significant gap.
-
+      learning_note: |
+        CRL caching is a designed feature, not a bug — downloading the full CRL on every connection would be expensive. But it means there is a window between revocation and when all clients "know" about it: the current CRL validity period. A certificate revoked today on a 14-day CRL won't be rejected by clients with a fresh cached copy until their cache expires.
+        This is why delta CRLs exist: a delta CRL is a small, frequently-published update containing only the changes since the last full CRL. Clients that support delta CRLs (most modern ones do) check both the base CRL and the delta, which means revocations propagate within the delta CRL's short validity period (often 8–24 hours) rather than the full CRL period.
+        Without delta CRLs (as in this environment), the effective revocation propagation delay is up to the full CRL validity period — 14 days here. For key compromise scenarios, this is a significant gap.
+      type: secondary
     - id: no_delta_crl_is_a_gap
-      description: >
-        The artifact explicitly notes "Delta CRL: Not configured." For a key
-        compromise incident, a 14-day CRL validity period means a revoked certificate
-        may continue to be accepted by clients with a cached CRL for up to 14 days
-        after revocation. Delta CRLs reduce this window by publishing small,
-        incremental revocation updates on a much shorter cycle (commonly every
-        1–8 hours). The absence of delta CRL configuration is a design gap in an
-        environment where key compromise incidents are expected to require effective
-        near-real-time revocation.
+      description: |
+        The artifact explicitly notes "Delta CRL: Not configured." For a key compromise incident, a 14-day CRL validity period means a revoked certificate may continue to be accepted by clients with a cached CRL for up to 14 days after revocation. Delta CRLs reduce this window by publishing small, incremental revocation updates on a much shorter cycle (commonly every 1–8 hours). The absence of delta CRL configuration is a design gap in an environment where key compromise incidents are expected to require effective near-real-time revocation.
       severity: moderate
-
+      type: secondary
   level_indicators:
-    level_1: >
-      Identifies that the certificate was revoked and the CRL was published, and agrees
-      with J. Whitfield that the revocation process functioned correctly. May note that
-      the successful test proves the revocation worked. Cannot explain what soft-fail
-      revocation means or why the test result does not prove what J. Whitfield claims.
-    level_2: >
-      Identifies the core error: the developer portal uses soft-fail revocation, which
-      means a successful connection does not prove revocation is working. States that
-      in soft-fail mode, a client that cannot retrieve or evaluate the CRL allows the
-      connection — so "authentication succeeded" could mean the CRL was not checked
-      at all. Explains what a valid test would look like: either confirm the CRL is
-      being retrieved and the revoked serial appears in it, or test in a context where
-      the connection should produce a specific error if the revocation entry is
-      processed. Does NOT identify the CRL caching concern or the delta CRL gap.
-    level_3: >
-      All of the above plus identifies the CRL caching concern: J. Whitfield may have
-      been using a cached CRL from before the revocation event (CRL valid for 14 days;
-      test run 15 minutes after revocation). Cached CRL would not contain the new
-      revocation entry. Notes the 14-day CRL validity as a propagation delay issue
-      for key compromise scenarios. Does NOT identify the absence of delta CRL as the
-      structural gap that explains both the caching risk and the slow propagation.
-    level_4: >
-      All of the above plus identifies the absence of delta CRL configuration as the
-      underlying design gap: without delta CRLs, effective revocation propagation
-      delay equals the full CRL validity period (14 days). For key compromise
-      incidents, this is operationally inadequate. Recommends both the immediate fix
-      (test revocation correctly: force a CRL cache flush and test in a hard-fail
-      context, or confirm via network capture that the revocation entry is being
-      received and evaluated) and the structural improvement (enable delta CRL
-      publication on the issuing CA with a validity period appropriate to the
-      organization's incident response requirements). Also notes that the current
-      test is not just inconclusive but actively misleading — it provided false
-      confidence that has left a potentially compromised certificate in an accepted
-      state.
+    level_1: |
+      Identifies that the certificate was revoked and the CRL was published, and agrees with J. Whitfield that the revocation process functioned correctly. May note that the successful test proves the revocation worked. Cannot explain what soft-fail revocation means or why the test result does not prove what J. Whitfield claims.
+    level_2: |
+      Identifies the core error: the developer portal uses soft-fail revocation, which means a successful connection does not prove revocation is working. States that in soft-fail mode, a client that cannot retrieve or evaluate the CRL allows the connection — so "authentication succeeded" could mean the CRL was not checked at all. Explains what a valid test would look like: either confirm the CRL is being retrieved and the revoked serial appears in it, or test in a context where the connection should produce a specific error if the revocation entry is processed. Does NOT identify the CRL caching concern or the delta CRL gap.
+    level_3: |
+      All of the above plus identifies the CRL caching concern: J. Whitfield may have been using a cached CRL from before the revocation event (CRL valid for 14 days; test run 15 minutes after revocation). Cached CRL would not contain the new revocation entry. Notes the 14-day CRL validity as a propagation delay issue for key compromise scenarios. Does NOT identify the absence of delta CRL as the structural gap that explains both the caching risk and the slow propagation.
+    level_4: |
+      All of the above plus identifies the absence of delta CRL configuration as the underlying design gap: without delta CRLs, effective revocation propagation delay equals the full CRL validity period (14 days). For key compromise incidents, this is operationally inadequate. Recommends both the immediate fix (test revocation correctly: force a CRL cache flush and test in a hard-fail context, or confirm via network capture that the revocation entry is being received and evaluated) and the structural improvement (enable delta CRL publication on the issuing CA with a validity period appropriate to the organization's incident response requirements). Also notes that the current test is not just inconclusive but actively misleading — it provided false confidence that has left a potentially compromised certificate in an accepted state.

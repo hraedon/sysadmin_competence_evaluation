@@ -1,12 +1,12 @@
-This script does two things, though only one is documented in the synopsis.
+This script performs two distinct operations.
 
 The first part generates an inactive account report. The second part is a destructive loop that removes all group memberships from those same accounts.
 
 There are several critical flaws that make this script unsafe for production:
 
-1. Parameter Override Trap: The script defines an $InactivityDays parameter (defaulting to 90), but then immediately hardcodes it to 30 on line 20. This ignores any user-provided input and creates a mismatch between what an operator thinks they are running and what the script actually does.
+1. Parameter override: The script defines an $InactivityDays parameter (defaulting to 90), but line 20 immediately overwrites it with 30. Any value passed by the caller is discarded; the effective cutoff is always 30 days.
 
-2. No -WhatIf support: The Remove-ADGroupMember call uses -Confirm:$false, but the script itself does not support -WhatIf or provide any way to preview the removals. You cannot see the blast radius before the changes are committed to Active Directory.
+2. No -WhatIf support: The Remove-ADGroupMember call uses -Confirm:$false, but the script provides no -WhatIf or -ReportOnly mode. There is no way to preview which group memberships would be removed without actually running the removal.
 
 3. No removal logging: There is no log output for the group membership removals. Once the script completes, there is no record of which groups were removed from which users, making a rollback or audit impossible.
 

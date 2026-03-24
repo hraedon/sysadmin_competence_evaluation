@@ -1,111 +1,50 @@
+schema_version: '2.0'
 id: d02-literacy-upn-routing
+title: Domain Routing Failure
 domain: 2
-domain_name: "Identity & Hybrid IAM"
+domain_name: Identity & Hybrid IAM
 level: 1
-title: "Domain Routing Failure"
-delivery_mode: A
-subtype: null
-
-# Scenario note (for scenario authors and evaluators):
-# Most similar to: d02-literacy-describe-the-token (both are Domain 2 Level 1 literacy
-# exercises testing hybrid identity architecture reading).
-# How the reasoning challenge differs: describe-the-token tests Kerberos protocol
-# literacy — understanding what a ticket means and when NTLM is used instead. This
-# scenario tests a different layer: hybrid sync architecture, specifically why on-premises
-# UPN suffixes must match verified cloud domains. A candidate who understands Kerberos
-# fully may still fail this scenario if they don't know why .local domains cannot be
-# used for cloud authentication or what the fix requires. The hybrid sync gap is exactly
-# what the competency map identifies as underserved by current certifications.
-
+delivery_modes:
+  - A
 presentation:
-  type: shell_command
-  artifact_file: "scenarios/d02/literacy_upn_routing/sync_report.txt"
-  context: |
-    A colleague has escalated an issue: 47 user accounts cannot sign in to Microsoft 365
-    after being added to the Entra Connect sync scope last week. The attached output is
-    from the Entra Connect synchronization service on SYNCSRV01.
+  modes:
+    A:
+      type: shell_command
+      artifact_file: scenarios/d02/literacy_upn_routing/sync_report.txt
+      context: |
+        A colleague has escalated an issue: 47 user accounts cannot sign in to Microsoft 365
+        after being added to the Entra Connect sync scope last week. The attached output is
+        from the Entra Connect synchronization service on SYNCSRV01.
 
-    Explain:
-    (1) What is causing these accounts to fail to sync?
-    (2) What specifically needs to change to fix it, and in what order?
-    (3) What operational impact will the fix have on affected end users?
-
+        Explain:
+        (1) What is causing these accounts to fail to sync?
+        (2) What specifically needs to change to fix it, and in what order?
+        (3) What operational impact will the fix have on affected end users?
 rubric:
-  critical_findings:
+  findings:
     - id: non_routable_upn_suffix
-      description: >
-        The 47 accounts failing to sync all carry @corp.local as their UPN suffix. The .local
-        TLD is non-routable — it is reserved for private use and cannot be registered as a
-        public internet domain. Entra ID requires that a user's UPN suffix match a domain
-        that has been verified in the Entra tenant. Because corp.local cannot ever be verified
-        (and is not listed as a verified domain), the sync service cannot provision these
-        accounts to Entra. The error is not transient — it will recur on every sync cycle
-        until the on-premises UPN attribute is changed. The fix is not "add corp.local to
-        Entra" — .local cannot be added to any Entra tenant as a verified domain.
+      description: |
+        The 47 accounts failing to sync all carry @corp.local as their UPN suffix. The .local TLD is non-routable — it is reserved for private use and cannot be registered as a public internet domain. Entra ID requires that a user's UPN suffix match a domain that has been verified in the Entra tenant. Because corp.local cannot ever be verified (and is not listed as a verified domain), the sync service cannot provision these accounts to Entra. The error is not transient — it will recur on every sync cycle until the on-premises UPN attribute is changed. The fix is not "add corp.local to Entra" — .local cannot be added to any Entra tenant as a verified domain.
       severity: critical
-      miss_signal: >
-        Candidate suggests verifying corp.local in Entra, or contacting Microsoft to add it,
-        without recognizing that .local cannot be verified in any Entra tenant. Or: candidate
-        attributes the error to a network or connectivity issue rather than the UPN suffix.
-        Or: candidate says accounts need to be "re-added to the sync scope" or "re-synced"
-        without identifying the root cause. Or: candidate correctly identifies the problem
-        but does not explain why .local specifically is the issue (treating it as an arbitrary
-        unverified domain rather than a structurally non-routable TLD).
-
-  secondary_findings:
+      miss_signal: |
+        Candidate suggests verifying corp.local in Entra, or contacting Microsoft to add it, without recognizing that .local cannot be verified in any Entra tenant. Or: candidate attributes the error to a network or connectivity issue rather than the UPN suffix. Or: candidate says accounts need to be "re-added to the sync scope" or "re-synced" without identifying the root cause. Or: candidate correctly identifies the problem but does not explain why .local specifically is the issue (treating it as an arbitrary unverified domain rather than a structurally non-routable TLD).
+      type: critical
     - id: fix_requires_ad_change
-      description: >
-        The fix must happen in on-premises AD, not in Entra. The sequence is: (1) add a
-        routable UPN suffix to the AD forest — one that matches a domain already verified in
-        the Entra tenant. The tenant's verified domains are contoso.com, contoso.onmicrosoft.com,
-        and hr.contoso.com. The simplest choice is contoso.com, already the default for 365
-        synced accounts. (2) Update the UserPrincipalName attribute on each of the 47 affected
-        AD user objects to use the new suffix (e.g., jdavis@corp.local → jdavis@contoso.com).
-        (3) Allow the next Entra Connect sync cycle to export the corrected objects. The source
-        of authority for UPN is the on-premises AD; changes in Entra alone do not resolve it.
+      description: |
+        The fix must happen in on-premises AD, not in Entra. The sequence is: (1) add a routable UPN suffix to the AD forest — one that matches a domain already verified in the Entra tenant. The tenant's verified domains are contoso.com, contoso.onmicrosoft.com, and hr.contoso.com. The simplest choice is contoso.com, already the default for 365 synced accounts. (2) Update the UserPrincipalName attribute on each of the 47 affected AD user objects to use the new suffix (e.g., jdavis@corp.local → jdavis@contoso.com). (3) Allow the next Entra Connect sync cycle to export the corrected objects. The source of authority for UPN is the on-premises AD; changes in Entra alone do not resolve it.
       severity: moderate
-
+      type: secondary
     - id: user_signin_name_impact
-      description: >
-        Changing a user's UPN changes their Microsoft 365 sign-in name. Since these accounts
-        are newly added to the sync scope and have not successfully provisioned to Entra yet,
-        the users have no established cloud sign-in habit to break. However, the change still
-        requires user communication: jdavis@corp.local becomes jdavis@contoso.com for cloud
-        sign-in. If the organization uses email addresses as sign-in identifiers and those also
-        use corp.local, users will need to know which address to use where.
+      description: |
+        Changing a user's UPN changes their Microsoft 365 sign-in name. Since these accounts are newly added to the sync scope and have not successfully provisioned to Entra yet, the users have no established cloud sign-in habit to break. However, the change still requires user communication: jdavis@corp.local becomes jdavis@contoso.com for cloud sign-in. If the organization uses email addresses as sign-in identifiers and those also use corp.local, users will need to know which address to use where.
       severity: moderate
-
+      type: secondary
   level_indicators:
-    level_1: >
-      Identifies that accounts are failing to sync and that the error references an unverified
-      UPN suffix. Can read the tenant domain status section and note that corp.local is not in
-      the verified list. Suggests verifying corp.local in Entra, or contacting Microsoft support,
-      without recognizing the structural constraint that prevents any .local domain from being
-      verified. Cannot describe what needs to change or in what order.
-    level_2: >
-      Correctly identifies that .local is non-routable and cannot be verified in any Entra tenant.
-      Explains that the fix requires changing the UPN suffix for affected users in AD to a verified
-      domain (contoso.com is already verified and available). Does not enumerate the full fix
-      sequence or explicitly note that the change must happen in AD (the source of authority).
-      May or may not identify the end-user sign-in name impact of changing UPNs.
-    level_3: >
-      All of the above plus correctly identifies the full fix sequence: add the routable suffix
-      to the AD forest, update the UPN attribute on the 47 affected accounts, allow sync to
-      complete. Explicitly states that the change must be made in AD, not in Entra. Notes that
-      affected users' sign-in names will change (from @corp.local to @contoso.com), requiring
-      user communication. Does NOT raise the Exchange Online primary SMTP address risk or
-      discuss alternate login ID — those are the specific distinguishing observations for Level 4.
-    level_4: >
-      All of the above plus raises at least one of: (1) Exchange Online SMTP risk — if the
-      organization has Exchange Online and user UPNs are used as primary SMTP addresses (the
-      Entra default for cloud-provisioned mailboxes), a UPN change may trigger an automatic
-      primary SMTP address change, breaking existing email delivery to the old address; the
-      mitigation is to explicitly lock primary SMTP addresses in Exchange before changing UPNs.
-      (2) Alternate login ID — Entra supports configuring an alternate login ID attribute
-      (typically the mail attribute) so users can sign in with their email address rather than
-      UPN, allowing cloud authentication without changing the on-premises UPN; this avoids the
-      sign-in name disruption but has limitations including no seamless SSO and different
-      hybrid join behavior. (3) The @hr.contoso.com suffix is registered in AD with no users
-      assigned — this is a useful observation because it suggests a prior migration or
-      standardization effort, and may mean some infrastructure for UPN suffix management is
-      already in place.
+    level_1: |
+      Identifies that accounts are failing to sync and that the error references an unverified UPN suffix. Can read the tenant domain status section and note that corp.local is not in the verified list. Suggests verifying corp.local in Entra, or contacting Microsoft support, without recognizing the structural constraint that prevents any .local domain from being verified. Cannot describe what needs to change or in what order.
+    level_2: |
+      Correctly identifies that .local is non-routable and cannot be verified in any Entra tenant. Explains that the fix requires changing the UPN suffix for affected users in AD to a verified domain (contoso.com is already verified and available). Does not enumerate the full fix sequence or explicitly note that the change must happen in AD (the source of authority). May or may not identify the end-user sign-in name impact of changing UPNs.
+    level_3: |
+      All of the above plus correctly identifies the full fix sequence: add the routable suffix to the AD forest, update the UPN attribute on the 47 affected accounts, allow sync to complete. Explicitly states that the change must be made in AD, not in Entra. Notes that affected users' sign-in names will change (from @corp.local to @contoso.com), requiring user communication. Does NOT raise the Exchange Online primary SMTP address risk or discuss alternate login ID — those are the specific distinguishing observations for Level 4.
+    level_4: |
+      All of the above plus raises at least one of: (1) Exchange Online SMTP risk — if the organization has Exchange Online and user UPNs are used as primary SMTP addresses (the Entra default for cloud-provisioned mailboxes), a UPN change may trigger an automatic primary SMTP address change, breaking existing email delivery to the old address; the mitigation is to explicitly lock primary SMTP addresses in Exchange before changing UPNs. (2) Alternate login ID — Entra supports configuring an alternate login ID attribute (typically the mail attribute) so users can sign in with their email address rather than UPN, allowing cloud authentication without changing the on-premises UPN; this avoids the sign-in name disruption but has limitations including no seamless SSO and different hybrid join behavior. (3) The @hr.contoso.com suffix is registered in AD with no users assigned — this is a useful observation because it suggests a prior migration or standardization effort, and may mean some infrastructure for UPN suffix management is already in place.

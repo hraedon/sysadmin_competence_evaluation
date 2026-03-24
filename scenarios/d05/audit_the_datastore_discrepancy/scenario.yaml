@@ -1,177 +1,63 @@
+schema_version: '2.0'
 id: d05-audit-the-datastore-discrepancy
+title: The Missing Terabytes
 domain: 5
-domain_name: "Storage Architecture"
+domain_name: Storage Architecture
 level: 2
-title: "The Missing Terabytes"
-delivery_mode: A
-subtype: null
-
-# Scenario note (for scenario authors and evaluators):
-# Most similar to: d05-audit-thin-provisioning-alarm (both test whether candidates can
-# reconcile a utilisation figure against the vSphere inventory and identify the gap
-# rather than accepting the alert at face value).
-# How the reasoning challenge differs: the thin-provisioning scenario tests whether the
-# candidate understands that thin-provisioned VMs can collectively over-commit the
-# datastore. This scenario tests a different Domain 5 skill: knowing that "remove from
-# inventory" and "delete from disk" are separate operations in vSphere, and that
-# removing a VM from inventory leaves its VMDK files on the datastore consuming real
-# space. The learner must read a datastore browser listing rather than a vCenter
-# inventory and cross-reference the two sources to find the discrepancy. The difficulty
-# comes from a plausible set of distractors (the snapshot delta and the template) that
-# require the candidate to distinguish legitimate files from orphaned ones rather than
-# simply flagging everything not in the current VM inventory.
-
-presentation:
-  type: log_extract
-  artifact_file: "scenarios/d05/audit_the_datastore_discrepancy/datastore_report.txt"
-  context: |
-    A storage capacity alert has fired on datastore DS-PROD-01. The datastore is
-    showing 90.3% utilisation, but the vSphere inventory shows only four VMs
-    provisioned on this datastore with a combined provisioned size of approximately
-    61% of the datastore's capacity. You have been asked to explain the discrepancy
-    and determine what action should be taken.
-
+delivery_modes:
+  - A
 difficulty: 3
-difficulty_note: >
-  The inventory summary is the first figure a learner sees and it accounts for only
-  60% of capacity — the remaining 30% gap must be found by cross-referencing the
-  datastore browser listing against the VM inventory. The orphaned VMDKs are
-  unlabelled in context (no .vmx files alongside them, stale modification dates) and
-  require the learner to distinguish three categories of non-inventory files: orphaned
-  VMs, a snapshot delta, and a legitimate template. The snapshot delta and the template
-  are intentional distractors; treating either as safe to delete without verification
-  represents a reasoning error the rubric tracks.
-
+presentation:
+  modes:
+    A:
+      type: log_extract
+      artifact_file: scenarios/d05/audit_the_datastore_discrepancy/datastore_report.txt
+      context: |
+        A storage capacity alert has fired on datastore DS-PROD-01. The datastore is
+        showing 90.3% utilisation, but the vSphere inventory shows only four VMs
+        provisioned on this datastore with a combined provisioned size of approximately
+        61% of the datastore's capacity. You have been asked to explain the discrepancy
+        and determine what action should be taken.
 rubric:
-  critical_findings:
+  findings:
     - id: orphaned_vmdks_from_inventory_removal
-      description: >
-        The discrepancy between the vCenter inventory total (6.00 TB, 60%) and the
-        actual datastore usage (9.03 TB, 90.3%) is caused by VMDK files left behind
-        when VMs were removed from vCenter inventory rather than deleted from disk.
-        "Remove from inventory" removes the VM object from vCenter but leaves all files
-        on the datastore. "Delete from disk" removes both. OldWebServer_2023 (1.80 TB),
-        ProjectDB_archive (850 GB), and StagingApp-000001 (180 GB) are not registered
-        to any VM in the current inventory and have no associated .vmx files in their
-        directories. Combined they account for approximately 2.83 TB of the 3.03 TB gap.
-        (The remaining ~0.20 TB is the legitimate template and overhead.)
+      description: |
+        The discrepancy between the vCenter inventory total (6.00 TB, 60%) and the actual datastore usage (9.03 TB, 90.3%) is caused by VMDK files left behind when VMs were removed from vCenter inventory rather than deleted from disk. "Remove from inventory" removes the VM object from vCenter but leaves all files on the datastore. "Delete from disk" removes both. OldWebServer_2023 (1.80 TB), ProjectDB_archive (850 GB), and StagingApp-000001 (180 GB) are not registered to any VM in the current inventory and have no associated .vmx files in their directories. Combined they account for approximately 2.83 TB of the 3.03 TB gap. (The remaining ~0.20 TB is the legitimate template and overhead.)
       severity: critical
-      miss_signal: >
-        Candidate reports the datastore is full and notes the discrepancy but does not
-        identify orphaned VMDKs as the cause. May suggest the VMs still exist on another
-        host or that snapshots are consuming space without reading the datastore browser
-        listing carefully. Or: candidate identifies that something is consuming space
-        beyond the listed VMs but does not name the orphaned files or explain the
-        remove-from-inventory mechanism.
-      learning_note: >
-        In vSphere, a virtual machine consists of two distinct things: the VM object in
-        vCenter inventory, and the files on the datastore (primarily the flat VMDK, the
-        descriptor VMDK, the VMX configuration, and NVRAM). These can be separated.
-        "Remove from Inventory" removes the VM object from vCenter — it disappears from
-        the inventory — but all of its files remain on the datastore, continuing to
-        consume real storage. "Delete from Disk" performs both operations: it removes the
-        VM from inventory and deletes all associated files. When a VM is decommissioned
-        using the wrong operation, or is removed without using the vSphere UI at all
-        (e.g., file copied to another location, then the source VM deleted from
-        inventory), its VMDKs become orphaned. They are invisible to vCenter but fully
-        present on the datastore. The only way to find them is to enumerate the datastore
-        directly using the Datastore Browser and compare the results against the current
-        VM inventory. This is a routine part of storage housekeeping.
-
-  secondary_findings:
+      miss_signal: |
+        Candidate reports the datastore is full and notes the discrepancy but does not identify orphaned VMDKs as the cause. May suggest the VMs still exist on another host or that snapshots are consuming space without reading the datastore browser listing carefully. Or: candidate identifies that something is consuming space beyond the listed VMs but does not name the orphaned files or explain the remove-from-inventory mechanism.
+      learning_note: |
+        In vSphere, a virtual machine consists of two distinct things: the VM object in vCenter inventory, and the files on the datastore (primarily the flat VMDK, the descriptor VMDK, the VMX configuration, and NVRAM). These can be separated. "Remove from Inventory" removes the VM object from vCenter — it disappears from the inventory — but all of its files remain on the datastore, continuing to consume real storage. "Delete from Disk" performs both operations: it removes the VM from inventory and deletes all associated files. When a VM is decommissioned using the wrong operation, or is removed without using the vSphere UI at all (e.g., file copied to another location, then the source VM deleted from inventory), its VMDKs become orphaned. They are invisible to vCenter but fully present on the datastore. The only way to find them is to enumerate the datastore directly using the Datastore Browser and compare the results against the current VM inventory. This is a routine part of storage housekeeping.
+      type: critical
     - id: inventory_removal_vs_delete_distinction
-      description: >
-        Understanding the mechanism — that "remove from inventory" and "delete from disk"
-        are separate vSphere operations — is necessary to explain how orphaned VMDKs
-        accumulate. A response that identifies the orphaned files without explaining why
-        they are there cannot inform the remediation or prevent recurrence.
+      description: |
+        Understanding the mechanism — that "remove from inventory" and "delete from disk" are separate vSphere operations — is necessary to explain how orphaned VMDKs accumulate. A response that identifies the orphaned files without explaining why they are there cannot inform the remediation or prevent recurrence.
       severity: moderate
-      learning_note: >
-        The remove/delete distinction is not obvious from the vSphere UI, where both
-        options appear in the same right-click context menu. "Remove from Inventory" is
-        used legitimately when a VM needs to be re-registered on a different host or when
-        troubleshooting registration issues. Its side effect — leaving disk files in
-        place — is intentional in that context. The problem arises when it is used as a
-        decommission action, either by mistake or because the operator is unaware of the
-        distinction. Knowing this distinction is what allows an administrator to search
-        purposefully for orphaned VMDKs rather than being surprised by unexplained
-        storage consumption.
-
+      learning_note: |
+        The remove/delete distinction is not obvious from the vSphere UI, where both options appear in the same right-click context menu. "Remove from Inventory" is used legitimately when a VM needs to be re-registered on a different host or when troubleshooting registration issues. Its side effect — leaving disk files in place — is intentional in that context. The problem arises when it is used as a decommission action, either by mistake or because the operator is unaware of the distinction. Knowing this distinction is what allows an administrator to search purposefully for orphaned VMDKs rather than being surprised by unexplained storage consumption.
+      type: secondary
     - id: verify_before_deleting
-      description: >
-        Before deleting any VMDK identified as orphaned, verify it is not referenced by
-        another active VM as a linked clone base, by a template, or by a backup proxy
-        snapshot chain. The WS2022-Base template in the Templates folder is legitimate and
-        should not be deleted. StagingApp-000001 is a snapshot delta file (the -000001
-        suffix indicates a child disk in a snapshot or linked clone chain) with no visible
-        base VMDK or .vmx on the datastore — it may be part of a backup proxy snapshot
-        chain and deleting it without tracing the parent chain could corrupt a backup
-        job. OldWebServer_2023 and ProjectDB_archive should be verified against backup
-        catalog references before deletion.
+      description: |
+        Before deleting any VMDK identified as orphaned, verify it is not referenced by another active VM as a linked clone base, by a template, or by a backup proxy snapshot chain. The WS2022-Base template in the Templates folder is legitimate and should not be deleted. StagingApp-000001 is a snapshot delta file (the -000001 suffix indicates a child disk in a snapshot or linked clone chain) with no visible base VMDK or .vmx on the datastore — it may be part of a backup proxy snapshot chain and deleting it without tracing the parent chain could corrupt a backup job. OldWebServer_2023 and ProjectDB_archive should be verified against backup catalog references before deletion.
       severity: moderate
-      learning_note: >
-        Orphaned VMDKs can occasionally be legitimate shared-storage objects that are not
-        registered as standalone VMs: linked clone parents, backup proxy working disks,
-        or template flat files stored without a corresponding inventory entry in a given
-        folder. The -000001 suffix on a VMDK descriptor is a strong signal that the file
-        is a snapshot delta or linked clone child disk — its parent chain must be intact
-        for the file to be meaningful, and deleting the parent or child independently
-        typically corrupts the chain. A safe orphan cleanup process always starts with a
-        verification step: check the vCenter linked clone relationships, check the backup
-        proxy catalog, and confirm the template inventory before touching any file.
-
+      learning_note: |
+        Orphaned VMDKs can occasionally be legitimate shared-storage objects that are not registered as standalone VMs: linked clone parents, backup proxy working disks, or template flat files stored without a corresponding inventory entry in a given folder. The -000001 suffix on a VMDK descriptor is a strong signal that the file is a snapshot delta or linked clone child disk — its parent chain must be intact for the file to be meaningful, and deleting the parent or child independently typically corrupts the chain. A safe orphan cleanup process always starts with a verification step: check the vCenter linked clone relationships, check the backup proxy catalog, and confirm the template inventory before touching any file.
+      type: secondary
     - id: process_gap_no_decommission_procedure
-      description: >
-        Orphaned VMDKs from 2023 (ProjectDB_archive, last modified 2023-09-07) and 2024
-        (OldWebServer_2023, last modified 2024-01-14) indicate this has happened on at
-        least two prior occasions without being caught. A correct decommission procedure
-        would include a post-removal datastore browser verification step and a storage
-        reclaim sign-off. The absence of such a procedure is the root cause of the
-        accumulated orphaned storage; addressing the current orphans without fixing the
-        procedure will result in recurrence.
+      description: |
+        Orphaned VMDKs from 2023 (ProjectDB_archive, last modified 2023-09-07) and 2024 (OldWebServer_2023, last modified 2024-01-14) indicate this has happened on at least two prior occasions without being caught. A correct decommission procedure would include a post-removal datastore browser verification step and a storage reclaim sign-off. The absence of such a procedure is the root cause of the accumulated orphaned storage; addressing the current orphans without fixing the procedure will result in recurrence.
       severity: moderate
-      learning_note: >
-        Storage discrepancies of this kind are almost always the result of an incomplete
-        decommission procedure rather than a one-time mistake. When an environment has
-        multiple orphaned VMDKs with different modification dates, it means the gap
-        between the procedure and the actual practice has persisted across multiple
-        decommission events. The fix is not to delete the orphaned files and move on;
-        it is to add a mandatory post-removal verification step to the decommission
-        runbook: (1) record all disk paths before removing a VM from inventory; (2) open
-        the Datastore Browser after removal and confirm the paths are gone; (3) if files
-        remain, delete them explicitly. This step costs two minutes per decommission and
-        prevents the kind of capacity surprise that triggers an emergency alert.
-
+      miss_signal: |
+        Candidate identifies the orphaned VMDKs, explains the remove-from-inventory mechanism, and proposes a verify-before-delete sequence — but treats this as a one-time cleanup event. Does not notice that files with modification dates from both 2023 and 2024 are present, which indicates the decommission failure has recurred at least twice. Does not connect the timestamps to a missing procedure that would have caught each instance.
+      learning_note: |
+        Storage discrepancies of this kind are almost always the result of an incomplete decommission procedure rather than a one-time mistake. When an environment has multiple orphaned VMDKs with different modification dates, it means the gap between the procedure and the actual practice has persisted across multiple decommission events. The fix is not to delete the orphaned files and move on; it is to add a mandatory post-removal verification step to the decommission runbook: (1) record all disk paths before removing a VM from inventory; (2) open the Datastore Browser after removal and confirm the paths are gone; (3) if files remain, delete them explicitly. This step costs two minutes per decommission and prevents the kind of capacity surprise that triggers an emergency alert.
+      type: secondary
   level_indicators:
-    level_1: >
-      Notes the mismatch: the vCenter inventory accounts for ~60% of the datastore but
-      usage is at 90.3%. Recognises there is unexplained space consumption. May suggest
-      investigating snapshots, templates, or looking at the datastore directly. Does not
-      specifically identify the orphaned VMDKs by name, does not explain the
-      remove-from-inventory mechanism, and does not quantify the discrepancy.
-    level_2: >
-      Identifies the orphaned VMDKs as the cause — specifically names OldWebServer_2023
-      (~1.80 TB), ProjectDB_archive (~850 GB), and StagingApp-000001 (~180 GB) as files
-      present on the datastore with no associated .vmx or registered VM. Explains that
-      these files remain when VMs are removed from inventory rather than deleted from
-      disk. Quantifies the discrepancy (~2.83 TB orphaned). Does NOT address how to
-      verify the files are safe to delete before acting, and does not identify the
-      decommission process gap.
-    level_3: >
-      All of the above plus: notes that the WS2022-Base template is legitimate and should
-      not be removed. Identifies StagingApp-000001 as a snapshot delta (the -000001
-      suffix) with no visible base VMDK or .vmx — flags this as requiring investigation
-      before deletion, as it may be part of a backup proxy snapshot chain. Proposes
-      verifying OldWebServer_2023 and ProjectDB_archive against backup catalog references
-      before deletion. Describes the verification-then-delete sequence. Does NOT
-      identify the process gap or frame the accumulated orphans as evidence of a
-      recurring decommission failure.
-    level_4: >
-      All of the above plus: observes that orphaned VMDKs from both 2023 and 2024 are
-      present, indicating this has occurred on at least two prior occasions without being
-      caught — the accumulation is a symptom of a missing or unenforced decommission
-      procedure, not a one-time mistake. Proposes what the procedure should include:
-      document all disk paths before VM removal, open the Datastore Browser after removal
-      to confirm files are gone, and include a storage reclaim step with team lead
-      sign-off. Frames the immediate cleanup as necessary but insufficient without the
-      procedural fix.
+    level_1: |
+      Notes the mismatch: the vCenter inventory accounts for ~60% of the datastore but usage is at 90.3%. Recognises there is unexplained space consumption. May suggest investigating snapshots, templates, or looking at the datastore directly. Does not specifically identify the orphaned VMDKs by name, does not explain the remove-from-inventory mechanism, and does not quantify the discrepancy.
+    level_2: |
+      Identifies the orphaned VMDKs as the cause — specifically names OldWebServer_2023 (~1.80 TB), ProjectDB_archive (~850 GB), and StagingApp-000001 (~180 GB) as files present on the datastore with no associated .vmx or registered VM. Explains that these files remain when VMs are removed from inventory rather than deleted from disk. Quantifies the discrepancy (~2.83 TB orphaned). Does NOT address how to verify the files are safe to delete before acting, and does not identify the decommission process gap.
+    level_3: |
+      All of the above plus: notes that the WS2022-Base template is legitimate and should not be removed. Identifies StagingApp-000001 as a snapshot delta (the -000001 suffix) with no visible base VMDK or .vmx — flags this as requiring investigation before deletion, as it may be part of a backup proxy snapshot chain. Proposes verifying OldWebServer_2023 and ProjectDB_archive against backup catalog references before deletion. Describes the verification-then-delete sequence. Does NOT identify the process gap or frame the accumulated orphans as evidence of a recurring decommission failure.
+    level_4: |
+      All of the above plus: observes that orphaned VMDKs from both 2023 and 2024 are present, indicating this has occurred on at least two prior occasions without being caught — the accumulation is a symptom of a missing or unenforced decommission procedure, not a one-time mistake. Proposes what the procedure should include: document all disk paths before VM removal, open the Datastore Browser after removal to confirm files are gone, and include a storage reclaim step with team lead sign-off. Frames the immediate cleanup as necessary but insufficient without the procedural fix.

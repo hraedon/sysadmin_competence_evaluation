@@ -1,0 +1,3 @@
+The database maintenance is being skipped because 'set -e' is turning a normal 'no match' from grep into a fatal script exit. Grep returns status 1 when it finds no matches, and under errexit, this kills the script. It's ironic because on the days with no errors to report, the script actually fails its most important job: the vacuum. 
+
+The most robust fix is to use an if-statement: 'if grep "ERROR" ...; then ...; fi' or specifically allow the grep failure with '... grep "ERROR" || true'. I'd also recommend using 'find' instead of 'ls | xargs' to handle potential spaces in filenames, though the immediate exit is definitely the grep/errexit interaction.

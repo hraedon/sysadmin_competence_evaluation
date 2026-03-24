@@ -35,6 +35,7 @@ import { join, dirname, resolve } from 'path'
 import { fileURLToPath } from 'url'
 import { load as parseYaml } from 'js-yaml'
 import { glob } from 'glob'
+import { performEvaluation } from '../core/evaluator.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const REPO_ROOT = resolve(__dirname, '..')
@@ -54,8 +55,17 @@ function getArg(flag, defaultValue = null) {
   return i !== -1 ? args[i + 1] : defaultValue
 }
 
-const scenarioFilter = getArg('--scenario')
+function getArgs(flag) {
+  const values = []
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === flag && i + 1 < args.length) values.push(args[i + 1])
+  }
+  return values
+}
+
+const scenarioFilters = getArgs('--scenario')
 const domainFilter   = getArg('--domain') ? parseInt(getArg('--domain')) : null
+const levelFilter    = getArg('--level') ? parseInt(getArg('--level')) : null
 const providerFlag   = getArg('--provider', 'local')
 const endpointFlag   = getArg('--endpoint')
 const modelFlag      = getArg('--model')
@@ -105,121 +115,18 @@ if (!apiKey) apiKey = 'lm-studio'  // placeholder for local providers
 const client = new OpenAI({ baseURL, apiKey })
 
 // ---------------------------------------------------------------------------
-// Prompt assembly (mirrors evaluator.js)
-// ---------------------------------------------------------------------------
-
-function buildSystemPrompt(scenario, artifactContent) {
-  const { schema_version = 1.0, domain_name, level, title, delivery_mode, presentation, rubric } = scenario
-
-  let criticalBlock = ''
-  let secondaryBlock = ''
-
-  if (schema_version >= 2.0 && rubric.findings) {
-    criticalBlock = rubric.findings
-      .filter(f => f.type === 'critical')
-      .map(f => `[${f.id}] (Severity: critical) ${f.description.trim()}`)
-      .join('\n\n')
-    
-    secondaryBlock = rubric.findings
-      .filter(f => f.type === 'secondary')
-      .map(f => `[${f.id}] (Severity: secondary) ${f.description.trim()}`)
-      .join('\n\n')
-  } else {
-    criticalBlock = (rubric.critical_findings ?? []).map(f =>
-      `[${f.id}] (Severity: ${f.severity}) ${f.description.trim()}`
-    ).join('\n\n')
-
-    secondaryBlock = (rubric.secondary_findings ?? []).map(f =>
-      `[${f.id}] (Severity: ${f.severity}) ${f.description.trim()}`
-    ).join('\n\n')
-  }
-
-  const levelBlock = Object.entries(rubric.level_indicators ?? {}).map(([k, v]) =>
-    `${k.replace('level_', 'Level ')}: ${v.trim()}`
-  ).join('\n\n')
-
-  const modeNote = delivery_mode === 'B'
-    ? `This is a Commission exercise (Mode B). The candidate has been asked to produce a specification or document — not to analyse a given artifact. Evaluate the completeness and quality of what they produced against the rubric findings, which represent required elements of a correct specification.`
-    : `This is an Audit/Literacy exercise (Mode ${delivery_mode}). The candidate has been asked to analyse the provided artifact and identify findings.`
-
-  const artifactSection = artifactContent
-    ? `ARTIFACT (${presentation.type}):\n\`\`\`\n${artifactContent}\n\`\`\``
-    : '(No artifact — Mode B commission exercise)'
-
-  return `ROLE: You are an assessment evaluator for the Modern Systems Administration Competency Framework. You are evaluating a candidate's response to a scenario exercise. Do not provide the correct answer or reveal findings the candidate missed.
-
-${modeNote}
-
-DOMAIN: ${domain_name} (Level ${level})
-EXERCISE: ${title}
-
-SCENARIO CONTEXT:
-${presentation.context?.trim() ?? ''}
-
-${artifactSection}
-
-RUBRIC
-
-Critical findings:
-${criticalBlock || 'None'}
-
-Secondary findings:
-${secondaryBlock || 'None'}
-
-Level indicators:
-${levelBlock || 'Not specified'}
-
-EVALUATION INSTRUCTIONS:
-1. Assess the candidate's response against the rubric.
-2. Identify which finding IDs were caught (clearly addressed) and which were missed.
-3. Assess severity calibration — did they rate critical findings as critical?
-4. Credit legitimate findings not in the rubric (note them as "unlisted_N").
-5. Produce a level estimate (1–4) with specific evidence from the response.
-6. If the candidate is between levels, describe the specific gap.
-7. Do NOT reveal what was missed or provide the correct answer.
-
-Respond with a single JSON object — no prose before or after it:
-{
-  "level": <1|2|3|4>,
-  "confidence": <"high"|"medium"|"low">,
-  "caught": [<finding id strings>],
-  "missed": [<finding id strings>],
-  "unlisted": [<brief descriptions of valid unlisted findings>],
-  "severity_calibration": <"accurate"|"understated"|"overstated"|"mixed">,
-  "gap": <"prose description of what separates this response from the next level, or null if clearly at a level">,
-  "narrative": <"1–2 paragraph assessment of the response, suitable for the candidate to read. Do not reveal missed findings or the correct answer.">
-}`
-}
-
-// ---------------------------------------------------------------------------
 // Evaluator call
 // ---------------------------------------------------------------------------
 
-async function callEvaluator(scenario, artifactContent, responseText, retry = true) {
-  const systemPrompt = buildSystemPrompt(scenario, artifactContent)
-
-  const response = await client.chat.completions.create({
+async function callEvaluator(scenario, artifactContent, responseText, compactRubric = false) {
+  return performEvaluation({
+    client,
     model: MODEL,
-    max_tokens: 2048,
-    messages: [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: responseText },
-    ],
+    scenario,
+    artifactContent,
+    responseText,
+    compactRubric
   })
-
-  const raw = response.choices[0]?.message?.content ?? ''
-  const jsonMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/) ?? raw.match(/(\{[\s\S]*\})/)
-  const jsonStr = jsonMatch ? (jsonMatch[1] ?? jsonMatch[0]) : raw
-
-  try {
-    return JSON.parse(jsonStr.trim())
-  } catch (err) {
-    if (retry) {
-      process.stdout.write(`(parse error, retrying...) `)
-      return callEvaluator(scenario, artifactContent, responseText, false)
-    }
-    return { _parse_error: true, _raw: raw }
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -232,7 +139,14 @@ function loadScenario(scenarioYamlPath) {
 }
 
 function loadArtifact(scenario) {
-  const artifactFile = scenario.presentation?.artifact_file
+  const { schema_version = 1.0, delivery_mode, delivery_modes, presentation } = scenario
+  const mode = delivery_mode || (delivery_modes && delivery_modes[0]) || 'A'
+  
+  const activePresentation = (schema_version >= 2.0 && presentation.modes) 
+    ? (presentation.modes[mode] || presentation.modes['A'] || {}) 
+    : presentation
+
+  const artifactFile = activePresentation.artifact_file
   if (!artifactFile) return null
   const artifactPath = join(REPO_ROOT, artifactFile)
   if (!existsSync(artifactPath)) return null
@@ -254,7 +168,7 @@ async function main() {
   // Apply filters
   const filteredPaths = yamlPaths.filter(p => {
     const scenario = loadScenario(p)
-    if (scenarioFilter && scenario.id !== scenarioFilter) return false
+    if (scenarioFilters.length > 0 && !scenarioFilters.includes(scenario.id)) return false
     if (domainFilter && scenario.domain !== domainFilter) return false
     return true
   })
@@ -279,15 +193,23 @@ async function main() {
   for (const yamlPath of filteredPaths.sort()) {
     const scenarioDir = dirname(yamlPath)
     const scenario = loadScenario(yamlPath)
+    
+    // Resolve mode correctly for V1/V2
+    const mode = scenario.delivery_mode || (scenario.delivery_modes && scenario.delivery_modes[0]) || 'A'
+    
     const artifactContent = loadArtifact(scenario)
-    const scenarioResults = { id: scenario.id, domain: scenario.domain, level: scenario.level, mode: scenario.delivery_mode, runs: [] }
+    const scenarioResults = { id: scenario.id, domain: scenario.domain, level: scenario.level, mode, runs: [] }
 
-    console.log(`Scenario: ${scenario.id} (Domain ${scenario.domain}, Level ${scenario.level}, Mode ${scenario.delivery_mode})`)
+    console.log(`Scenario: ${scenario.id} (Domain ${scenario.domain}, Level ${scenario.level}, Mode ${mode})`)
 
     for (const expectedLevel of EXPECTED_LEVELS) {
+      if (levelFilter && expectedLevel !== levelFilter) continue
+
       const responseFile = join(scenarioDir, `response_level_${expectedLevel}.txt`)
       if (!existsSync(responseFile)) {
-        console.log(`  L${expectedLevel}: [SKIP] response_level_${expectedLevel}.txt not found`)
+        if (!levelFilter) { // Don't log skips if we're filtering for a specific level
+          console.log(`  L${expectedLevel}: [SKIP] response_level_${expectedLevel}.txt not found`)
+        }
         skipped++
         scenarioResults.runs.push({ expected: expectedLevel, status: 'skip' })
         continue
@@ -295,20 +217,22 @@ async function main() {
 
       const responseText = readFileSync(responseFile, 'utf-8')
 
+      const compactRubric = providerFlag === 'local'
+
       process.stdout.write(`  L${expectedLevel}: calling evaluator... `)
       try {
-        const result = await callEvaluator(scenario, artifactContent, responseText)
+        const result = await callEvaluator(scenario, artifactContent, responseText, compactRubric)
         totalRuns++
 
-        if (result._parse_error) {
+        if (!result.parsed) {
           console.log(`[ERROR] JSON parse failed`)
-          console.log(`        Raw: ${result._raw.slice(0, 200)}`)
+          console.log(`        Raw: ${result.raw.slice(0, 200)}`)
           failed++
-          scenarioResults.runs.push({ expected: expectedLevel, status: 'error', raw: result._raw })
+          scenarioResults.runs.push({ expected: expectedLevel, status: 'error', raw: result.raw })
           continue
         }
 
-        const returnedLevel = result.level
+        const returnedLevel = result.parsed.level
         const deviation = Math.abs(returnedLevel - expectedLevel)
         const pass = deviation <= PASS_TOLERANCE
 
@@ -318,21 +242,27 @@ async function main() {
         } else {
           failed++
           console.log(`[FAIL] returned L${returnedLevel} (expected L${expectedLevel}, deviation ${deviation.toFixed(1)})`)
-          console.log(`        Gap: ${result.gap ?? 'none'}`)
-          console.log(`        Caught: ${(result.caught ?? []).join(', ') || '(none)'}`)
-          console.log(`        Missed: ${(result.missed ?? []).join(', ') || '(none)'}`)
+          console.log(`        Gap: ${result.parsed.gap ?? 'none'}`)
+          console.log(`        Caught: ${(result.parsed.caught ?? []).join(', ') || '(none)'}`)
+          if (result.parsed.almost_caught && result.parsed.almost_caught.length > 0) {
+            console.log(`        Almost: ${result.parsed.almost_caught.join(', ')}`)
+          }
+          console.log(`        Missed: ${(result.parsed.missed ?? []).join(', ') || '(none)'}`)
+          if (result.parsed.narrative) {
+            console.log(`        Narrative: ${result.parsed.narrative.split('\n')[0]}...`)
+          }
         }
 
         scenarioResults.runs.push({
           expected: expectedLevel,
           returned: returnedLevel,
-          confidence: result.confidence,
+          confidence: result.parsed.confidence,
           deviation,
           pass,
-          caught: result.caught ?? [],
-          missed: result.missed ?? [],
-          gap: result.gap,
-          narrative: result.narrative,
+          caught: result.parsed.caught ?? [],
+          missed: result.parsed.missed ?? [],
+          gap: result.parsed.gap,
+          narrative: result.parsed.narrative,
           status: pass ? 'pass' : 'fail',
         })
       } catch (err) {

@@ -1,0 +1,14 @@
+The deployment steps are correct. The diagnosis is wrong, the fix is wrong, and the fix will silently break again.
+
+The comment reveals the diagnostic failure. "Checked ownership and permissions multiple times — they are correct" is a complete DAC check. On a RHEL 9 system with SELinux enforcing, access is controlled by two independent layers: DAC (owner and mode) and MAC (SELinux context). These are evaluated independently — correct DAC does not override a MAC denial. The 403 was an AVC denial from the MAC layer, not a DAC denial, and the diagnostic path is different: ls -Z /opt/crm to see the current context, and ausearch -m AVC -c httpd --since recent or journalctl -t setroubleshoot to read the specific denial. The audit log would have shown the exact source type, the expected type, and the operation that was blocked. The admin's diagnostic was thorough by the Windows model and blind to the actual problem.
+
+setenforce 0 does not fix a context problem — it removes SELinux enforcement for the entire host. Every confined process on this machine is now running unconfined. It also does not survive a reboot: setenforce changes the runtime mode only. The mode at boot is read from /etc/selinux/config, which on a default RHEL 9 system is enforcing. The 403 will return after the next maintenance reboot unless someone has also modified /etc/selinux/config — which would make the regression permanent rather than just transient.
+
+The correct fix for a production deploy script is:
+
+    semanage fcontext -a -t httpd_sys_content_t '/opt/crm(/.*)?'
+    restorecon -Rv /opt/crm
+
+semanage fcontext writes a persistent entry into the SELinux policy database. restorecon applies it immediately. The semanage entry survives filesystem relabeling — if an administrator runs restorecon on the host during a policy update or a full relabel, the /opt/crm context is reapplied correctly because the policy database record is still there.
+
+chcon -R -t httpd_sys_content_t /opt/crm would also fix the immediate 403 and is a reasonable diagnostic step to confirm the hypothesis. But chcon applies a label directly to the inode without creating a policy database entry. If restorecon is run on the host afterward, it overwrites the chcon label with whatever the policy database says — which, before the semanage command, has no entry for /opt/crm and will fall back to a default type Apache cannot read. A deploy script that runs only chcon will silently regress the next time the system is relabeled, which happens during SELinux policy updates. semanage is the correct choice for anything that needs to persist.

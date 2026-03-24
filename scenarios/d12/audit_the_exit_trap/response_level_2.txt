@@ -1,0 +1,1 @@
+The problem is that the script has 'set -e' at the top, which means it will stop completely if any command fails. It's stopping during the log check and never getting to the database maintenance part. I think something is wrong with the grep command or the xargs part that is causing an error and making the script exit prematurely.

@@ -1,74 +1,49 @@
+schema_version: '2.0'
 id: d04-literacy-read-the-chain
+title: Read the Chain
 domain: 4
-domain_name: "Certificate & PKI Management"
+domain_name: Certificate & PKI Management
 level: 1
-title: "Read the Chain"
-delivery_mode: A
-subtype: null
-
+delivery_modes:
+  - A
 presentation:
-  type: log_extract
-  artifact_file: "scenarios/d04/literacy_read_the_chain/chain.txt"
-  context: |
-    Users are reporting certificate errors when accessing
-    https://intranet.corp.example.com. The certificate chain from the server is
-    attached. Identify which certificate is causing the validation failure, explain
-    why the leaf certificate's expiry date is not the relevant information here, and
-    describe what error message the client's browser is most likely displaying.
-
+  modes:
+    A:
+      type: log_extract
+      artifact_file: scenarios/d04/literacy_read_the_chain/chain.txt
+      context: |
+        Users are reporting certificate errors when accessing
+        https://intranet.corp.example.com. The certificate chain from the server is
+        attached. Identify which certificate is causing the validation failure, explain
+        why the leaf certificate's expiry date is not the relevant information here, and
+        describe what error message the client's browser is most likely displaying.
 rubric:
-  critical_findings:
+  findings:
     - id: intermediate_is_expired
-      description: >
-        Certificate 2 (CorpIssuing-CA-01) is expired as of today (2026-03-23). 
-        While Certificate 3 (the leaf) is valid until November 2026, it is 
-        untrustworthy because its issuer is expired. The candidate must 
-        compare today's date with the "Valid To" field of the intermediate 
-        CA to identify the root cause.
+      description: |
+        Certificate 2 (CorpIssuing-CA-01) is expired as of today (2026-03-23).  While Certificate 3 (the leaf) is valid until November 2026, it is  untrustworthy because its issuer is expired. The candidate must  compare today's date with the "Valid To" field of the intermediate  CA to identify the root cause.
       severity: critical
-      miss_signal: >
-        Candidate checks the leaf certificate (#3) first, sees it is valid 
-        until November 2026, and concludes "the certificate is not expired" 
-        or misses the intermediate's expiry entirely.
-
+      miss_signal: |
+        Candidate checks the leaf certificate (#3) first, sees it is valid  until November 2026, and concludes "the certificate is not expired"  or misses the intermediate's expiry entirely.
+      type: critical
     - id: chain_dependency_model
-      description: >
-        The candidate must explain WHY an expired intermediate causes failure 
-        even when the leaf is current. The chain of trust means each 
-        certificate is only valid if ALL certificates above it in the chain 
-        are valid. If the issuing CA is expired, the signature on the leaf 
-        cannot be validated by a browser.
+      description: |
+        The candidate must explain WHY an expired intermediate causes failure  even when the leaf is current. The chain of trust means each  certificate is only valid if ALL certificates above it in the chain  are valid. If the issuing CA is expired, the signature on the leaf  cannot be validated by a browser.
       severity: critical
-      miss_signal: >
-        Candidate identifies the intermediate as expired but cannot explain 
-        why this matters for the leaf certificate's validity.
-
-  secondary_findings:
+      miss_signal: |
+        Candidate identifies the intermediate as expired but cannot explain  why this matters for the leaf certificate's validity.
+      type: critical
     - id: client_error_message
-      description: >
-        The error message clients see ("Certificate in certification path is not within
-        its validity period") refers to the intermediate, not the leaf. Clients may
-        display this as a generic "your connection is not private" error. A candidate
-        who can describe both the underlying error and the user-visible error is
-        demonstrating strong literacy.
+      description: |
+        The error message clients see ("Certificate in certification path is not within its validity period") refers to the intermediate, not the leaf. Clients may display this as a generic "your connection is not private" error. A candidate who can describe both the underlying error and the user-visible error is demonstrating strong literacy.
       severity: moderate
-
+      type: secondary
   level_indicators:
-    level_1: >
-      Checks the leaf certificate's expiry date and concludes the certificate is not
-      expired, or cannot identify which certificate is failing.
-    level_2: >
-      Identifies Certificate 2 (the intermediate) as the failing certificate because
-      it expires in 3 days. Can state that the leaf certificate's expiry is not the
-      issue.
-    level_3: >
-      Explains the chain dependency model — the intermediate's expiry invalidates the
-      entire chain regardless of the leaf. Can describe the client error message. Can
-      state what remediation is required: renew and re-issue the intermediate CA
-      certificate, then re-issue the leaf from the new intermediate.
-    level_4: >
-      All of the above plus notes the operational implications: ALL certificates issued
-      by CorpIssuing-CA-01 will become untrusted when the intermediate expires, not
-      just intranet.corp.example.com. The blast radius is every certificate in the
-      domain issued by this CA. Remediation must happen in the next 3 days or multiple
-      services will fail simultaneously.
+    level_1: |
+      Checks the leaf certificate's expiry date and concludes the certificate is not expired, or cannot identify which certificate is failing.
+    level_2: |
+      Identifies Certificate 2 (the intermediate) as the failing certificate because it expires in 3 days. Can state that the leaf certificate's expiry is not the issue.
+    level_3: |
+      Explains the chain dependency model — the intermediate's expiry invalidates the entire chain regardless of the leaf. Can describe the client error message. Can state what remediation is required: renew and re-issue the intermediate CA certificate, then re-issue the leaf from the new intermediate.
+    level_4: |
+      All of the above plus notes the operational implications: ALL certificates issued by CorpIssuing-CA-01 will become untrusted when the intermediate expires, not just intranet.corp.example.com. The blast radius is every certificate in the domain issued by this CA. Remediation must happen in the next 3 days or multiple services will fail simultaneously.

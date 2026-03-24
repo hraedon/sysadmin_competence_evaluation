@@ -1,0 +1,1 @@
+The disagreement is over what 'Automation First' really means. Sarah thinks that having PowerShell scripts to do the provisioning is enough to be called automated. Mark thinks that it's not automated unless it's in a Jenkins pipeline. They have different ideas about what automation means for their project.

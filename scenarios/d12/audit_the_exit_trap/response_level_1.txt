@@ -1,0 +1,1 @@
+The cleanup script looks like it's doing its job by checking for error logs and then performing the database maintenance. If the 'Cleanup complete' message isn't showing up, there might be a problem with the database vacuum command or the server itself might be experiencing performance issues that are slowing down the script's execution.

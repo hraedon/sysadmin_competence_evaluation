@@ -1,0 +1,108 @@
+schema_version: "2.0"
+id: d10-audit-the-identity-trap
+title: "The Identity Trap"
+domain: 10
+domain_name: "Backup & Recovery"
+level: 3
+delivery_modes: ["A"]
+
+difficulty:
+  score: 4
+  reasoning: >
+    Requires identifying a hidden dependency between the production
+    environment and the backup environment. While the data is physically
+    "off-site," the access control (identity) is centralized, creating a
+    single point of failure for the entire disaster recovery strategy.
+
+presentation:
+  modes:
+    A:
+      type: "architecture_description"
+      artifact_file: "scenarios/d10/audit_the_identity_trap/architecture_spec.txt"
+      context: |
+        You are reviewing the backup and disaster recovery architecture for
+        Project Aegis. The goal is to ensure the strategy is resilient
+        against a total infrastructure compromise (e.g., ransomware).
+
+        Analyze the specification. Does this architecture truly satisfy the
+        requirements for a secure "off-site" and "immutable" backup?
+        Identify the primary risk in this design.
+
+rubric:
+  findings:
+    - id: identity_circular_dependency
+      type: "critical"
+      description: >
+        The candidate must identify that the identity provider (Entra ID)
+        is a shared dependency. Because administrative identities are
+        synchronized from on-premises AD, a compromise of the primary
+        domain or a lockout of the Entra tenant makes both production
+        AND the "off-site" Azure Blob backups inaccessible. While data
+        is physically separate, the access control is unified.
+      miss_signal: >
+        Candidate approves the plan because it uses Azure Blob with
+        immutability, without noticing the identity link.
+      learning_note: >
+        True isolation requires an "identity moat." Backup storage
+        access should use separate, non-synchronized credentials
+        that do not depend on the primary production directory.
+
+    - id: recognition_of_tape_fallback_limitations
+      type: "critical"
+      description: >
+        The candidate identifies that while Tier 1 (NAS) and Tier 2 (Azure)
+        are compromised by the identity gap, Tier 3 (Tape) remains a viable
+        recovery path. However, they must articulate the severe RTO/RPO
+        implications: losing 30 days of data (monthly tapes) and the 
+        physical latency of retrieving and restoring from LTO-8.
+      miss_signal: >
+        Candidate treats the entire DR plan as a total 100% loss, failing
+        to recognize that the physical tape tier provides an "out-of-band"
+        recovery path, albeit a slow one.
+      learning_note: >
+        Air-gapped media like tape is the ultimate defense against 
+        identity-based attacks, but its RTO is often too high for 
+        modern business requirements.
+
+    - id: immutable_storage_availability_gap
+      type: "secondary"
+      description: >
+        While the storage is "immutable" (cannot be deleted), it is not
+        "access blind." The candidate notes that immutability protects the
+        integrity of the bits, but the identity dependency threatens the
+        availability of the restore process.
+      miss_signal: >
+        Candidate focuses only on "ransomware can't delete the data"
+        without considering "admins can't reach the data to restore it."
+
+    - id: l4_break_glass_isolation
+      type: "secondary"
+      description: >
+        The candidate specifies the need for "cloud-only" break-glass
+        accounts for the Azure portal that are excluded from Entra Connect
+        sync. These accounts must have an independent MFA method (e.g.,
+        FIDO2 keys) not tied to the corporate phone/app ecosystem.
+      miss_signal: >
+        Candidate identifies the identity risk but fails to propose
+        isolated, non-synced credentials as the architectural fix.
+
+  level_indicators:
+    level_1: |
+      Approves the architecture based on the "3-2-1" rule. Mentions
+      immutability as a strong defense. Misses the identity link.
+    level_2: |
+      Notes that SSO is a "single point of failure" but doesn't
+      specifically explain the Entra Connect sync mechanism or the
+      lockout scenario. Suggests "more MFA" rather than "different accounts."
+    level_3: |
+      Identifies the "Identity Trap": synced identities create a 
+      circular dependency. Explains that Tier 1 and 2 are vulnerable
+      to identity lockout. Recognizes Tier 3 (Tape) as the only 
+      remaining recovery path and notes the RTO/RPO impact. Does NOT 
+      propose the specific architectural fix: cloud-only break-glass 
+      accounts excluded from Entra Connect sync.
+    level_4: |
+      All of the above, plus specifies the "Identity Moat" fix: 
+      cloud-only break-glass accounts excluded from sync. Articulates
+      that for a backup to be "off-site," its metadata and access
+      control must also be off-site/out-of-band.

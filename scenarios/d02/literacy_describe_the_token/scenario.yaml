@@ -1,72 +1,51 @@
+schema_version: '2.0'
 id: d02-audit-ticket-flags
+title: The Missing Flag
 domain: 2
-domain_name: "Identity & Hybrid IAM"
+domain_name: Identity & Hybrid IAM
 level: 2
-title: "The Missing Flag"
-delivery_mode: A
-subtype: null
-
+delivery_modes:
+  - A
 presentation:
-  type: shell_command
-  artifact_file: "scenarios/d02/literacy_describe_the_token/klist_output.txt"
-  context: |
-    You are investigating reports of intermittent authentication issues. You've
-    collected the cached Kerberos tickets from jsmith's workstation. 
+  modes:
+    A:
+      type: shell_command
+      artifact_file: scenarios/d02/literacy_describe_the_token/klist_output.txt
+      context: |
+        You are investigating reports of intermittent authentication issues. You've
+        collected the cached Kerberos tickets from jsmith's workstation. 
 
-    Analyze the klist output and identify:
-    (1) What systems did jsmith successfully authenticate to?
-    (2) What is the most significant security or configuration anomaly visible
-        in the ticket flags, and what are its implications?
-    (3) What determines whether jsmith will still have access to FILESERVER01 
-        at 18:04:00 today?
-
+        Analyze the klist output and identify:
+        (1) What systems did jsmith successfully authenticate to?
+        (2) What is the most significant security or configuration anomaly visible
+            in the ticket flags, and what are its implications?
+        (3) What determines whether jsmith will still have access to FILESERVER01 
+            at 18:04:00 today?
 rubric:
-  critical_findings:
+  findings:
     - id: missing_pre_auth_on_service_tickets
-      description: >
-        Service tickets #1 (cifs) and #2 (ldap) are missing the 'pre-authent' flag, 
-        while the TGT (#0) has it. This indicates that while the initial TGT 
-        request required pre-authentication (standard behavior), the subsequent 
-        service tickets were issued without it. This is highly unusual for 
-        AES-256 tickets in a modern domain and often points to 'Do not require 
-        Kerberos preauthentication' being set on the user account or a 
-        misconfiguration in the KDC's handling of service ticket requests.
+      description: |
+        Service tickets #1 (cifs) and #2 (ldap) are missing the 'pre-authent' flag,  while the TGT (#0) has it. This indicates that while the initial TGT  request required pre-authentication (standard behavior), the subsequent  service tickets were issued without it. This is highly unusual for  AES-256 tickets in a modern domain and often points to 'Do not require  Kerberos preauthentication' being set on the user account or a  misconfiguration in the KDC's handling of service ticket requests.
       severity: critical
-      miss_signal: >
-        Candidate lists the tickets but says everything looks normal or does 
-        not mention the missing 'pre-authent' flag on the service tickets.
-
-  secondary_findings:
+      miss_signal: |
+        Candidate lists the tickets but says everything looks normal or does  not mention the missing 'pre-authent' flag on the service tickets.
+      type: critical
     - id: ticket_vs_session_persistence
-      description: >
-        Ticket #1 expires at 18:03:22. At 18:04:00, the ticket itself is expired,
-        but an existing SMB session to FILESERVER01 may still be active because
-        authentication happens at session establishment. A new connection 
-        attempt would require a silent re-authentication using the TGT.
+      description: |
+        Ticket #1 expires at 18:03:22. At 18:04:00, the ticket itself is expired, but an existing SMB session to FILESERVER01 may still be active because authentication happens at session establishment. A new connection  attempt would require a silent re-authentication using the TGT.
       severity: moderate
-
+      type: secondary
     - id: kdc_identification
-      description: >
+      description: |
         The KDC is identified as LABDC01.corp.example.com in the 'KDC Called' field.
       severity: low
-
+      type: secondary
   level_indicators:
-    level_1: >
-      Identifies that the user has tickets for a file server and LDAP. Can 
-      state the expiry time. Does not notice the flag anomaly or explain
-      session persistence vs ticket expiry.
-    level_2: >
-      Notices that flags differ between the TGT and the service tickets. 
-      Identifies that the 'pre-authent' flag is missing from #1 and #2. 
-      Explains that access might persist after 18:03:22 for existing sessions.
-    level_3: >
-      Correctly identifies the security implication: 'pre-authent' missing on 
-      service tickets is an anomaly that could indicate a weakened security 
-      posture (e.g. account configuration) or a diagnostic path for the 
-      reported 'intermittent issues'. Articulates the TGT-based renewal 
-      mechanism clearly.
-    level_4: >
-      All of the above, plus can specifically name the 'Do not require Kerberos 
-      preauthentication' AD user attribute as the likely root cause and 
-      explains why it's a risk (AS-REP roasting) even if the TGT itself 
-      shows pre-auth was used for the initial login.
+    level_1: |
+      Identifies that the user has tickets for a file server and LDAP. Can  state the expiry time. Does not notice the flag anomaly or explain session persistence vs ticket expiry.
+    level_2: |
+      Notices that flags differ between the TGT and the service tickets. Identifies that the 'pre-authent' flag is missing from #1 and #2. Explains that access might persist after 18:03:22 for existing sessions. Does NOT characterize the flag discrepancy as a security anomaly, does not suggest account configuration or KDC misconfiguration as the root cause.
+    level_3: |
+      Correctly identifies the security implication: 'pre-authent' missing on  service tickets is an anomaly that could indicate a weakened security  posture (e.g. account configuration) or a diagnostic path for the  reported 'intermittent issues'. Articulates the TGT-based renewal  mechanism clearly.
+    level_4: |
+      All of the above, plus can specifically name the 'Do not require Kerberos  preauthentication' AD user attribute as the likely root cause and  explains why it's a risk (AS-REP roasting) even if the TGT itself  shows pre-auth was used for the initial login.

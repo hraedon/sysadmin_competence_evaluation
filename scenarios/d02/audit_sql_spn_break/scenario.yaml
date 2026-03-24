@@ -1,151 +1,58 @@
+schema_version: '2.0'
 id: d02-audit-sql-spn-break
+title: The Change That Wasn't Rolled Back
 domain: 2
-domain_name: "Identity & Hybrid IAM"
+domain_name: Identity & Hybrid IAM
 level: 2
-title: "The Change That Wasn't Rolled Back"
-delivery_mode: A
-subtype: null
-
-# Scenario note (for scenario authors and evaluators):
-# Most similar to: d02-audit-sspr-writeback (both are Domain 2 Level 2 audit exercises
-# where a configuration change leaves a required identity infrastructure component —
-# AD delegation, SPN registration — absent, causing authentication to fail silently).
-# How the reasoning challenge differs: the SSPR writeback scenario tests whether
-# candidates identify missing AD delegation from a feature configuration surface. This
-# scenario tests a different and more time-sensitive reasoning posture: connecting a
-# recent change (service account round-trip) to a Kerberos failure that emerged
-# afterward, and understanding WHY the protocol selection differs between FQDN and IP
-# connections. The SPN mechanism is the Kerberos prerequisite that earlier scenarios
-# assume; this scenario makes the prerequisite itself the finding. The BI team's
-# note that the change was "complete" with "no impact" is a realistic documentation
-# failure that tests whether candidates trust the change record or interrogate it.
-
+delivery_modes:
+  - A
 presentation:
-  type: log_extract
-  artifact_file: "scenarios/d02/audit_sql_spn_break/change_log_and_diagnostics.txt"
-  context: |
-    Users have been unable to connect to SQLSRV01 via its FQDN since yesterday
-    afternoon. The SQL Server service is confirmed running. The attached document
-    contains the change record from yesterday's BI team testing, the SQL Server
-    error log extract from when the service was last restarted, the current SPN
-    diagnostic output, and the helpdesk reports from this morning.
+  modes:
+    A:
+      type: log_extract
+      artifact_file: scenarios/d02/audit_sql_spn_break/change_log_and_diagnostics.txt
+      context: |
+        Users have been unable to connect to SQLSRV01 via its FQDN since yesterday
+        afternoon. The SQL Server service is confirmed running. The attached document
+        contains the change record from yesterday's BI team testing, the SQL Server
+        error log extract from when the service was last restarted, the current SPN
+        diagnostic output, and the helpdesk reports from this morning.
 
-    Identify:
-    (1) What is causing the FQDN connection failures?
-    (2) Why does K. Strand's IP address connection succeed while FQDN connections fail?
-    (3) What did the BI team's change actually do, and why did they not detect the
-        problem before closing the change?
-
+        Identify:
+        (1) What is causing the FQDN connection failures?
+        (2) Why does K. Strand's IP address connection succeed while FQDN connections fail?
+        (3) What did the BI team's change actually do, and why did they not detect the
+            problem before closing the change?
 rubric:
-  critical_findings:
+  findings:
     - id: spn_missing_after_account_roundtrip
-      description: >
-        The MSSQLSvc SPNs for SQLSRV01 are absent. The setspn -L output for corp\svc_sql
-        shows no registered SPNs; setspn -Q MSSQLSvc/SQLSRV01.corp.local and
-        setspn -Q MSSQLSvc/SQLSRV01 both return "No such SPN found." The SQL Server
-        error log from the 15:48 restart explicitly reports failure to register the SPN
-        [MSSQLSvc/SQLSRV01.corp.local:1433] with Windows return code 0x2098 — insufficient
-        access rights to write to the servicePrincipalName attribute in Active Directory.
-        Kerberos authentication requires a matching SPN registered on the service account.
-        When the SPN is absent, the KDC cannot issue a service ticket for SQLSRV01, and
-        FQDN connections that trigger Kerberos fail with "Cannot generate SSPI context."
+      description: |
+        The MSSQLSvc SPNs for SQLSRV01 are absent. The setspn -L output for corp\svc_sql shows no registered SPNs; setspn -Q MSSQLSvc/SQLSRV01.corp.local and setspn -Q MSSQLSvc/SQLSRV01 both return "No such SPN found." The SQL Server error log from the 15:48 restart explicitly reports failure to register the SPN [MSSQLSvc/SQLSRV01.corp.local:1433] with Windows return code 0x2098 — insufficient access rights to write to the servicePrincipalName attribute in Active Directory. Kerberos authentication requires a matching SPN registered on the service account. When the SPN is absent, the KDC cannot issue a service ticket for SQLSRV01, and FQDN connections that trigger Kerberos fail with "Cannot generate SSPI context."
       severity: critical
-      miss_signal: >
-        Candidate attributes the failure to the SQL Server service account configuration
-        (wrong password, account locked out) rather than SPN registration. Or: candidate
-        identifies the SPN as missing but does not connect it to the service account
-        round-trip in the change record. Or: candidate recommends restarting the SQL
-        Server service, without recognizing that the error log already shows the SPN
-        registration failed on the most recent restart and a restart alone will not fix
-        the underlying permission problem.
-      learning_note: >
-        A Service Principal Name (SPN) is an identifier registered in Active Directory
-        that links a service to the account it runs under. When a client connects to
-        SQLSRV01.corp.local, it asks the KDC for a ticket to MSSQLSvc/SQLSRV01.corp.local.
-        The KDC looks up which account has that SPN registered and issues a ticket
-        encrypted for that account. If no account has the SPN, the KDC returns an error
-        and Kerberos fails.
-
-        SQL Server auto-registers its SPNs on startup — but only if the service account
-        has the "Write servicePrincipalName" permission on its own AD object. The error
-        code 0x2098 means "insufficient rights to write SPN." A managed service account
-        or the built-in NETWORK SERVICE account gets this right automatically; a domain
-        user account (like corp\svc_sql) does not get it by default and must have it
-        delegated explicitly.
-
-        When the BI team switched the service account to NT Service\MSSQLSERVER and back,
-        SQL Server deregistered the SPNs from corp\svc_sql on the switch-away, then
-        failed to re-register them on the switch-back because corp\svc_sql lacked the
-        Write SPN permission. The fix is to register the SPNs manually:
+      miss_signal: |
+        Candidate attributes the failure to the SQL Server service account configuration (wrong password, account locked out) rather than SPN registration. Or: candidate identifies the SPN as missing but does not connect it to the service account round-trip in the change record. Or: candidate recommends restarting the SQL Server service, without recognizing that the error log already shows the SPN registration failed on the most recent restart and a restart alone will not fix the underlying permission problem.
+      learning_note: |
+        A Service Principal Name (SPN) is an identifier registered in Active Directory that links a service to the account it runs under. When a client connects to SQLSRV01.corp.local, it asks the KDC for a ticket to MSSQLSvc/SQLSRV01.corp.local. The KDC looks up which account has that SPN registered and issues a ticket encrypted for that account. If no account has the SPN, the KDC returns an error and Kerberos fails.
+        SQL Server auto-registers its SPNs on startup — but only if the service account has the "Write servicePrincipalName" permission on its own AD object. The error code 0x2098 means "insufficient rights to write SPN." A managed service account or the built-in NETWORK SERVICE account gets this right automatically; a domain user account (like corp\svc_sql) does not get it by default and must have it delegated explicitly.
+        When the BI team switched the service account to NT Service\MSSQLSERVER and back, SQL Server deregistered the SPNs from corp\svc_sql on the switch-away, then failed to re-register them on the switch-back because corp\svc_sql lacked the Write SPN permission. The fix is to register the SPNs manually:
           setspn -A MSSQLSvc/SQLSRV01.corp.local:1433 corp\svc_sql
           setspn -A MSSQLSvc/SQLSRV01.corp.local corp\svc_sql
-
-  secondary_findings:
+      type: critical
     - id: fqdn_vs_ip_protocol_selection
-      description: >
-        K. Strand's connection via IP address (192.168.10.20,1433) succeeds because
-        Windows uses NTLM, not Kerberos, for connections to IP addresses — NTLM does
-        not require an SPN and can authenticate using the challenge-response protocol
-        directly with the domain controller. FQDN connections (SQLSRV01.corp.local)
-        trigger Kerberos because Windows attempts to construct an SPN for a named host.
-        If the SPN lookup fails, the behavior depends on client and server configuration:
-        in most environments the client falls back to NTLM for short names (SQLSRV01)
-        but not reliably for FQDNs, and SQL Server in Windows Authentication mode may
-        also have been configured with RequireKerberos or a server alias that forces
-        Kerberos. The practical diagnostic value: if connections work on IP but fail
-        on FQDN with "Cannot generate SSPI context," the root cause is almost always
-        a missing or misregistered SPN.
+      description: |
+        K. Strand's connection via IP address (192.168.10.20,1433) succeeds because Windows uses NTLM, not Kerberos, for connections to IP addresses — NTLM does not require an SPN and can authenticate using the challenge-response protocol directly with the domain controller. FQDN connections (SQLSRV01.corp.local) trigger Kerberos because Windows attempts to construct an SPN for a named host. If the SPN lookup fails, the behavior depends on client and server configuration: in most environments the client falls back to NTLM for short names (SQLSRV01) but not reliably for FQDNs, and SQL Server in Windows Authentication mode may also have been configured with RequireKerberos or a server alias that forces Kerberos. The practical diagnostic value: if connections work on IP but fail on FQDN with "Cannot generate SSPI context," the root cause is almost always a missing or misregistered SPN.
       severity: moderate
-      learning_note: >
-        Windows selects the authentication protocol based on how the target is addressed.
-        When a client connects using an IP address, Windows uses NTLM — a
-        challenge-response protocol that authenticates by proving knowledge of the
-        password hash directly with a domain controller. NTLM does not use SPNs at all.
-
-        When a client connects using a hostname (SQLSRV01) or FQDN
-        (SQLSRV01.corp.local), Windows attempts Kerberos first. Kerberos requires a
-        valid SPN to exist in AD so the KDC can issue a service ticket. If the SPN
-        lookup fails, what happens next depends on configuration: some environments
-        fall back to NTLM for short names, but FQDNs often do not fall back cleanly,
-        especially when the server or client is configured to require Kerberos.
-
-        This is why "Cannot generate SSPI context" appears on FQDN connections but
-        IP connections work fine — the IP path never touches the Kerberos path at all.
-        It is also why the BI team's local hostname test succeeded: a local connection
-        via short name fell back to NTLM. The production application connecting via
-        FQDN had no such fallback.
-
+      learning_note: |
+        Windows selects the authentication protocol based on how the target is addressed. When a client connects using an IP address, Windows uses NTLM — a challenge-response protocol that authenticates by proving knowledge of the password hash directly with a domain controller. NTLM does not use SPNs at all.
+        When a client connects using a hostname (SQLSRV01) or FQDN (SQLSRV01.corp.local), Windows attempts Kerberos first. Kerberos requires a valid SPN to exist in AD so the KDC can issue a service ticket. If the SPN lookup fails, what happens next depends on configuration: some environments fall back to NTLM for short names, but FQDNs often do not fall back cleanly, especially when the server or client is configured to require Kerberos.
+        This is why "Cannot generate SSPI context" appears on FQDN connections but IP connections work fine — the IP path never touches the Kerberos path at all. It is also why the BI team's local hostname test succeeded: a local connection via short name fell back to NTLM. The production application connecting via FQDN had no such fallback.
+      type: secondary
   level_indicators:
-    level_1: >
-      Identifies that the SQL Server service account may be misconfigured and that
-      something is wrong with authentication. Can read the error log and note that
-      the service started successfully but reports an error about SPN registration.
-      Cannot explain what an SPN is, why its absence causes FQDN connections to fail,
-      or why IP connections still work. May recommend restarting the SQL Server
-      service or resetting the service account password.
-    level_2: >
-      Identifies the missing SPN as the root cause: setspn -L shows no entries for
-      corp\svc_sql, and the error log confirms SPN registration failed with 0x2098
-      (insufficient rights). Connects this to the service account round-trip in the
-      change record: switching to NT Service\MSSQLSERVER and back caused SQL Server
-      to lose the previously registered SPNs and fail to re-register them. Does NOT
-      explain why FQDN connections fail while IP connections succeed.
-    level_3: >
-      All of the above plus explains the FQDN vs IP protocol selection: FQDN connections
-      trigger Kerberos (which requires a matching SPN); IP connections use NTLM (which
-      does not need an SPN). Notes why the BI team's testing did not detect the problem:
-      they tested using hostname SQLSRV01 from a local connection, which falls back to
-      NTLM and succeeds regardless of SPN state — the FQDN path used by production
-      applications was never exercised. Notes that the fix requires manual SPN
-      registration by an account with AD write rights. Does NOT specify the exact
-      setspn -A commands or raise the risk of duplicate SPNs on stale accounts.
-    level_4: >
-      All of the above plus specifies the manual SPN registration procedure:
-      setspn -A MSSQLSvc/SQLSRV01.corp.local:1433 corp\svc_sql and
-      setspn -A MSSQLSvc/SQLSRV01.corp.local corp\svc_sql (both port and non-port
-      forms are needed). Notes the duplicate SPN risk: stale entries on a previous
-      account (e.g., the local service) must be found and removed first — duplicate
-      SPNs on two accounts cause Kerberos to fail even after the correct SPN is
-      registered. Recommends setspn -Q to verify a clean state before and after
-      registration. Also notes the process improvement: change closure should require
-      an FQDN connection test, not just a service availability check.
+    level_1: |
+      Identifies that the SQL Server service account may be misconfigured and that something is wrong with authentication. Can read the error log and note that the service started successfully but reports an error about SPN registration. Cannot explain what an SPN is, why its absence causes FQDN connections to fail, or why IP connections still work. May recommend restarting the SQL Server service or resetting the service account password.
+    level_2: |
+      Identifies the missing SPN as the root cause: setspn -L shows no entries for corp\svc_sql, and the error log confirms SPN registration failed with 0x2098 (insufficient rights). Connects this to the service account round-trip in the change record: switching to NT Service\MSSQLSERVER and back caused SQL Server to lose the previously registered SPNs and fail to re-register them. Does NOT explain why FQDN connections fail while IP connections succeed.
+    level_3: |
+      All of the above plus explains the FQDN vs IP protocol selection: FQDN connections trigger Kerberos (which requires a matching SPN); IP connections use NTLM (which does not need an SPN). Notes why the BI team's testing did not detect the problem: they tested using hostname SQLSRV01 from a local connection, which falls back to NTLM and succeeds regardless of SPN state — the FQDN path used by production applications was never exercised. Notes that the fix requires manual SPN registration by an account with AD write rights. Does NOT specify the exact setspn -A commands or raise the risk of duplicate SPNs on stale accounts.
+    level_4: |
+      All of the above plus specifies the manual SPN registration procedure: setspn -A MSSQLSvc/SQLSRV01.corp.local:1433 corp\svc_sql and setspn -A MSSQLSvc/SQLSRV01.corp.local corp\svc_sql (both port and non-port forms are needed). Notes the duplicate SPN risk: stale entries on a previous account (e.g., the local service) must be found and removed first — duplicate SPNs on two accounts cause Kerberos to fail even after the correct SPN is registered. Recommends setspn -Q to verify a clean state before and after registration. Also notes the process improvement: change closure should require an FQDN connection test, not just a service availability check.

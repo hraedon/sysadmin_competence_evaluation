@@ -2,7 +2,4 @@ The standard operating procedure is not appropriate here. This needs to be treat
 
 The key issue is that this datastore is thin provisioned. Thin provisioning means VMs get logical space allocated to them but only use physical blocks as data is actually written. When the physical capacity runs out, all VMs on the datastore stop being able to write at the same time — not gradually. Every VM that tries to write gets an I/O error simultaneously. For 12 VMs including 3 running SQL Server with active transaction logs, that means database failures across all three SQL instances at once.
 
-This cannot wait until Saturday. Immediate actions:
-1. Expand the datastore now — add capacity if available, or migrate some VMs to PROD-DS-01 which has space (68% used, thick provisioned, 20 TB).
-2. If immediate expansion isn't possible, suspend non-critical writes (DEVVM-01, DEVVM-02) to slow consumption while the expansion is arranged.
-3. Alert the SQL Server DBAs that the storage is in a critical state.
+This cannot wait until Saturday. The correct response is to treat this as an emergency: expand the datastore now by adding physical capacity, or migrate some VMs to PROD-DS-01 which has available space (68% used, thick provisioned, 20 TB). Alert the SQL Server DBAs that the storage is in a critical state.

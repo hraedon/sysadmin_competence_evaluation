@@ -1,140 +1,56 @@
+schema_version: '2.0'
 id: d10-audit-the-successful-backup
+title: Seven Green Lights
 domain: 10
-domain_name: "Backup & Recovery"
+domain_name: Backup & Recovery
 level: 2
-title: "Seven Green Lights"
-delivery_mode: A
-subtype: null
-
+delivery_modes:
+  - A
 difficulty: 3
-difficulty_note: >
-  The job history shows seven consecutive "Success" statuses, which is the signal most
-  operators use to confirm backup health. Identifying the problem requires looking past
-  the status column to the restore point list (only 3 of the expected 7 exist) and the
-  session log (which explains why). Candidates who stop at job status miss the finding
-  entirely. Candidates who notice the discrepancy between 7 successes and 3 restore
-  points must then understand Veeam's forever-forward incremental merge behaviour to
-  explain it — the job did run and did transfer data; the merge is why the restore point
-  count didn't increase.
-
 presentation:
-  type: log_extract
-  artifact_file: "scenarios/d10/audit_the_successful_backup/backup_report.txt"
-  context: |
-    The IT manager has requested a backup health audit for all production backup jobs.
-    You have pulled the Veeam console data for the file server backup job.
+  modes:
+    A:
+      type: log_extract
+      artifact_file: scenarios/d10/audit_the_successful_backup/backup_report.txt
+      context: |
+        The IT manager has requested a backup health audit for all production backup jobs.
+        You have pulled the Veeam console data for the file server backup job.
 
-    Assess whether this job is healthy and meeting its retention target.
-
-# Most similar to: d08-audit-patch-compliance-blind-spot (both test whether a status
-# indicator that is accurate within its scope is being used as a proxy for a broader
-# health property it does not actually measure).
-# How the reasoning challenge differs: the SCCM scenario requires understanding that
-# "compliant" means "last scan found nothing," making the scan recency the variable.
-# This scenario requires understanding that "Success" means "job operations completed,"
-# where the job's operations include a merge that deletes a restore point — so Success
-# is compatible with the retention target getting worse, not better.
-
+        Assess whether this job is healthy and meeting its retention target.
 rubric:
-  critical_findings:
+  findings:
     - id: retention_target_not_being_met
-      description: >
-        The job is configured to keep 7 restore points. Only 3 are currently available:
-        a full from 2026-03-16 and incrementals from 2026-03-17 and 2026-03-18. The
-        oldest available restore point is 7 days old, but that is only because the full
-        from 2026-03-16 is still present. If a file deleted on 2026-03-19, 2026-03-20,
-        2026-03-21, or 2026-03-22 needs to be recovered, there is no restore point from
-        any of those dates. The effective recovery point is the full backup from
-        2026-03-16 — 7 days ago — not the most recent increment. The retention target
-        of 7 restore points is not being met.
+      description: |
+        The job is configured to keep 7 restore points. Only 3 are currently available: a full from 2026-03-16 and incrementals from 2026-03-17 and 2026-03-18. The oldest available restore point is 7 days old, but that is only because the full from 2026-03-16 is still present. If a file deleted on 2026-03-19, 2026-03-20, 2026-03-21, or 2026-03-22 needs to be recovered, there is no restore point from any of those dates. The effective recovery point is the full backup from 2026-03-16 — 7 days ago — not the most recent increment. The retention target of 7 restore points is not being met.
       severity: critical
-      miss_signal: >
-        Candidate reads the job history and confirms the job has been running successfully.
-        Does not check the restore point list or notice the discrepancy between 7 job
-        runs and 3 available restore points. May note the low repository free space as a
-        concern without connecting it to the retention target failure.
-
+      miss_signal: |
+        Candidate reads the job history and confirms the job has been running successfully. Does not check the restore point list or notice the discrepancy between 7 job runs and 3 available restore points. May note the low repository free space as a concern without connecting it to the retention target failure.
+      type: critical
     - id: merge_explains_status_vs_restore_point_discrepancy
-      description: >
-        Veeam's forever-forward incremental mode automatically merges the oldest restore
-        point into the full backup when repository free space drops below the configured
-        threshold. The merge operation completes successfully — no data is corrupted,
-        no error occurs — and the job status is reported as "Success." The session log
-        for 2026-03-19 through 2026-03-22 shows this explicitly: each night, the
-        incremental backup completed (new data transferred from source), then the
-        repository triggered a merge (oldest restore point deleted). The net effect each
-        night: one new restore point created, one old restore point deleted = no change
-        in total restore point count. The retention policy is configured to keep 7 points,
-        but the repository is too small to hold 7 points, so the merge runs nightly and
-        the count has been stuck at 3 for four days.
+      description: |
+        Veeam's forever-forward incremental mode automatically merges the oldest restore point into the full backup when repository free space drops below the configured threshold. The merge operation completes successfully — no data is corrupted, no error occurs — and the job status is reported as "Success." The session log for 2026-03-19 through 2026-03-22 shows this explicitly: each night, the incremental backup completed (new data transferred from source), then the repository triggered a merge (oldest restore point deleted). The net effect each night: one new restore point created, one old restore point deleted = no change in total restore point count. The retention policy is configured to keep 7 points, but the repository is too small to hold 7 points, so the merge runs nightly and the count has been stuck at 3 for four days.
       severity: critical
-      miss_signal: >
-        Candidate identifies the repository is nearly full and recommends expanding it,
-        without explaining the merge mechanism or connecting it to the retention target
-        failure. Or: candidate identifies the discrepancy in restore point count but
-        cannot explain why the job shows "Success" — treats it as a Veeam bug or data
-        inconsistency rather than expected merge behaviour.
-      learning_note: >
-        In forever-forward incremental mode, Veeam maintains a rolling backup chain by
-        periodically merging the oldest increment into the full backup file. This is by
-        design — it avoids needing to run a new full backup to maintain the chain. When
-        free space is low, Veeam triggers this merge proactively. The merge succeeds, the
-        job reports Success, but the oldest restore point is deleted as part of the merge.
-        The job's "Success" status reflects that the job's operations completed without
-        error — it does not reflect whether the retention target was met or whether the
-        restore point count changed.
-
-  secondary_findings:
+      miss_signal: |
+        Candidate identifies the repository is nearly full and recommends expanding it, without explaining the merge mechanism or connecting it to the retention target failure. Or: candidate identifies the discrepancy in restore point count but cannot explain why the job shows "Success" — treats it as a Veeam bug or data inconsistency rather than expected merge behaviour.
+      learning_note: |
+        In forever-forward incremental mode, Veeam maintains a rolling backup chain by periodically merging the oldest increment into the full backup file. This is by design — it avoids needing to run a new full backup to maintain the chain. When free space is low, Veeam triggers this merge proactively. The merge succeeds, the job reports Success, but the oldest restore point is deleted as part of the merge. The job's "Success" status reflects that the job's operations completed without error — it does not reflect whether the retention target was met or whether the restore point count changed.
+      type: critical
     - id: monitoring_gap
-      description: >
-        The monitoring configuration alerts on job failure status. A job that merges
-        nightly and reports "Success" will never trigger a job-failure alert, even as
-        the effective retention window shrinks to zero. Correct backup monitoring requires
-        alerting on: (1) restore point count falling below the retention target, (2)
-        repository free space falling below a threshold sufficient to hold the next
-        backup cycle without triggering a merge, and (3) age of the oldest available
-        restore point exceeding the RPO target. "Job succeeded" is necessary but not
-        sufficient as a health signal.
+      description: |
+        The monitoring configuration alerts on job failure status. A job that merges nightly and reports "Success" will never trigger a job-failure alert, even as the effective retention window shrinks to zero. Correct backup monitoring requires alerting on: (1) restore point count falling below the retention target, (2) repository free space falling below a threshold sufficient to hold the next backup cycle without triggering a merge, and (3) age of the oldest available restore point exceeding the RPO target. "Job succeeded" is necessary but not sufficient as a health signal.
       severity: high
-
+      type: secondary
     - id: repository_undersized
-      description: >
-        The root cause of the merge cycle is that the repository (4 TB) cannot hold 7
-        restore points of this job. Three restore points (1 full + 2 incrementals)
-        consume 3.92 TB, leaving 82 GB free — insufficient for an additional incremental
-        (~150 GB average) without triggering a merge. Either the repository needs to be
-        expanded to hold the full retention target, or the retention policy needs to be
-        reduced to match what the repository can actually hold. Configuring a retention
-        policy the repository cannot fulfil is a configuration gap.
+      description: |
+        The root cause of the merge cycle is that the repository (4 TB) cannot hold 7 restore points of this job. Three restore points (1 full + 2 incrementals) consume 3.92 TB, leaving 82 GB free — insufficient for an additional incremental (~150 GB average) without triggering a merge. Either the repository needs to be expanded to hold the full retention target, or the retention policy needs to be reduced to match what the repository can actually hold. Configuring a retention policy the repository cannot fulfil is a configuration gap.
       severity: moderate
-
+      type: secondary
   level_indicators:
-    level_1: >
-      Reviews the job history, notes that all seven jobs show "Success," and concludes
-      the backup job is healthy. May note the low repository free space as a point to
-      watch but does not connect it to the retention target or restore point count.
-      Does not check the restore point list.
-    level_2: >
-      Identifies the discrepancy: 7 successful job runs but only 3 restore points
-      available. Identifies the repository as nearly full and connects the low free space
-      to the merge behaviour described in the session log. Concludes the retention target
-      of 7 restore points is not being met and that restore points from the last 4 days
-      are not available for recovery. Recommends expanding the repository. Does NOT
-      identify the monitoring gap — that job status alone is insufficient to detect this
-      condition.
-    level_3: >
-      All of the above plus: explains the forever-forward incremental merge mechanism —
-      why "Success" is the correct job status even as restore points are being deleted;
-      that the merge is intended behaviour triggered by low free space; that the net
-      effect of each nightly run is zero change in restore point count rather than +1.
-      Identifies both the repository undersizing and the retention misconfiguration as
-      contributing causes. Does NOT address what monitoring should be in place to detect
-      this before a restore is needed.
-    level_4: >
-      All of the above plus: identifies the monitoring design gap explicitly — job status
-      alerting cannot detect this failure mode because the job succeeds. Specifies what
-      monitoring is needed: restore point count alert (below retention target), repository
-      free space alert (below a threshold that triggers merges), and RPO age alert (oldest
-      restore point older than the target recovery window). Notes that the current
-      configuration creates a false confidence signal: seven green lights in the job
-      history are accurate but misleading as a health indicator for this job.
+    level_1: |
+      Reviews the job history, notes that all seven jobs show "Success," and concludes the backup job is healthy. May note the low repository free space as a point to watch but does not connect it to the retention target or restore point count. Does not check the restore point list.
+    level_2: |
+      Identifies the discrepancy: 7 successful job runs but only 3 restore points available. Identifies the repository as nearly full and connects the low free space to the merge behaviour described in the session log. Concludes the retention target of 7 restore points is not being met and that restore points from the last 4 days are not available for recovery. Recommends expanding the repository. Does NOT identify the monitoring gap — that job status alone is insufficient to detect this condition.
+    level_3: |
+      All of the above plus: explains the forever-forward incremental merge mechanism — why "Success" is the correct job status even as restore points are being deleted; that the merge is intended behaviour triggered by low free space; that the net effect of each nightly run is zero change in restore point count rather than +1. Identifies both the repository undersizing and the retention misconfiguration as contributing causes. Does NOT address what monitoring should be in place to detect this before a restore is needed.
+    level_4: |
+      All of the above plus: identifies the monitoring design gap explicitly — job status alerting cannot detect this failure mode because the job succeeds. Specifies what monitoring is needed: restore point count alert (below retention target), repository free space alert (below a threshold that triggers merges), and RPO age alert (oldest restore point older than the target recovery window). Notes that the current configuration creates a false confidence signal: seven green lights in the job history are accurate but misleading as a health indicator for this job.

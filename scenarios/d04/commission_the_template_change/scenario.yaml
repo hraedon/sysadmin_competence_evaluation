@@ -1,184 +1,76 @@
+schema_version: '2.0'
 id: d04-commission-the-template-change
+title: The Template Change
 domain: 4
-domain_name: "Certificate & PKI Management"
+domain_name: Certificate & PKI Management
 level: 3
-title: "The Template Change"
-delivery_mode: B
-subtype: null
-
+delivery_modes:
+  - B
 difficulty: 4
-difficulty_note: >
-  The change appears trivially simple — extend a validity period. The difficulty lies
-  in recognizing the blast radius (domain-wide autoenrollment scope means simultaneous
-  propagation) and the rollback impossibility (already-issued certificates under the new
-  template cannot be automatically recalled). Most candidates understand change
-  management in principle but fail to apply it to certificate templates specifically,
-  where the propagation mechanism (autoenrollment + Group Policy) differs from standard
-  software deployment.
-
-# Scenario note (for scenario authors and evaluators):
-# Most similar to: d03-commission-write-the-escalation (both are Level 3 Mode B exercises
-# producing a professional specification under constrained conditions).
-# How the reasoning challenge differs: the escalation tests whether candidates can
-# produce a specific, hypothesis-led handoff document. This scenario tests whether
-# candidates can write a change specification that grapples with a specific asymmetry:
-# a template change that cannot be cleanly rolled back once certificates are issued under
-# the new template. The correct spec recognizes this asymmetry and designs the rollout
-# to prevent unrecoverable states — staging, testing, controlled propagation, and a
-# rollback definition that is honest about what "rollback" means post-issuance.
-
 presentation:
-  type: change_plan
-  artifact_file: null
-  context: |
-    A change request has arrived from the security team:
+  modes:
+    B:
+      type: change_plan
+      context: |
+        A change request has arrived from the security team:
 
-    **Request:** Extend the validity period on the "Computer-Auth" certificate
-    template from 1 year to 2 years. The rationale given: reducing renewal frequency
-    will decrease operational burden for the infrastructure team.
+        **Request:** Extend the validity period on the "Computer-Auth" certificate
+        template from 1 year to 2 years. The rationale given: reducing renewal frequency
+        will decrease operational burden for the infrastructure team.
 
-    **Current environment:**
-    - Template name: Computer-Auth
-    - Current validity: 1 year
-    - Enrolled scope: All Computers (domain-wide)
-    - Autoenrollment: Enabled (via Group Policy, applies to all domain-joined computers)
-    - Enrolled certificates: ~1,400 (one per domain-joined workstation and server)
-    - Issuing CA: Corp-Issuing-CA-01 (Windows ADCS)
-    - Renewal overlap: Certificates renew at 80% of validity (currently 292 days)
+        **Current environment:**
+        - Template name: Computer-Auth
+        - Current validity: 1 year
+        - Enrolled scope: All Computers (domain-wide)
+        - Autoenrollment: Enabled (via Group Policy, applies to all domain-joined computers)
+        - Enrolled certificates: ~1,400 (one per domain-joined workstation and server)
+        - Issuing CA: Corp-Issuing-CA-01 (Windows ADCS)
+        - Renewal overlap: Certificates renew at 80% of validity (currently 292 days)
 
-    Write the change specification for this request. The specification must include:
-    (1) Scope assessment — what will happen, to how many machines, over what timeframe
-    (2) Testing approach — how you would validate the change before full propagation
-    (3) Rollout sequencing — how you would stage the change
-    (4) Monitoring requirements — what you would watch during rollout
-    (5) Rollback definition — what rollback means for this change and under what
-        conditions it applies
-
+        Write the change specification for this request. The specification must include:
+        (1) Scope assessment — what will happen, to how many machines, over what timeframe
+        (2) Testing approach — how you would validate the change before full propagation
+        (3) Rollout sequencing — how you would stage the change
+        (4) Monitoring requirements — what you would watch during rollout
+        (5) Rollback definition — what rollback means for this change and under what
+            conditions it applies
 rubric:
-  critical_findings:
+  findings:
     - id: blast_radius_domain_wide_simultaneous
-      description: >
-        The Computer-Auth template applies to All Computers in the domain via
-        autoenrollment. Modifying the template validity period will cause every
-        domain-joined machine (~1,400) to re-enroll and receive a new certificate
-        at the next autoenrollment cycle. Autoenrollment is triggered by Group Policy
-        refresh (every 90 minutes for computers, or on-demand) and certificate
-        enrollment policies. The change does not propagate gradually — all 1,400
-        machines will re-enroll within one or two Group Policy refresh cycles.
-        This is not equivalent to a software deployment where staging can control
-        rollout order; the certificate template change affects all machines in
-        scope simultaneously. A valid specification must address this characteristic
-        explicitly and propose a mechanism to limit the initial scope.
+      description: |
+        The Computer-Auth template applies to All Computers in the domain via autoenrollment. Modifying the template validity period will cause every domain-joined machine (~1,400) to re-enroll and receive a new certificate at the next autoenrollment cycle. Autoenrollment is triggered by Group Policy refresh (every 90 minutes for computers, or on-demand) and certificate enrollment policies. The change does not propagate gradually — all 1,400 machines will re-enroll within one or two Group Policy refresh cycles. This is not equivalent to a software deployment where staging can control rollout order; the certificate template change affects all machines in scope simultaneously. A valid specification must address this characteristic explicitly and propose a mechanism to limit the initial scope.
       severity: critical
-      miss_signal: >
-        Specification describes the change as low-risk because "it only changes
-        validity period, not functionality." Proposes a staged rollout without
-        explaining how staging is achieved for a template with domain-wide scope
-        (simply staging the template change does not limit which machines enroll —
-        all machines in scope will still enroll simultaneously). Does not assess
-        or state the number of machines affected.
-
+      miss_signal: |
+        Specification describes the change as low-risk because "it only changes validity period, not functionality." Proposes a staged rollout without explaining how staging is achieved for a template with domain-wide scope (simply staging the template change does not limit which machines enroll — all machines in scope will still enroll simultaneously). Does not assess or state the number of machines affected.
+      type: critical
     - id: rollback_impossibility_after_issuance
-      description: >
-        Reverting the template to 1-year validity after certificates have been
-        issued under the 2-year template will not automatically re-issue or
-        invalidate the already-issued 2-year certificates. Those certificates will
-        remain valid for 2 years regardless of the template change. "Rollback"
-        in the traditional sense (undo the change and return to the prior state)
-        is not possible once issuance has occurred. The specification must
-        acknowledge this asymmetry and define what rollback actually means in
-        this context: reverting the template prevents future issuances under the
-        new validity period but does not affect certificates already issued.
-        If the goal after rollback is to return to a state where no 2-year
-        certificates are in the environment, that requires actively revoking all
-        certificates issued under the new template and triggering re-enrollment
-        under the reverted template — a significant and potentially disruptive
-        operation.
+      description: |
+        Reverting the template to 1-year validity after certificates have been issued under the 2-year template will not automatically re-issue or invalidate the already-issued 2-year certificates. Those certificates will remain valid for 2 years regardless of the template change. "Rollback" in the traditional sense (undo the change and return to the prior state) is not possible once issuance has occurred. The specification must acknowledge this asymmetry and define what rollback actually means in this context: reverting the template prevents future issuances under the new validity period but does not affect certificates already issued. If the goal after rollback is to return to a state where no 2-year certificates are in the environment, that requires actively revoking all certificates issued under the new template and triggering re-enrollment under the reverted template — a significant and potentially disruptive operation.
       severity: critical
-      miss_signal: >
-        Rollback definition states "revert the template to 1-year validity." Does
-        not acknowledge that certificates already issued under the 2-year template
-        will remain valid and will not be automatically replaced. Does not address
-        the operational implication: a "rollback" leaves the environment in a mixed
-        state (some machines with 2-year certs, some with 1-year certs) that is
-        not equivalent to the pre-change state.
-
-  secondary_findings:
+      miss_signal: |
+        Rollback definition states "revert the template to 1-year validity." Does not acknowledge that certificates already issued under the 2-year template will remain valid and will not be automatically replaced. Does not address the operational implication: a "rollback" leaves the environment in a mixed state (some machines with 2-year certs, some with 1-year certs) that is not equivalent to the pre-change state.
+      type: critical
     - id: test_before_full_propagation
-      description: >
-        The specification should include a testing phase before allowing full
-        domain-wide propagation. Mechanism: create a duplicate of the Computer-Auth
-        template with the 2-year validity, scoped to a test OU containing a small
-        number of test machines. Enroll test machines under the new template and
-        verify that the issued certificates have the correct properties (validity,
-        key usage, EKU, SAN) and that applications and services using computer
-        certificates (Kerberos, 802.1X, etc.) continue to function correctly. Only
-        proceed to the production template change after the test phase confirms
-        no regressions.
+      description: |
+        The specification should include a testing phase before allowing full domain-wide propagation. Mechanism: create a duplicate of the Computer-Auth template with the 2-year validity, scoped to a test OU containing a small number of test machines. Enroll test machines under the new template and verify that the issued certificates have the correct properties (validity, key usage, EKU, SAN) and that applications and services using computer certificates (Kerberos, 802.1X, etc.) continue to function correctly. Only proceed to the production template change after the test phase confirms no regressions.
       severity: high
-
+      type: secondary
     - id: autoenrollment_propagation_timing
-      description: >
-        The specification should note the propagation timing for autoenrollment:
-        Group Policy refreshes every 90 minutes for computers (configurable). After
-        the template change, new certificates will begin issuing within the first
-        refresh cycle. All ~1,400 machines will have re-enrolled within approximately
-        2-3 hours of the change being committed. This is the expected timeline for
-        the monitoring window after deployment.
+      description: |
+        The specification should note the propagation timing for autoenrollment: Group Policy refreshes every 90 minutes for computers (configurable). After the template change, new certificates will begin issuing within the first refresh cycle. All ~1,400 machines will have re-enrolled within approximately 2-3 hours of the change being committed. This is the expected timeline for the monitoring window after deployment.
       severity: moderate
-
+      type: secondary
     - id: renewal_threshold_implication
-      description: >
-        Certificates renew at 80% of validity. Under 1-year validity, renewal
-        triggers at ~292 days. Under 2-year validity, renewal triggers at ~584 days.
-        The 1,400 currently-enrolled machines have certificates expiring on a
-        schedule built around the 1-year timeline. After the template change,
-        those certificates will not immediately renew (they are not yet at the 80%
-        threshold). Over time, as existing certificates expire, they will be
-        replaced by 2-year certificates. The environment will be in a mixed state
-        (some 1-year certs, some 2-year certs) for up to approximately 292 days
-        after the change. This should be noted in the specification as expected
-        behavior, not a failure mode.
+      description: |
+        Certificates renew at 80% of validity. Under 1-year validity, renewal triggers at ~292 days. Under 2-year validity, renewal triggers at ~584 days. The 1,400 currently-enrolled machines have certificates expiring on a schedule built around the 1-year timeline. After the template change, those certificates will not immediately renew (they are not yet at the 80% threshold). Over time, as existing certificates expire, they will be replaced by 2-year certificates. The environment will be in a mixed state (some 1-year certs, some 2-year certs) for up to approximately 292 days after the change. This should be noted in the specification as expected behavior, not a failure mode.
       severity: low
-
+      type: secondary
   level_indicators:
-    level_1: >
-      Describes the change as extending the validity period to 2 years and notes
-      that this will apply to computer certificates. May recommend testing before
-      deployment in general terms. Does not address the domain-wide autoenrollment
-      scope or the simultaneous propagation to all ~1,400 machines. Defines rollback
-      as "revert the template" without acknowledging that already-issued certificates
-      are unaffected by a template revert.
-    level_2: >
-      Identifies that the template has domain-wide scope and that the change will
-      affect a large number of machines. Recommends testing on a subset of machines
-      before full deployment, but does not explain the mechanism for limiting scope
-      (since a domain-wide template cannot be "partially deployed" without duplicating
-      it with a more restrictive scope). Rollback definition mentions reverting the
-      template but does not address the already-issued certificates issue. Does NOT
-      address propagation timing or the renewal threshold implication.
-    level_3: >
-      Correctly identifies the blast radius (domain-wide autoenrollment, ~1,400 machines,
-      simultaneous propagation within 2-3 GP refresh cycles). Proposes a viable test
-      mechanism: duplicate the template with restricted OU scope for testing, then
-      promote to production scope. Addresses the rollback limitation: reverting the
-      template leaves already-issued 2-year certificates in place; true rollback
-      requires revocation and re-enrollment. Specifies a monitoring window aligned
-      to the propagation timeline. Does NOT address the renewal threshold implication
-      (the mixed-state period during which some machines will have 1-year certs and
-      some will have 2-year certs) or the impact on monitoring tooling that may have
-      expiry alert thresholds calibrated to 1-year certificates.
-    level_4: >
-      All of the above plus addresses the renewal threshold implication: existing
-      1-year certificates will not immediately renew; the environment will be in a
-      mixed validity-period state for up to ~292 days, which is expected and should
-      be documented. Notes that certificate monitoring tooling (expiry alerts) may
-      need recalibration — if alerts are set for "certificates expiring within 30 days,"
-      they will continue to function correctly, but if they are calibrated to expect
-      annual renewal patterns, the new 2-year certificates may appear as anomalies.
-      Also notes the broader governance question: why 2 years rather than a shorter
-      extension, given the direction of the CA/Browser Forum toward shorter validity
-      periods? A 2-year internal certificate lifetime is reasonable today, but the
-      specification should note whether the organization has a position on this trend
-      and whether the operational burden reduction goal might be better served by
-      improving the renewal automation rather than lengthening the validity period.
+    level_1: |
+      Describes the change as extending the validity period to 2 years and notes that this will apply to computer certificates. May recommend testing before deployment in general terms. Does not address the domain-wide autoenrollment scope or the simultaneous propagation to all ~1,400 machines. Defines rollback as "revert the template" without acknowledging that already-issued certificates are unaffected by a template revert.
+    level_2: |
+      Identifies that the template has domain-wide scope and that the change will affect a large number of machines. Recommends testing on a subset of machines before full deployment, but does not explain the mechanism for limiting scope (since a domain-wide template cannot be "partially deployed" without duplicating it with a more restrictive scope). Rollback definition mentions reverting the template but does not address the already-issued certificates issue. Does NOT address propagation timing or the renewal threshold implication.
+    level_3: |
+      Correctly identifies the blast radius (domain-wide autoenrollment, ~1,400 machines, simultaneous propagation within 2-3 GP refresh cycles). Proposes a viable test mechanism: duplicate the template with restricted OU scope for testing, then promote to production scope. Addresses the rollback limitation: reverting the template leaves already-issued 2-year certificates in place; true rollback requires revocation and re-enrollment. Specifies a monitoring window aligned to the propagation timeline. Does NOT address the renewal threshold implication (the mixed-state period during which some machines will have 1-year certs and some will have 2-year certs) or the impact on monitoring tooling that may have expiry alert thresholds calibrated to 1-year certificates.
+    level_4: |
+      All of the above plus addresses the renewal threshold implication: existing 1-year certificates will not immediately renew; the environment will be in a mixed validity-period state for up to ~292 days, which is expected and should be documented. Notes that certificate monitoring tooling (expiry alerts) may need recalibration — if alerts are set for "certificates expiring within 30 days," they will continue to function correctly, but if they are calibrated to expect annual renewal patterns, the new 2-year certificates may appear as anomalies. Also notes the broader governance question: why 2 years rather than a shorter extension, given the direction of the CA/Browser Forum toward shorter validity periods? A 2-year internal certificate lifetime is reasonable today, but the specification should note whether the organization has a position on this trend and whether the operational burden reduction goal might be better served by improving the renewal automation rather than lengthening the validity period.

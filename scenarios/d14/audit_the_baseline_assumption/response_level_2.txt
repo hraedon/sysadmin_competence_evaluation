@@ -1,0 +1,7 @@
+Both teams have a valid point here, and the spec is at the center of the disagreement.
+
+David's team did what the spec said: they applied the corporate baseline at deployment and have the scan results to prove it. From their perspective, the requirement was met at handover.
+
+Priya is also right that compliance in a security context usually means an ongoing state, not a one-time snapshot. Servers drift, patches get released, and a server that was compliant on day one can quickly become non-compliant.
+
+The spec wasn't clear enough about which meaning applied. It said to deploy servers in a "compliant state" but didn't specify whether that meant compliant at deployment or compliant on an ongoing basis. If the intent was ongoing compliance, the spec should have said that explicitly. Both teams could have avoided this dispute if the requirement had been more specific.

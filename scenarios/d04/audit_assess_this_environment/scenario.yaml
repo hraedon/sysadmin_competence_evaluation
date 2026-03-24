@@ -1,82 +1,54 @@
+schema_version: '2.0'
 id: d04-audit-assess-this-environment
+title: Assess This Environment
 domain: 4
-domain_name: "Certificate & PKI Management"
+domain_name: Certificate & PKI Management
 level: 2
-title: "Assess This Environment"
-delivery_mode: A
-subtype: null
-
+delivery_modes:
+  - A
 presentation:
-  type: environment_description
-  artifact_file: "scenarios/d04/audit_assess_this_environment/environment.txt"
-  context: |
-    The attached describes the certificate management practices at a mid-size company.
-    You have been asked to identify the highest-priority risks, explain the blast
-    radius of each, and recommend the minimum interventions that would meaningfully
-    reduce risk. You have a limited change window — you cannot fix everything at once.
-    Triage accordingly.
-
+  modes:
+    A:
+      type: environment_description
+      artifact_file: scenarios/d04/audit_assess_this_environment/environment.txt
+      context: |
+        The attached describes the certificate management practices at a mid-size company.
+        You have been asked to identify the highest-priority risks, explain the blast
+        radius of each, and recommend the minimum interventions that would meaningfully
+        reduce risk. You have a limited change window — you cannot fix everything at once.
+        Triage accordingly.
 rubric:
-  critical_findings:
+  findings:
     - id: crl_expiry_imminent
-      description: >
-        The CRL expires in 16 days. When a CRL expires, revocation checking fails.
-        Depending on client configuration (hard-fail vs. soft-fail), this could either
-        break all certificate validation in the domain or silently stop enforcing
-        revocation — both are bad. 16 days is operationally immediate.
+      description: |
+        The CRL expires in 16 days. When a CRL expires, revocation checking fails. Depending on client configuration (hard-fail vs. soft-fail), this could either break all certificate validation in the domain or silently stop enforcing revocation — both are bad. 16 days is operationally immediate.
       severity: critical
-      miss_signal: >
-        Candidate identifies the CRL expiry but rates it as lower priority than the
-        tracking spreadsheet. Or: candidate recommends OCSP deployment as the immediate
-        fix (OCSP is a medium-term improvement; the immediate fix is publishing a new
-        CRL).
-
+      miss_signal: |
+        Candidate identifies the CRL expiry but rates it as lower priority than the tracking spreadsheet. Or: candidate recommends OCSP deployment as the immediate fix (OCSP is a medium-term improvement; the immediate fix is publishing a new CRL).
+      type: critical
     - id: online_root_ca
-      description: >
-        The root CA is online (a VM on the main cluster). Best practice is that the
-        root CA should be offline except when signing intermediate CA certificates. An
-        online root CA is continuously exposed to network-based attack. If compromised,
-        the entire PKI is compromised.
+      description: |
+        The root CA is online (a VM on the main cluster). Best practice is that the root CA should be offline except when signing intermediate CA certificates. An online root CA is continuously exposed to network-based attack. If compromised, the entire PKI is compromised.
       severity: critical
-      miss_signal: >
-        Candidate does not mention the online root CA. Or: identifies it but rates it
-        lower than the spreadsheet or the CRL issue.
-
-  secondary_findings:
+      miss_signal: |
+        Candidate does not mention the online root CA. Or: identifies it but rates it lower than the spreadsheet or the CRL issue.
+      type: critical
     - id: tracking_spreadsheet_process_gap
-      description: >
-        The tracking spreadsheet is 8 months old — this is how the load balancer
-        incident happened. But the spreadsheet is a process gap, not an immediate
-        operational risk (certificates don't expire faster because the spreadsheet is
-        stale). It is lower priority than the CRL expiry. Candidates who recommend
-        fixing the spreadsheet first are demonstrating misaligned priorities.
+      description: |
+        The tracking spreadsheet is 8 months old — this is how the load balancer incident happened. But the spreadsheet is a process gap, not an immediate operational risk (certificates don't expire faster because the spreadsheet is stale). It is lower priority than the CRL expiry. Candidates who recommend fixing the spreadsheet first are demonstrating misaligned priorities.
       severity: moderate
-
+      type: secondary
     - id: autoenrollment_template_change_risk
-      description: >
-        The autoenrollment template scopes to all computers in the domain. A template
-        misconfiguration (wrong key usage, wrong validity, wrong CA) would
-        simultaneously affect all domain-joined computers. This is not currently a
-        problem, but it is a change risk — any modification to this template requires
-        careful testing.
+      description: |
+        The autoenrollment template scopes to all computers in the domain. A template misconfiguration (wrong key usage, wrong validity, wrong CA) would simultaneously affect all domain-joined computers. This is not currently a problem, but it is a change risk — any modification to this template requires careful testing.
       severity: moderate
-
+      type: secondary
   level_indicators:
-    level_1: >
-      Identifies the expired spreadsheet as the primary risk. May also identify the
-      recent incident. Cannot triage between risks.
-    level_2: >
-      Identifies the CRL expiry as the highest-priority immediate risk and the online
-      root CA as a significant structural risk. Can explain why the CRL expiry is more
-      urgent than the spreadsheet.
-    level_3: >
-      All of the above plus correct priority ordering: (1) publish new CRL immediately,
-      (2) plan offline root CA migration, (3) establish automated certificate tracking
-      to prevent spreadsheet staleness. Can explain the blast radius of the online root
-      CA compromise.
-    level_4: >
-      All of the above plus addresses the code signing gap: "whatever cert is available"
-      means code signing certificates may not be from a controlled template, may be
-      expiring unknowingly, and may not provide meaningful provenance. Also notes that
-      the autoenrollment template is a change risk — any future template modification
-      should be tested on a pilot OU first, not rolled to all computers.
+    level_1: |
+      Identifies the expired spreadsheet as the primary risk. May also identify the recent incident. Cannot triage between risks.
+    level_2: |
+      Identifies the CRL expiry as the highest-priority immediate risk and the online root CA as a significant structural risk. Can explain why the CRL expiry is more urgent than the spreadsheet.
+    level_3: |
+      All of the above plus correct priority ordering: (1) publish new CRL immediately, (2) plan offline root CA migration, (3) establish automated certificate tracking to prevent spreadsheet staleness. Can explain the blast radius of the online root CA compromise.
+    level_4: |
+      All of the above plus addresses the code signing gap: "whatever cert is available" means code signing certificates may not be from a controlled template, may be expiring unknowingly, and may not provide meaningful provenance. Also notes that the autoenrollment template is a change risk — any future template modification should be tested on a pilot OU first, not rolled to all computers.

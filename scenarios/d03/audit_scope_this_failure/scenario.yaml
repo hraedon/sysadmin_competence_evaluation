@@ -1,168 +1,64 @@
+schema_version: '2.0'
 id: d03-audit-scope-this-failure
+title: Scope This Failure
 domain: 3
-domain_name: "Networking Fundamentals"
+domain_name: Networking Fundamentals
 level: 2
-title: "Scope This Failure"
-delivery_mode: A
-subtype: null
-
+delivery_modes:
+  - A
 difficulty: 3
-difficulty_note: >
-  The APIPA addresses are a direct, readable signal — but interpreting them correctly
-  requires ruling out DHCP server unreachability vs. scope exhaustion vs. lease-duration
-  side effects, and connecting the change log entry to the failure mechanism. WiFi and
-  wired both failing on VLAN 40 rules out a cable or port fault as the primary cause,
-  which requires recognizing what VLAN 40 membership means across both transports.
-
-# Scenario note (for scenario authors and evaluators):
-# Most similar to: d03-audit-read-the-firewall (both are Level 2 Audit exercises that
-# give the candidate observable diagnostic output and ask them to identify the failure cause
-# and what tests to run next).
-# How the reasoning challenge differs: the firewall scenario tests rule ordering and
-# stateful inspection reasoning. This scenario tests whether candidates read IP configuration
-# output before forming a hypothesis — specifically, whether they recognize APIPA addresses
-# as evidence of DHCP failure and use that to correctly constrain the hypothesis space
-# before reaching for switch/VLAN/routing explanations. The change log introduces a plausible
-# contributing factor (lease duration change) that more advanced candidates will connect to
-# the symptom via scope exhaustion reasoning.
-
 presentation:
-  type: log_extract
-  artifact_file: "scenarios/d03/audit_scope_this_failure/ticket_and_diagnostics.txt"
-  context: |
-    Three users in conference room B have been unable to get on the network since
-    this morning. Other areas of the building appear unaffected. The helpdesk has
-    collected ipconfig output from each affected workstation.
+  modes:
+    A:
+      type: log_extract
+      artifact_file: scenarios/d03/audit_scope_this_failure/ticket_and_diagnostics.txt
+      context: |
+        Three users in conference room B have been unable to get on the network since
+        this morning. Other areas of the building appear unaffected. The helpdesk has
+        collected ipconfig output from each affected workstation.
 
-    Identify:
-    (1) What does the IP configuration output tell you about the nature of the failure?
-    (2) What is your most likely hypothesis for the root cause, and what tests would
-        confirm it?
-    (3) What does the network change log suggest, and how might it be relevant?
-
+        Identify:
+        (1) What does the IP configuration output tell you about the nature of the failure?
+        (2) What is your most likely hypothesis for the root cause, and what tests would
+            confirm it?
+        (3) What does the network change log suggest, and how might it be relevant?
 rubric:
-  critical_findings:
+  findings:
     - id: apipa_indicates_dhcp_failure
-      description: >
-        All three workstations show 169.254.x.x addresses with no default gateway and
-        no DNS server — these are APIPA (Automatic Private IP Addressing) addresses,
-        assigned by Windows when DHCP discovery fails. APIPA addresses indicate that
-        the DHCP client sent discovery broadcasts and received no offer within the
-        timeout period. This is not a routing failure, a switch/VLAN configuration
-        problem, or a DNS problem — it is a DHCP failure. The scope of the failure
-        (both wired ports on CR-SW-01 and WiFi via AP-CRWING-02, all on VLAN 40)
-        indicates the DHCP relay agent for VLAN 40 is not forwarding discovery packets
-        to DHCP01, or DHCP01 is not responding to VLAN 40 requests, or the VLAN 40
-        scope is exhausted. The correct next diagnostic step is to investigate DHCP
-        availability, not switch ports, cables, or routing.
+      description: |
+        All three workstations show 169.254.x.x addresses with no default gateway and no DNS server — these are APIPA (Automatic Private IP Addressing) addresses, assigned by Windows when DHCP discovery fails. APIPA addresses indicate that the DHCP client sent discovery broadcasts and received no offer within the timeout period. This is not a routing failure, a switch/VLAN configuration problem, or a DNS problem — it is a DHCP failure. The scope of the failure (both wired ports on CR-SW-01 and WiFi via AP-CRWING-02, all on VLAN 40) indicates the DHCP relay agent for VLAN 40 is not forwarding discovery packets to DHCP01, or DHCP01 is not responding to VLAN 40 requests, or the VLAN 40 scope is exhausted. The correct next diagnostic step is to investigate DHCP availability, not switch ports, cables, or routing.
       severity: critical
-      miss_signal: >
-        Candidate identifies that users "can't get an IP address" but attributes this
-        to a switch port failure, a bad cable, or a VLAN misconfiguration without
-        recognizing that APIPA addresses across both Ethernet and WiFi on the same
-        VLAN indicate a DHCP-layer problem. Or: candidate skips the IP configuration
-        output and goes directly to checking switch port status or calling the network
-        team about VLAN configuration.
-      learning_note: >
-        169.254.x.x addresses are APIPA — Windows' fallback when DHCP fails. When
-        a Windows client starts up or loses its IP lease, it sends DHCP Discover
-        broadcasts. If no DHCP server (or relay agent forwarding to a server) responds
-        within the timeout, the client self-assigns a 169.254.x.x address from the
-        APIPA range and continues retrying in the background.
-
-        APIPA addresses are a specific, reliable signal: DHCP discovery failed. They
-        are NOT a sign of routing problems, switch misconfiguration, or VLAN issues
-        (those would still produce valid IP addresses — the traffic routing would just
-        fail after address assignment). A workstation can have a valid IP from DHCP
-        and still have a routing problem; a workstation with APIPA never received a
-        DHCP offer at all.
-
-        The diagnostic value here: all three workstations on VLAN 40 — both wired
-        and WiFi — got APIPA. This rules out a single bad cable or port (which would
-        affect one device) and points to a VLAN 40-wide DHCP issue: either the relay
-        agent for VLAN 40 is down, or DHCP01 is not serving the 10.40.0.0/24 scope,
-        or the scope is exhausted and has no available leases.
-
-  secondary_findings:
+      miss_signal: |
+        Candidate identifies that users "can't get an IP address" but attributes this to a switch port failure, a bad cable, or a VLAN misconfiguration without recognizing that APIPA addresses across both Ethernet and WiFi on the same VLAN indicate a DHCP-layer problem. Or: candidate skips the IP configuration output and goes directly to checking switch port status or calling the network team about VLAN configuration.
+      learning_note: |
+        169.254.x.x addresses are APIPA — Windows' fallback when DHCP fails. When a Windows client starts up or loses its IP lease, it sends DHCP Discover broadcasts. If no DHCP server (or relay agent forwarding to a server) responds within the timeout, the client self-assigns a 169.254.x.x address from the APIPA range and continues retrying in the background.
+        APIPA addresses are a specific, reliable signal: DHCP discovery failed. They are NOT a sign of routing problems, switch misconfiguration, or VLAN issues (those would still produce valid IP addresses — the traffic routing would just fail after address assignment). A workstation can have a valid IP from DHCP and still have a routing problem; a workstation with APIPA never received a DHCP offer at all.
+        The diagnostic value here: all three workstations on VLAN 40 — both wired and WiFi — got APIPA. This rules out a single bad cable or port (which would affect one device) and points to a VLAN 40-wide DHCP issue: either the relay agent for VLAN 40 is down, or DHCP01 is not serving the 10.40.0.0/24 scope, or the scope is exhausted and has no available leases.
+      type: critical
     - id: lease_duration_change_scope_exhaustion
-      description: >
-        The change log shows that the VLAN 40 DHCP scope lease duration was changed
-        from 8 hours to 24 hours at 17:45 yesterday. Leases that were issued under
-        the 8-hour duration before this change would have been held overnight —
-        normally they would have expired by early this morning and been returned to
-        the pool. Under 24-hour leases, those same addresses are now held until
-        tomorrow. If the VLAN 40 scope has a limited number of addresses (10.40.0.0/24
-        = 254 usable), increasing lease duration without a corresponding scope size
-        increase can exhaust the pool. Conference room B is a likely exhaust point:
-        meeting rooms cycle through many transient visitors who get leases but leave
-        before the lease expires. This does not definitively confirm scope exhaustion,
-        but it is the most plausible contributing cause given the timing.
+      description: |
+        The change log shows that the VLAN 40 DHCP scope lease duration was changed from 8 hours to 24 hours at 17:45 yesterday. Leases that were issued under the 8-hour duration before this change would have been held overnight — normally they would have expired by early this morning and been returned to the pool. Under 24-hour leases, those same addresses are now held until tomorrow. If the VLAN 40 scope has a limited number of addresses (10.40.0.0/24 = 254 usable), increasing lease duration without a corresponding scope size increase can exhaust the pool. Conference room B is a likely exhaust point: meeting rooms cycle through many transient visitors who get leases but leave before the lease expires. This does not definitively confirm scope exhaustion, but it is the most plausible contributing cause given the timing.
       severity: high
-      learning_note: >
-        DHCP scope exhaustion happens when the pool of available IP addresses is
-        depleted — all addresses in the scope have active leases and none are
-        available for new requests. This is more likely in environments with:
+      learning_note: |
+        DHCP scope exhaustion happens when the pool of available IP addresses is depleted — all addresses in the scope have active leases and none are available for new requests. This is more likely in environments with:
           • Short-term, transient users (conference rooms, guest networks)
           • Lease durations longer than the typical stay
           • Small scopes relative to peak concurrent users
 
-        Increasing lease duration without increasing scope size effectively reduces
-        capacity: addresses are held longer before returning to the pool. If the VLAN
-        40 /24 scope was near capacity with 8-hour leases, moving to 24-hour leases
-        could cause exhaustion overnight as stale leases from yesterday's meetings
-        remain active.
-
-        To confirm scope exhaustion: check DHCP01's scope statistics for 10.40.0.0/24
-        (in DHCP console: Scope → Show Statistics, or with PowerShell:
-        Get-DhcpServerv4ScopeStatistics -ScopeId 10.40.0.0). Look for "Available"
-        addresses at or near zero. The fix: either expand the scope, reduce the lease
-        duration, or reclaim leases from inactive devices.
-
+        Increasing lease duration without increasing scope size effectively reduces capacity: addresses are held longer before returning to the pool. If the VLAN 40 /24 scope was near capacity with 8-hour leases, moving to 24-hour leases could cause exhaustion overnight as stale leases from yesterday's meetings remain active.
+        To confirm scope exhaustion: check DHCP01's scope statistics for 10.40.0.0/24 (in DHCP console: Scope → Show Statistics, or with PowerShell: Get-DhcpServerv4ScopeStatistics -ScopeId 10.40.0.0). Look for "Available" addresses at or near zero. The fix: either expand the scope, reduce the lease duration, or reclaim leases from inactive devices.
+      type: secondary
     - id: relay_agent_hypothesis
-      description: >
-        An alternative hypothesis is that the DHCP relay agent for VLAN 40 on the
-        distribution switch stopped forwarding DHCP discovery packets to DHCP01.
-        DHCP clients send broadcasts that cannot cross router/switch boundaries
-        without a relay agent (also called IP helper). If the relay agent was
-        removed or misconfigured for VLAN 40, new clients would receive no DHCP
-        offers even if DHCP01 is healthy and has addresses available. This would
-        produce identical APIPA symptoms. The test: check DHCP01 for any scope
-        activity (new leases, DHCP discover/offer events) from the 10.40.0.0/24
-        range since this morning. Zero activity points to a relay agent failure;
-        activity with no available addresses points to scope exhaustion.
+      description: |
+        An alternative hypothesis is that the DHCP relay agent for VLAN 40 on the distribution switch stopped forwarding DHCP discovery packets to DHCP01. DHCP clients send broadcasts that cannot cross router/switch boundaries without a relay agent (also called IP helper). If the relay agent was removed or misconfigured for VLAN 40, new clients would receive no DHCP offers even if DHCP01 is healthy and has addresses available. This would produce identical APIPA symptoms. The test: check DHCP01 for any scope activity (new leases, DHCP discover/offer events) from the 10.40.0.0/24 range since this morning. Zero activity points to a relay agent failure; activity with no available addresses points to scope exhaustion.
       severity: moderate
-
+      type: secondary
   level_indicators:
-    level_1: >
-      Identifies that the users "can't get an IP address" or "the network isn't
-      working." May note that 169.254.x.x looks unusual. Cannot explain what APIPA
-      addresses indicate about the failure mechanism, or what layer the problem is at.
-      May suggest rebooting the workstations, reconnecting cables, or calling the
-      network team without a diagnostic rationale.
-    level_2: >
-      Recognizes 169.254.x.x as APIPA addresses indicating DHCP failure. States that
-      the problem is at the DHCP layer, not the routing or switch layer. Notes that
-      both wired and WiFi devices on VLAN 40 are affected, pointing to a VLAN 40-wide
-      DHCP issue rather than a port or cable problem. Recommends investigating DHCP
-      before engaging the network team. Does NOT identify the lease duration change
-      as a likely contributing factor or distinguish between scope exhaustion and
-      relay agent failure.
-    level_3: >
-      All of the above plus reads the change log and connects the lease duration change
-      to the symptom: 8-hour leases expiring overnight were expected to free up scope
-      addresses; 24-hour leases mean those addresses are still held, potentially
-      exhausting the pool for conference room VLAN 40. Identifies scope exhaustion
-      as the most likely hypothesis. Knows to check DHCP scope statistics on DHCP01
-      before escalating. Does NOT distinguish between scope exhaustion and relay agent
-      failure, or specify the exact diagnostic steps to differentiate them.
-    level_4: >
-      All of the above plus distinguishes the two DHCP failure modes and specifies
-      the test that differentiates them: check DHCP01 server logs or scope activity
-      for VLAN 40 since this morning — zero discover/offer traffic implicates the
-      relay agent; normal traffic with no available leases confirms scope exhaustion.
-      Specifies the scope statistics check (Get-DhcpServerv4ScopeStatistics or DHCP
-      console). Notes the correct remediation paths: expand the scope or reduce lease
-      duration for scope exhaustion; restore the relay agent configuration for relay
-      failure. Observes that conference room and guest subnets are particularly
-      vulnerable to scope exhaustion under increased lease durations and recommends
-      reviewing other transient-user scopes for the same pattern.
+    level_1: |
+      Identifies that the users "can't get an IP address" or "the network isn't working." May note that 169.254.x.x looks unusual. Cannot explain what APIPA addresses indicate about the failure mechanism, or what layer the problem is at. May suggest rebooting the workstations, reconnecting cables, or calling the network team without a diagnostic rationale.
+    level_2: |
+      Recognizes 169.254.x.x as APIPA addresses indicating DHCP failure. States that the problem is at the DHCP layer, not the routing or switch layer. Notes that both wired and WiFi devices on VLAN 40 are affected, pointing to a VLAN 40-wide DHCP issue rather than a port or cable problem. Recommends investigating DHCP before engaging the network team. Does NOT identify the lease duration change as a likely contributing factor or distinguish between scope exhaustion and relay agent failure.
+    level_3: |
+      All of the above plus reads the change log and connects the lease duration change to the symptom: 8-hour leases expiring overnight were expected to free up scope addresses; 24-hour leases mean those addresses are still held, potentially exhausting the pool for conference room VLAN 40. Identifies scope exhaustion as the most likely hypothesis. Knows to check DHCP scope statistics on DHCP01 before escalating. Does NOT distinguish between scope exhaustion and relay agent failure, or specify the exact diagnostic steps to differentiate them.
+    level_4: |
+      All of the above plus distinguishes the two DHCP failure modes and specifies the test that differentiates them: check DHCP01 server logs or scope activity for VLAN 40 since this morning — zero discover/offer traffic implicates the relay agent; normal traffic with no available leases confirms scope exhaustion. Specifies the scope statistics check (Get-DhcpServerv4ScopeStatistics or DHCP console). Notes the correct remediation paths: expand the scope or reduce lease duration for scope exhaustion; restore the relay agent configuration for relay failure. Observes that conference room and guest subnets are particularly vulnerable to scope exhaustion under increased lease durations and recommends reviewing other transient-user scopes for the same pattern.

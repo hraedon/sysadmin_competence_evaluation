@@ -1,0 +1,10 @@
+{
+  "name": "sysadmin-competence-root",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "core",
+    "calibration",
+    "platform/frontend"
+  ]
+}

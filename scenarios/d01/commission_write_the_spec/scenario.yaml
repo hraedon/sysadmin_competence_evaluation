@@ -1,128 +1,74 @@
+schema_version: '2.0'
 id: d01-commission-write-the-spec
+title: Write the Spec
 domain: 1
-domain_name: "Scripting & Automation"
+domain_name: Scripting & Automation
 level: 3
-title: "Write the Spec"
-delivery_mode: B
-subtype: null
-
+delivery_modes:
+  - B
 presentation:
-  type: environment_description
-  context: |
-    Your HR system exports a CSV each evening listing all employees with a
-    TerminationDate in the past. You need a PowerShell script to process this
-    file and disable the corresponding Active Directory accounts. You are not
-    writing the script — you are writing the specification that a developer (or
-    an AI assistant) will use to build it. Your specification must be complete
-    enough that a reviewer could evaluate whether a delivered script correctly
-    meets your requirements. Write the specification now.
-
+  modes:
+    B:
+      type: environment_description
+      context: |
+        Your HR system exports a CSV each evening listing all employees with a
+        TerminationDate in the past. You need a PowerShell script to process this
+        file and disable the corresponding Active Directory accounts. You are not
+        writing the script — you are writing the specification that a developer (or
+        an AI assistant) will use to build it. Your specification must be complete
+        enough that a reviewer could evaluate whether a delivered script correctly
+        meets your requirements. Write the specification now.
 rubric:
-  critical_findings:
+  findings:
     - id: scope_definition
-      description: >
-        The specification must define precisely what "disable" means in terms of
-        Active Directory operations. At minimum: setting Enabled = $false on the
-        account object. The specification should also state explicitly whether any
-        other attributes are modified — for example, whether the account's
-        Description field is updated to record the termination date or reason,
-        and whether the account is moved to a designated disabled-accounts OU after
-        disabling. A specification that instructs the developer to "disable the
-        account" without defining the AD operation is incomplete: a developer could
-        interpret this as setting Enabled = $false only, or as a full offboarding
-        sequence including OU move, license removal, and group stripping.
+      description: |
+        The specification must define precisely what "disable" means in terms of Active Directory operations. At minimum: setting Enabled = $false on the account object. The specification should also state explicitly whether any other attributes are modified — for example, whether the account's Description field is updated to record the termination date or reason, and whether the account is moved to a designated disabled-accounts OU after disabling. A specification that instructs the developer to "disable the account" without defining the AD operation is incomplete: a developer could interpret this as setting Enabled = $false only, or as a full offboarding sequence including OU move, license removal, and group stripping.
       severity: critical
-      miss_signal: >
-        Candidate writes "set the account to disabled" or "disable the account in
-        AD" without specifying which AD attributes are set, whether the account is
-        moved, or whether any other attributes are updated. Candidate assumes the
-        developer will infer the correct scope from context.
-
+      miss_signal: |
+        Candidate writes "set the account to disabled" or "disable the account in AD" without specifying which AD attributes are set, whether the account is moved, or whether any other attributes are updated. Candidate assumes the developer will infer the correct scope from context.
+      type: critical
     - id: verification_method
-      description: >
-        The specification must define how to verify that the script ran correctly.
-        This includes: what observable AD state confirms an account was successfully
-        disabled (e.g., Get-ADUser returns Enabled = $false), and what the script
-        should do when an account in the CSV cannot be found in Active Directory —
-        whether it should log a warning and continue, log an error and stop, or
-        treat the missing account as a non-fatal condition. Without a defined
-        verification method, there is no way to confirm the script did what it was
-        supposed to do, and no way to detect partial failures.
+      description: |
+        The specification must define how to verify that the script ran correctly. This includes: what observable AD state confirms an account was successfully disabled (e.g., Get-ADUser returns Enabled = $false), and what the script should do when an account in the CSV cannot be found in Active Directory — whether it should log a warning and continue, log an error and stop, or treat the missing account as a non-fatal condition. Without a defined verification method, there is no way to confirm the script did what it was supposed to do, and no way to detect partial failures.
       severity: critical
-      miss_signal: >
-        Candidate omits verification entirely, or states "check that it ran" without
-        specifying what observable state to check. Candidate does not address the
-        case where a CSV row refers to an account that does not exist in AD.
-
-  secondary_findings:
+      miss_signal: |
+        Candidate omits verification entirely, or states "check that it ran" without specifying what observable state to check. Candidate does not address the case where a CSV row refers to an account that does not exist in AD.
+      type: critical
     - id: already_disabled_accounts
-      description: >
-        The specification should state what the script does when it encounters an
-        account that is already disabled — whether it silently skips it, logs a
-        notice, or treats it as an error. This determines whether the script is
-        idempotent (safe to run twice on the same CSV).
+      description: |
+        The specification should state what the script does when it encounters an account that is already disabled — whether it silently skips it, logs a notice, or treats it as an error. This determines whether the script is idempotent (safe to run twice on the same CSV).
       severity: moderate
-
+      type: secondary
     - id: ou_scope
-      description: >
-        The specification should state whether Get-ADUser searches the entire domain
-        or a specific OU. A domain-wide search is simpler and more robust for
-        offboarding; an OU-scoped search could miss accounts that have already been
-        moved. Either choice is acceptable but must be stated explicitly.
+      description: |
+        The specification should state whether Get-ADUser searches the entire domain or a specific OU. A domain-wide search is simpler and more robust for offboarding; an OU-scoped search could miss accounts that have already been moved. Either choice is acceptable but must be stated explicitly.
       severity: moderate
-
+      type: secondary
     - id: failure_behavior
-      description: >
-        The specification should define behavior when a single account fails to
-        disable — whether the script stops processing the remaining accounts or
-        continues and logs the failure. Stop-on-first-failure and continue-on-error
-        are both valid choices with different operational implications; the
-        specification must choose one.
+      description: |
+        The specification should define behavior when a single account fails to disable — whether the script stops processing the remaining accounts or continues and logs the failure. Stop-on-first-failure and continue-on-error are both valid choices with different operational implications; the specification must choose one.
       severity: moderate
-
+      type: secondary
     - id: manager_notification_in_or_out_of_scope
-      description: >
-        The specification should explicitly state whether notifying the manager of
-        the terminated employee is in scope or out of scope. If not addressed, a
-        developer might add notification logic or omit it, with no way to evaluate
-        either choice against the requirements.
+      description: |
+        The specification should explicitly state whether notifying the manager of the terminated employee is in scope or out of scope. If not addressed, a developer might add notification logic or omit it, with no way to evaluate either choice against the requirements.
       severity: low
-
+      miss_signal: |
+        Specification does not mention manager notification at all — neither including it nor excluding it. Silence on this point means the developer must make an undocumented assumption. This finding requires an explicit statement: "manager notification is out of scope" or "notification is handled by a separate process." Omitting the topic entirely does not satisfy the finding.
+      type: secondary
     - id: idempotency
-      description: >
-        The specification should state whether the script is expected to be
-        idempotent — safe to run twice on the same CSV without adverse effects.
-        Idempotency is a desirable property for any script that will run in an
-        automated pipeline, because pipelines can re-run on failure.
+      description: |
+        The specification should state whether the script is expected to be idempotent — safe to run twice on the same CSV without adverse effects. Idempotency is a desirable property for any script that will run in an automated pipeline, because pipelines can re-run on failure.
       severity: moderate
-
+      miss_signal: |
+        Handling the already-disabled edge case (e.g., "skip accounts that are already disabled") is NOT sufficient to credit this finding. The response must include an explicit idempotency statement: that running the script twice on the same CSV produces the same final AD state without errors on the second run. Implicit idempotency from edge case handling does not count — the specification must call it out as a named requirement.
+      type: secondary
   level_indicators:
-    level_1: >
-      Describes what the script should do in general terms: "read the CSV and disable
-      the accounts." Omits most or all required specification elements — no definition
-      of the AD operation, no verification method, no edge case handling. A developer
-      given this specification would have to make multiple undocumented assumptions
-      to produce a working script.
-    level_2: >
-      Defines the core operation (set Enabled = $false) and addresses one or two
-      edge cases such as missing accounts or already-disabled accounts. The
-      specification is not yet complete enough to evaluate a delivered script for
-      correctness — a reviewer could not determine whether a delivered script meets
-      requirements without asking the author clarifying questions.
-    level_3: >
-      Defines the AD operation precisely (which attributes are set), the verification
-      method (what observable state confirms success), the failure behavior (stop or
-      continue on individual account failure), and at least three edge cases (missing
-      account, already-disabled account, OU scope). The specification is complete
-      enough that a developer could build the script and a reviewer could evaluate
-      whether the delivered script meets requirements without ambiguity.
-    level_4: >
-      All of the above, plus explicitly marks items as in-scope or out-of-scope —
-      for example, "manager notification is out of scope for this script," "audit
-      logging to the Windows Event Log is out of scope," "license removal is handled
-      by a separate process and is not part of this specification." A complete
-      specification excludes as explicitly as it includes, so that a developer does
-      not add unrequested features or omit assumed ones. Also explicitly states the
-      idempotency requirement: the script must produce the same final AD state if
-      run twice on the same CSV, with no errors on the second run for already-disabled
-      accounts.
+    level_1: |
+      Describes what the script should do in general terms: "read the CSV and disable the accounts." Omits most or all required specification elements — no definition of the AD operation, no verification method, no edge case handling. A developer given this specification would have to make multiple undocumented assumptions to produce a working script.
+    level_2: |
+      Defines the core operation (set Enabled = $false) and addresses one or two edge cases such as missing accounts or already-disabled accounts. The specification is not yet complete enough to evaluate a delivered script for correctness — a reviewer could not determine whether a delivered script meets requirements without asking the author clarifying questions.
+    level_3: |
+      Defines the AD operation precisely (which attributes are set), the verification method (what observable state confirms success), the failure behavior (stop or continue on individual account failure), and at least three edge cases (missing account, already-disabled account, OU scope). The specification is complete enough that a developer could build the script and a reviewer could evaluate whether the delivered script meets requirements without ambiguity. Does NOT explicitly mark items as in-scope or out-of-scope, and does NOT state the idempotency requirement.
+    level_4: |
+      All of the above, plus explicitly marks items as in-scope or out-of-scope — for example, "manager notification is out of scope for this script," "audit logging to the Windows Event Log is out of scope," "license removal is handled by a separate process and is not part of this specification." A complete specification excludes as explicitly as it includes, so that a developer does not add unrequested features or omit assumed ones. Also explicitly states the idempotency requirement: the script must produce the same final AD state if run twice on the same CSV, with no errors on the second run for already-disabled accounts.

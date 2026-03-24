@@ -1,0 +1,1 @@
+Sarah and Mark are arguing about how to implement the new automation directive. Sarah says she has written scripts to do the work, but Mark thinks they should be using Jenkins instead. Sarah believes her way is better because it's automated compared to how they did it before, and it's scripted from start to finish.

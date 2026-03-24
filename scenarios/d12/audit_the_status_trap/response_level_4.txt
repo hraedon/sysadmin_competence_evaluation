@@ -1,0 +1,3 @@
+The cron service is 'inactive (dead)', so no crontabs are being processed. While the service is 'enabled' for boot, it has stopped during the current runtime. 
+
+On a production system, cron shouldn't just be 'dead' without a reason. My first step is to check the logs using 'journalctl -u cron' to see if there was a recent crash or if someone manually stopped the service. If it was a crash, I'll investigate the error (like an out-of-memory event or a configuration issue). After checking the logs, I'll run 'systemctl start cron' and then verify it stays 'active (running)' to ensure the developer's tasks resume correctly.

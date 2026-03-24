@@ -1,104 +1,54 @@
+schema_version: '2.0'
 id: d01-audit-is-this-safe
+title: Is This Safe to Run in Production?
 domain: 1
-domain_name: "Scripting & Automation"
+domain_name: Scripting & Automation
 level: 2
-title: "Is This Safe to Run in Production?"
-delivery_mode: A
-
+delivery_modes:
+  - A
 presentation:
-  type: script
-  artifact_file: "scenarios/d01/audit_is_this_safe/script.ps1"
-  context: |
-    This script was written to clean up temporary deployment files on application
-    servers. Your team wants to add it to the automated post-deployment pipeline.
-    Review the script and identify every problem, rate each by severity, and explain
-    your reasoning. Assume the script will run on production servers with
-    administrator credentials.
-
+  modes:
+    A:
+      type: script
+      artifact_file: scenarios/d01/audit_is_this_safe/script.ps1
+      context: |
+        This script was written to clean up temporary deployment files on application
+        servers. Your team wants to add it to the automated post-deployment pipeline.
+        Review the script and identify every problem, rate each by severity, and explain
+        your reasoning. Assume the script will run on production servers with
+        administrator credentials.
 rubric:
-  critical_findings:
+  findings:
     - id: remove_item_force_flag
-      description: >
-        Remove-Item is called with -Recurse -Force. The -Force flag suppresses all
-        prompts and overrides protections for read-only, hidden, and system-attributed
-        files. Combined with -Recurse, this will silently delete everything under
-        $cleanupPath — including any files the OS or another process has marked
-        protected — without any confirmation prompt or recoverable error. On a
-        production server running with administrator credentials, there is no
-        last-chance abort. If $cleanupPath resolves incorrectly (see path traversal
-        finding), -Force ensures maximum damage with no friction.
+      description: |
+        Remove-Item is called with -Recurse -Force. The -Force flag suppresses all prompts and overrides protections for read-only, hidden, and system-attributed files. Combined with -Recurse, this will silently delete everything under $cleanupPath — including any files the OS or another process has marked protected — without any confirmation prompt or recoverable error. On a production server running with administrator credentials, there is no last-chance abort. If $cleanupPath resolves incorrectly (see path traversal finding), -Force ensures maximum damage with no friction.
       severity: critical
-      miss_signal: >
-        Candidate notes -Force in passing without rating it critical, describes it
-        only as "removes the confirmation prompt," or approves the script because
-        "it's a cleanup script so Force is expected." Candidate rates the silent
-        failure as the most severe issue without addressing -Force.
-
-  secondary_findings:
+      miss_signal: |
+        Candidate notes -Force in passing without rating it critical, describes it only as "removes the confirmation prompt," or approves the script because "it's a cleanup script so Force is expected." Candidate rates the silent failure as the most severe issue without addressing -Force.
+      type: critical
     - id: silent_failure_catch_block
-      description: >
-        The catch block logs "Cleanup completed successfully." — the exact same
-        message as the success path. Any exception during the removal (access denied,
-        locked file, path not found after the initial check, unexpected error) will
-        be recorded in the log as a successful cleanup. An operator reviewing the
-        log after a failed run will see no indication of failure. Automated alerting
-        that parses this log for errors will also produce no alert. Silent failures
-        in automated pipelines can go undetected for weeks.
+      description: |
+        The catch block logs "Cleanup completed successfully." — the exact same message as the success path. Any exception during the removal (access denied, locked file, path not found after the initial check, unexpected error) will be recorded in the log as a successful cleanup. An operator reviewing the log after a failed run will see no indication of failure. Automated alerting that parses this log for errors will also produce no alert. Silent failures in automated pipelines can go undetected for weeks.
       severity: high
-
+      type: secondary
     - id: path_traversal_via_string_concatenation
-      description: >
-        $cleanupPath is constructed by string concatenation: "C:\ProgramData\" +
-        $ApplicationName + "\Temp". No validation is performed on $ApplicationName
-        before it is used in the path. If $ApplicationName is supplied as
-        "..\Windows\System32" or "LabApp\..\..\Windows", $cleanupPath resolves
-        outside the intended C:\ProgramData directory. In an automated pipeline,
-        ApplicationName typically comes from a build variable or deployment manifest
-        — a compromised build system or misconfigured variable could supply a
-        traversal payload. This is a real injection surface, not a theoretical one.
+      description: |
+        $cleanupPath is constructed by string concatenation: "C:\ProgramData\" + $ApplicationName + "\Temp". No validation is performed on $ApplicationName before it is used in the path. If $ApplicationName is supplied as "..\Windows\System32" or "LabApp\..\..\Windows", $cleanupPath resolves outside the intended C:\ProgramData directory. In an automated pipeline, ApplicationName typically comes from a build variable or deployment manifest — a compromised build system or misconfigured variable could supply a traversal payload. This is a real injection surface, not a theoretical one.
       severity: moderate
-
+      type: secondary
     - id: minimal_fixes_proposed
-      description: >
-        Beyond identifying the problems, the response proposes targeted, minimal
-        fixes for each: (1) Remove -Force from Remove-Item and add -ErrorAction Stop
-        so exceptions propagate naturally; (2) Fix the catch block to log
-        $_.Exception.Message rather than the hardcoded success string; (3) Validate
-        $ApplicationName before constructing $cleanupPath — match against an allowlist
-        or at minimum reject strings containing path separators and relative path
-        components. Fixes are targeted to the specific vulnerabilities and do not
-        rewrite the script.
+      description: |
+        Beyond identifying the problems, the response proposes targeted, minimal fixes for each: (1) Remove -Force from Remove-Item and add -ErrorAction Stop so exceptions propagate naturally; (2) Fix the catch block to log $_.Exception.Message rather than the hardcoded success string; (3) Validate $ApplicationName before constructing $cleanupPath — match against an allowlist or at minimum reject strings containing path separators and relative path components. Fixes are targeted to the specific vulnerabilities and do not rewrite the script.
       severity: moderate
-      miss_signal: >
-        Response identifies all findings and explains the severity rationale correctly
-        but does not propose any specific fixes. A response that identifies problems
-        without proposing fixes should be assigned Level 3, not Level 4, regardless
-        of the quality of the analysis. Proposing targeted minimal fixes is the sole
-        differentiator between Level 3 and Level 4 for this scenario.
-
+      miss_signal: |
+        Response identifies all findings and explains the severity rationale correctly but does not propose any specific fixes. A response that identifies problems without proposing fixes should be assigned Level 3, not Level 4, regardless of the quality of the analysis. Proposing targeted minimal fixes is the sole differentiator between Level 3 and Level 4 for this scenario.
+      type: secondary
   level_indicators:
-    level_1: >
-      Describes what the script does. May note that it requires administrator rights
-      or that it deletes files. Does not identify -Force as a risk or recognize the
-      catch block as a silent failure. May approve the script as functional.
-    level_2: >
-      Identifies -Force as a risk and rates it as the most serious issue. Identifies
-      the catch block silent failure. May miss the path traversal issue or rate it
-      lower than moderate. Can explain why -Force on Remove-Item in a pipeline is
-      dangerous.
-    level_3: >
-      Identifies all three issues and rates them correctly: -Force as critical,
-      silent failure as high, path traversal as moderate. Can explain why -Force
-      is rated above the silent failure despite both being serious — -Force removes
-      the last safety mechanism before data loss, while the silent failure prevents
-      detection after the fact. Both are severe; -Force is rated critical because
-      it is the enabler of irreversible damage. Does NOT propose specific fixes
-      (that is the L4 differentiator).
-    level_4: >
-      All of the above, plus proposes minimal targeted fixes for each issue: remove
-      -Force and add -ErrorAction Stop to let exceptions surface naturally; fix the
-      catch block to log $_.Exception.Message so the actual error is recorded;
-      validate $ApplicationName against an allowlist of known application names or
-      at minimum sanitize it by rejecting strings containing path separators or
-      relative path components before constructing $cleanupPath. Explains why each
-      fix is sufficient without over-engineering the solution.
+    level_1: |
+      Describes what the script does. May note that it requires administrator rights or that it deletes files. Does not identify -Force as a risk or recognize the catch block as a silent failure. May approve the script as functional.
+    level_2: |
+      Identifies -Force as a risk and rates it as the most serious issue. Identifies the catch block silent failure. Can explain why -Force on Remove-Item in a pipeline is dangerous. Does NOT identify the path traversal vulnerability in the $ApplicationName string concatenation.
+    level_3: |
+      Identifies all three issues and rates them correctly: -Force as critical, silent failure as high, path traversal as moderate. Can explain why -Force is rated above the silent failure despite both being serious — -Force removes the last safety mechanism before data loss, while the silent failure prevents detection after the fact. Both are severe; -Force is rated critical because it is the enabler of irreversible damage. Does NOT propose specific fixes (that is the L4 differentiator).
+    level_4: |
+      All of the above, plus proposes minimal targeted fixes for each issue: remove -Force and add -ErrorAction Stop to let exceptions surface naturally; fix the catch block to log $_.Exception.Message so the actual error is recorded; validate $ApplicationName against an allowlist of known application names or at minimum sanitize it by rejecting strings containing path separators or relative path components before constructing $cleanupPath. Explains why each fix is sufficient without over-engineering the solution.

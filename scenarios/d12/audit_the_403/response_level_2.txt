@@ -1,0 +1,5 @@
+The deployment steps are correct — the chown, chmod, and service restart are all appropriate. The problem is the setenforce 0 line added as the fix.
+
+setenforce 0 doesn't fix the underlying SELinux issue — it disables SELinux enforcement for the entire system, not just for Apache or for /opt/crm. That means every other service on the host that was being confined by SELinux policy is now running without that protection. It's not a targeted fix for an Apache access problem; it's removing a security layer from the whole machine.
+
+The 403 was a SELinux context problem, not a file permissions problem. The correct fix would be to set the right SELinux context on /opt/crm so Apache can read it, rather than turning off the policy entirely. Something like restorecon or chcon to apply the appropriate httpd content type to the directory. That way Apache gets the access it needs without affecting any other process on the system.

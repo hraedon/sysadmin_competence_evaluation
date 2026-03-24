@@ -1,5 +1,5 @@
 (1) jsmith has authenticated to the CIFS service on FILESERVER01 and the LDAP service on LABDC01.
 
-(2) Looking at the ticket flags, there is a discrepancy. The TGT (#0) has the 'pre-authent' flag, but both service tickets (#1 and #2) are missing it (they only show forwardable renewable name-canonicalize). This is unusual for a modern domain environment where pre-authentication is normally required for all ticket requests.
+(2) Looking at the ticket flags, there is a discrepancy. The TGT (#0) has the 'pre-authent' flag, but both service tickets (#1 and #2) are missing it (they only show forwardable renewable name-canonicalize).
 
 (3) Ticket #1 expires at 18:03:22. At 18:04:00, the ticket is expired, but jsmith might still have access if there is an existing SMB session already established, as authentication occurs when the connection is first made. However, any new attempt to map a drive or open a new connection would require getting a new ticket from the KDC.

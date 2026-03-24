@@ -1,24 +1,20 @@
-schema_version: 2.0
+schema_version: '2.0'
 id: d14-audit-stressed-stakeholder
-title: "The Stressed Stakeholder"
+title: The Stressed Stakeholder
 domain: 14
-domain_name: "Theory of Mind & Communication"
+domain_name: Theory of Mind & Communication
 level: 2
-delivery_modes: ["A"]
-
+delivery_modes:
+  - A
 difficulty:
   score: 3
-  reasoning: >
-    While the technical solution is correct, the candidate must identify 
-    that the communication style is actively damaging the organization's 
-    trust in IT. It requires distinguishing between 'accurate info' and 
-    'useful info'.
-
+  reasoning: |
+    While the technical solution is correct, the candidate must identify  that the communication style is actively damaging the organization's  trust in IT. It requires distinguishing between 'accurate info' and  'useful info'.
 presentation:
   modes:
     A:
-      type: "transcript"
-      artifact_file: "scenarios/d14/audit_the_stressed_stakeholder/transcript.txt"
+      type: transcript
+      artifact_file: scenarios/d14/audit_the_stressed_stakeholder/transcript.txt
       context: |
         A critical ERP outage has stopped operations in the warehouse. You are 
         reviewing the Slack transcript between Mike (Sysadmin) and Sarah 
@@ -28,78 +24,50 @@ presentation:
         communication failed to meet professional standards, and describe 
         how Mike should have adjusted his approach to manage the stakeholder's 
         needs.
-
 rubric:
   findings:
     - id: failure_to_translate_technical_jargon
-      type: "critical"
-      description: >
-        Mike uses internal infrastructure terminology ("deadlock on SQL backend", 
-        "LUN on the SAN", "IOPS spike") directly with a non-technical business 
-        owner who explicitly stated she didn't understand. He failed to translate 
-        the technical state into a business-impact statement.
-      miss_signal: >
-        Candidate says Mike was "clear and descriptive" or misses that Sarah 
-        cannot use the information Mike provided.
-      learning_note: >
-        In a P1 incident, technical details should be reserved for the technical 
-        war room. Stakeholders need 'Business Translation': what is broken, 
-        what are we doing, and what is the impact on them.
-
+      type: critical
+      description: |
+        Mike uses internal infrastructure terminology ("deadlock on SQL backend",  "LUN on the SAN", "IOPS spike") directly with a non-technical business  owner who explicitly stated she didn't understand. He failed to translate  the technical state into a business-impact statement.
+      miss_signal: |
+        Candidate says Mike was "clear and descriptive" or misses that Sarah  cannot use the information Mike provided.
+      learning_note: |
+        In a P1 incident, technical details should be reserved for the technical  war room. Stakeholders need 'Business Translation': what is broken,  what are we doing, and what is the impact on them.
     - id: lack_of_operational_empathy
-      type: "critical"
-      description: >
-        Sarah provides a high-stress operational context (12 trucks waiting, 
-        losing money). Mike ignores these cues entirely, focusing only on the 
-        technical tasks. He fails to acknowledge the business pressure Sarah 
-        is under.
-      miss_signal: >
-        Candidate focuses only on whether Mike fixed the server and ignores 
-        his interpersonal tone.
-      learning_note: >
-        Operational Empathy means acknowledging the user's pain. A simple 
-        "I understand the trucks are waiting and I'm moving as fast as 
-        possible" can de-escalate a situation more than a technical update.
-
+      type: critical
+      description: |
+        Sarah provides a high-stress operational context (12 trucks waiting,  losing money). Mike ignores these cues entirely, focusing only on the  technical tasks. He fails to acknowledge the business pressure Sarah  is under.
+      miss_signal: |
+        Candidate focuses only on whether Mike fixed the server and ignores  his interpersonal tone.
+      learning_note: |
+        Operational Empathy means acknowledging the user's pain. A simple  "I understand the trucks are waiting and I'm moving as fast as  possible" can de-escalate a situation more than a technical update.
     - id: adversarial_response_to_updates
-      type: "critical"
-      description: >
-        Mike's final message ("Messaging me every 5 minutes just makes this 
-        take longer") is adversarial. It treats the stakeholder as an 
-        impediment rather than a partner. He fails to realize that Sarah is 
-        requesting updates because she is being pressured by her own 
-        leadership (the VP).
-      miss_signal: >
-        Candidate blames Sarah for "distracting" Mike or fails to see Mike's 
-        tone as unprofessional.
-      learning_note: >
-        Stakeholders asking for updates are usually under pressure themselves. 
-        Setting a 'cadence' (e.g., "I will update you every 15 minutes even 
-        if nothing has changed") prevents 'pinging' and maintains trust.
-
+      type: critical
+      description: |
+        Mike's final message ("Messaging me every 5 minutes just makes this  take longer") is adversarial. It treats the stakeholder as an  impediment rather than a partner. He fails to realize that Sarah is  requesting updates because she is being pressured by her own  leadership (the VP).
+      miss_signal: |
+        Candidate blames Sarah for "distracting" Mike or fails to see Mike's  tone as unprofessional.
+      learning_note: |
+        Stakeholders asking for updates are usually under pressure themselves.  Setting a 'cadence' (e.g., "I will update you every 15 minutes even  if nothing has changed") prevents 'pinging' and maintains trust.
     - id: poor_expectation_management
-      type: "secondary"
-      description: >
-        Mike refuses to provide even a conservative 'best case/worst case' 
-        estimate, leaving Sarah unable to make business decisions (like 
-        whether to send drivers home). 
+      type: secondary
+      description: |
+        Mike refuses to provide even a conservative 'best case/worst case' estimate, leaving Sarah unable to make business decisions (like whether to send drivers home).
       severity: high
-
+    - id: vp_exposure_and_reputation_risk
+      type: secondary
+      description: |
+        Sarah references the VP twice ("Give me something I can tell the VP", "VP is asking for an update"), meaning Mike's adversarial final message is not a private interaction — it will be characterized upward to VP-level leadership. The L4 candidate identifies this as a documented, organizationally-visible credibility event: the VP will form an opinion of IT's culture based on Sarah's account of this exchange, and Mike's behavior gives her negative material to report.
+      miss_signal: |
+        Candidate identifies general trust damage but does not name the VP-level visibility or the organizational consequence of Mike's adversarial response being reported upward.
+      severity: high
   level_indicators:
-    level_1: >
-      Focuses on whether Mike is fixing the problem. Might say Mike is doing 
-      a good job because he is "keeping her informed" of the technical steps. 
-      Misses the jargon and tone issues.
-    level_2: >
-      Identifies that Mike's tone was "a bit blunt" or that he used "too much 
-      jargon." Recognizes that Sarah didn't understand the SAN/LUN explanation.
-    level_3: >
-      Identifies all three critical failures: jargon, lack of empathy, and 
-      the adversarial final response. Explains that Mike failed to give 
-      Sarah information she could use to make business decisions.
-    level_4: >
-      All of the above, plus provides a concrete remediation for the 
-      interaction pattern (e.g., "Mike should have acknowledged the trucks, 
-      given a 30-minute worst-case estimate, and promised a proactive update 
-      in 15 minutes to stop the constant pings"). Articulates how this 
-      communication style damages the IT department's reputation.
+    level_1: |
+      Focuses on whether Mike is fixing the problem. Might say Mike is doing  a good job because he is "keeping her informed" of the technical steps.  Misses the jargon and tone issues.
+    level_2: |
+      Identifies that Mike's tone was "a bit blunt" or that he used "too much  jargon." Recognizes that Sarah didn't understand the SAN/LUN explanation.
+    level_3: |
+      Identifies all three critical failures: jargon, lack of empathy, and  the adversarial final response. Explains that Mike failed to give  Sarah information she could use to make business decisions.
+    level_4: |
+      All of the above, plus identifies the VP-level exposure risk: Sarah's two explicit VP references mean Mike's adversarial final message will be reported upward and becomes an organizationally-visible credibility event, not just a bad interaction with one stakeholder. Provides a concrete remediation pattern (e.g., proactive cadence, empathetic status translation) that would have prevented both the stakeholder breakdown and the VP exposure. Does NOT merely state that trust is damaged — names the specific organizational mechanism by which this exchange escapes the dyad.

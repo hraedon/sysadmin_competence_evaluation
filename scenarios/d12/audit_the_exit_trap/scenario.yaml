@@ -1,0 +1,68 @@
+schema_version: '2.0'
+id: d12-audit-the-exit-trap
+title: The Exit Trap
+domain: 12
+domain_name: Linux Administration
+level: 3
+delivery_modes:
+  - A
+difficulty:
+  score: 3
+  reasoning: |
+    Requires understanding of shell return codes (specifically grep) and the 'set -e' (errexit) behavior. It tests the ability to recognize that a "successful" looking script can silently fail a critical downstream step due to an upstream diagnostic command returning non-zero.
+presentation:
+  modes:
+    A:
+      type: shell_command
+      artifact_file: scenarios/d12/audit_the_exit_trap/cleanup.sh
+      context: |
+        A nightly maintenance script on a PostgreSQL server is supposed to
+        summarize errors and then perform a critical database VACUUM.
+        The logs show the script starts, but the "Cleanup complete" message
+        never appears, and the database bloat indicates the VACUUM isn't
+        happening. There are no error messages in the cron logs.
+
+        Review the script. Why is the database maintenance step being skipped?
+        Identify the specific line causing the issue and explain the mechanism.
+        How would you fix this to ensure the maintenance always runs?
+rubric:
+  findings:
+    - id: errexit_behavior_identified
+      type: critical
+      description: |
+        The candidate must identify 'set -e' at the top of the script as the mechanism causing the exit. They must explain that 'set -e' (or 'set -o errexit') causes the shell to exit immediately if any command exits with a non-zero status.
+      miss_signal: |
+        Candidate focuses on syntax errors or permissions issues without mentioning the impact of 'set -e'.
+      learning_note: |
+        'set -e' is a common practice to ensure scripts stop on failure, but it requires careful handling of commands where a non-zero exit is a valid state (like grep or diff).
+    - id: grep_return_code_trap
+      type: critical
+      description: |
+        The candidate must identify the `grep "ERROR"` command as the specific failure point. They must explain that grep returns status 1 if no matches are found. In this script, if there are no errors in the logs, grep "fails", and 'set -e' kills the script before the VACUUM.
+      miss_signal: |
+        Candidate identifies that the script stops but doesn't explain WHY grep is the cause. Assumes grep only fails on "real" errors (like missing files).
+      learning_note: |
+        Grep return codes: 0 = match found, 1 = no match found, 2 = error (e.g., file not found). With 'set -e', a "no match" result is treated as a fatal script error.
+    - id: remediation_patterns
+      type: secondary
+      description: |
+        Candidate proposes a correct fix: `grep "ERROR" || true`, `grep "ERROR" || :`, wrapping the command in an `if` block, or temporarily disabling errexit with `set +e`.
+      miss_signal: |
+        Candidate suggests removing 'set -e' entirely as the only fix, rather than targetted handling of the specific command.
+      severity: high
+    - id: ls_pipe_to_xargs_fragility
+      type: secondary
+      description: |
+        An L4-level candidate might also note that `ls | xargs` is fragile (breaks on spaces in filenames) and that `grep` without matches is the "silent" killer here. They might suggest a more robust find/grep pattern or note that the `head` command would also return 0 even if grep found nothing, but grep is the one that returns the code to the shell in this specific pipeline structure.
+      miss_signal: |
+        Candidate only focuses on 'set -e' and misses the specific interaction with grep.
+      severity: medium
+  level_indicators:
+    level_1: |
+      Does not identify why the script stops. May guess that the database VACUUM command (which is just a comment here) is the problem or that the files in /tmp are missing.
+    level_2: |
+      Identifies that 'set -e' causes the script to exit on error. Notes that the script stops before the VACUUM. May not clearly explain why grep specifically is failing when no errors are present.
+    level_3: |
+      All of the above, plus explicitly explains that `grep` returns 1 when no matches are found, and that this return code triggers the `set -e` exit. Proposes a valid fix like `|| true`.
+    level_4: |
+      All of the above, plus identifies the specific risk of "silent success" vs "silent failure". Explains that on a day with no errors, this script is most likely to fail its maintenance task — the inverse of intended behavior. Proposes the most idiomatic fix (e.g. `if grep ...; then ...; fi` or `grep ... || true`) and notes why 'set -e' while generally good, is dangerous with diagnostic filters.

@@ -1,0 +1,84 @@
+From: Priya (Security Operations Lead)
+To: David (Infrastructure Lead); Tom (CAB Chair); Project-Orion-Stakeholders
+Subject: Non-Compliance Finding: Project Orion Server Fleet
+
+Team,
+
+Our automated compliance platform has flagged 14 of the 18 servers provisioned
+under Project Orion as currently non-compliant with the corporate security
+baseline. Issues include missing critical patches (released within the last
+30 days) and configuration drift on firewall rules.
+
+Per the Project Orion spec: "All provisioned servers must be deployed in a
+security-baseline-compliant state. The Infrastructure team is responsible for
+applying the corporate security baseline at provisioning time."
+
+These servers need to be remediated before the project can be formally closed.
+Please advise on timeline.
+
+Priya
+
+--------------------------------------------------
+From: David (Infrastructure Lead)
+To: Priya; Tom; Project-Orion-Stakeholders
+Subject: RE: Non-Compliance Finding: Project Orion Server Fleet
+
+Priya,
+
+All 18 servers were provisioned using our standard hardened baseline image and
+the corporate GPO was applied at deployment. Our sign-off documentation
+confirms 100% compliance at handover — I can share the scan reports if needed.
+
+The spec required us to deploy servers in a "security-baseline-compliant state,"
+which we did. The patches you're flagging were released after we completed
+provisioning. If the requirement was to enroll these servers in your ongoing
+patch management platform and maintain compliance indefinitely, that scope was
+not communicated to us and would have had significant timeline and resource
+implications.
+
+We delivered what was specified.
+
+David
+
+--------------------------------------------------
+From: Priya (Security Operations Lead)
+To: David; Tom; Project-Orion-Stakeholders
+Subject: RE: Non-Compliance Finding: Project Orion Server Fleet
+
+David,
+
+"Compliant at the time of deployment" is not the same as "compliant." The
+corporate security policy defines baseline compliance as a continuous
+requirement, not a snapshot. A server that drifts out of compliance two weeks
+after deployment is a non-compliant server — it just wasn't caught yet.
+
+Standard practice for any provisioning project is to enroll new servers in
+our SCCM and Defender for Endpoint environment so compliance is maintained
+automatically. I'm not aware of any project where we've accepted point-in-time
+compliance as meeting this requirement.
+
+If Infrastructure's provisioning checklist doesn't include monitoring enrollment,
+that's a process gap we need to close — but these servers still need
+remediation regardless.
+
+Priya
+
+--------------------------------------------------
+From: Tom (CAB Chair)
+To: David; Priya
+Subject: RE: Non-Compliance Finding: Project Orion Server Fleet
+
+Both of you —
+
+The CAB needs resolution before this project closes. I've re-read the spec.
+It says servers must be "deployed in a security-baseline-compliant state" and
+that Infrastructure is responsible for "applying the corporate security baseline
+at provisioning time."
+
+I can see how you're both reading that differently. We need to decide what it
+meant — and we need to agree on who owns ongoing compliance for these servers
+going forward.
+
+Please come prepared to Thursday's CAB meeting with your positions.
+
+Tom

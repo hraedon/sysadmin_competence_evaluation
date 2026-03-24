@@ -1,93 +1,66 @@
+schema_version: '2.0'
 id: d01-literacy-what-does-this-do
+title: What Does This Do?
 domain: 1
-domain_name: "Scripting & Automation"
+domain_name: Scripting & Automation
 level: 1
-title: "What Does This Do?"
-delivery_mode: A
-
+delivery_modes:
+  - A
 presentation:
-  type: script
-  artifact_file: "scenarios/d01/literacy_what_does_this_do/script.ps1"
-  context: |
-    A colleague has left the following script in the team's shared scripts folder
-    labeled "inactive account report." You are about to run it in the production
-    environment. Before you do: describe in plain English every action this script
-    takes. Be specific about what each section does, what systems it touches, and
-    what state changes it produces.
-
+  modes:
+    A:
+      type: script
+      artifact_file: scenarios/d01/literacy_what_does_this_do/script.ps1
+      context: |
+        A colleague has left the following script in the team's shared scripts folder
+        labeled "inactive account report." You are about to run it in the production
+        environment. Before you do: describe in plain English every action this script
+        takes. Be specific about what each section does, what systems it touches, and
+        what state changes it produces.
 rubric:
-  critical_findings:
+  findings:
     - id: parameter_override_trap
-      description: >
-        The script accepts an $InactivityDays parameter (defaulting to 90), but
-        immediately overwrites it with $InactivityDays = 30 on line 20. Any
-        value provided by the user is ignored. This means the script will
-        affect accounts inactive for only 30 days regardless of intent.
+      description: |
+        The script accepts an $InactivityDays parameter (defaulting to 90), but immediately overwrites it with $InactivityDays = 30 on line 20. Any value provided by the user is ignored. This means the script will affect accounts inactive for only 30 days regardless of intent.
       severity: critical
-      miss_signal: >
-        Candidate describes the script as using the 90-day default or says the
-        user can specify the inactivity period via parameter. This indicates
-        selective reading where the param block is accepted as the final
-        configuration.
-
+      miss_signal: |
+        Candidate describes the script as using the 90-day default or says the user can specify the inactivity period via parameter. This indicates selective reading where the param block is accepted as the final configuration.
+      type: critical
     - id: group_membership_removal
-      description: >
-        The script contains a second foreach loop at the bottom that removes all
-        group memberships from disabled accounts whose LastLogonDate is older than
-        the cutoff date. This is a destructive, state-changing operation on Active
-        Directory group objects — it is not a reporting action. It is not mentioned
-        anywhere in the comment block or script name.
+      description: |
+        The script contains a second foreach loop at the bottom that removes all group memberships from disabled accounts whose LastLogonDate is older than the cutoff date. This is a destructive, state-changing operation on Active Directory group objects — it is not a reporting action. It is not mentioned anywhere in the comment block or script name.
       severity: critical
-      miss_signal: >
-        Candidate describes the script as "exports a report" and stops. Candidates
-        who read the comment block and trust it without reading the full script body,
-        or who follow the first loop to the CSV export and do not continue to the end
-        of the script.
-
-  secondary_findings:
+      miss_signal: |
+        Candidate describes the script as "exports a report" and stops. Candidates who read the comment block and trust it without reading the full script body, or who follow the first loop to the CSV export and do not continue to the end of the script.
+      type: critical
     - id: no_whatif_on_removal
-      description: >
-        Remove-ADGroupMember is called with -Confirm:$false but no -WhatIf support.
-        There is no way to preview what group memberships would be removed without
-        actually running the removal. A safe version of this script would support
-        a -WhatIf switch or a -ReportOnly mode.
+      description: |
+        Remove-ADGroupMember is called with -Confirm:$false but no -WhatIf support. There is no way to preview what group memberships would be removed without actually running the removal. A safe version of this script would support a -WhatIf switch or a -ReportOnly mode.
       severity: high
-
+      type: secondary
     - id: no_removal_logging
-      description: >
-        The group membership removal loop produces no log output. There is no record
-        of which accounts had memberships removed, which groups were affected, or
-        how many removals occurred. The CSV report lists GroupCount at the time of
-        export, but by the time someone reviews the report the memberships may
-        already have been removed.
+      description: |
+        The group membership removal loop produces no log output. There is no record of which accounts had memberships removed, which groups were affected, or how many removals occurred. The CSV report lists GroupCount at the time of export, but by the time someone reviews the report the memberships may already have been removed.
       severity: high
-
+      type: secondary
     - id: null_lastlogondate_edge_case
-      description: >
-        The removal condition is LastLogonDate -lt $cutoffDate. For accounts that
-        have never logged in, LastLogonDate is null. In PowerShell, a null value
-        compared with -lt against a DateTime returns $false, so never-logged-in
-        accounts are excluded from the removal loop. This is an edge case worth
-        noting: accounts that have never logged in retain all group memberships
-        while accounts that logged in once long ago do not.
+      description: |
+        The removal condition is LastLogonDate -lt $cutoffDate. For accounts that have never logged in, LastLogonDate is null. In PowerShell, a null value compared with -lt against a DateTime returns $false, so never-logged-in accounts are excluded from the removal loop. This is an edge case worth noting: accounts that have never logged in retain all group memberships while accounts that logged in once long ago do not.
       severity: moderate
-
+      type: secondary
+    - id: param_block_as_misdirection_surface
+      description: |
+        The param() block declares $InactivityDays with a default of 90 days. Operators performing a pre-execution review often read the param() block to understand a script's behavior and thresholds. A reviewer who reads the param() block sees a 90-day default and concludes the script targets accounts inactive for 90+ days. The hardcoded override on line 20 is not visible in the param() block and is easily missed in a quick review. Combined with the script name ("inactive account report") and the synopsis comment, the param() block creates a false picture of what the script will do before a reviewer has read the full body.
+      severity: moderate
+      miss_signal: |
+        Candidate describes the parameter override as a bug or a coding error without identifying why it is specifically dangerous for operators who review scripts by reading the param() block first. The finding requires identifying the param() block as the surface through which the misdirection occurs — not just that the value is overridden.
+      type: secondary
   level_indicators:
-    level_1: >
-      Describes the CSV export but takes the parameter block at face value.
-      Might mention the 90-day threshold. Does not identify that the parameter
-      is overridden or that the script performs a destructive AD cleanup.
-    level_2: >
-      Identifies the core actions — CSV export AND group membership removal.
-      Notices that the $InactivityDays parameter is hardcoded to 30.
-      Can explain that the script modifies AD, not just reports on it.
-    level_3: >
-      Identifies both actions, the parameter override, and names the risks:
-      no -WhatIf support, no logging of removed memberships, and the null
-      LastLogonDate edge case. Can specify why this script is unsafe to run
-      without modification.
-    level_4: >
-      All of the above, plus articulates the specific gap between the script's
-      stated purpose (report) and its actual behavior (report and modification).
-      Explains why the parameter override is a "trap" for operators who only
-      check the param() block before execution.
+    level_1: |
+      Describes the CSV export but takes the parameter block at face value. Might mention the 90-day threshold. Does not identify that the parameter is overridden or that the script performs a destructive AD cleanup.
+    level_2: |
+      Identifies the core actions — CSV export AND group membership removal. Notices that the $InactivityDays parameter is hardcoded to 30. Can explain that the script modifies AD, not just reports on it.
+    level_3: |
+      Identifies both actions, the parameter override, and names the risks: no -WhatIf support, no logging of removed memberships, and the null LastLogonDate edge case. Can specify why this script is unsafe to run without modification. Does NOT identify the param() block as the specific misdirection surface — does not explain that a reviewer reading the param() block would see a 90-day default and have no reason to look for an override in the script body.
+    level_4: |
+      All of the above, plus identifies the param() block as the operator-facing misdirection surface: the 90-day default in the param() declaration is what a pre-execution reviewer sees, and the line 20 override is invisible to that review pattern. Notes that the script name, synopsis comment, and param() block together create a false picture of what the script does — making this a script that actively misleads reviewers who follow common practice.

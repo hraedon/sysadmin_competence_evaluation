@@ -1,0 +1,1 @@
+The output shows that the cron service is not actually running right now. Even though it says 'enabled', the status is 'inactive (dead)'. This means the service isn't doing anything, which is why the cleanup tasks aren't running. I need to start the service to fix this. I would run 'systemctl start cron' to get it going again.

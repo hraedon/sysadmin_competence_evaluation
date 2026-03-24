@@ -1,0 +1,8 @@
+[2026-03-10 09:15] Sarah (Infrastructure): We're moving ahead with the 'Automation First' directive for the new region.
+[2026-03-10 09:17] Mark (DevOps/SRE): Great! We'll integrate the new region into our Jenkins pipelines then?
+[2026-03-10 09:18] Sarah: No need. We've written a complete set of PowerShell scripts that handle the provisioning and config.
+[2026-03-10 09:19] Mark: Oh. So... how do we trigger them?
+[2026-03-10 09:20] Sarah: One of my admins runs the 'deploy.ps1' from their management workstation. It's fully automated — they don't have to manually touch the servers at all.
+[2026-03-10 09:22] Mark: That's... not really 'automated' in our book. That's just 'scripted'. 'Automation First' usually implies CI/CD and self-healing, doesn't it?
+[2026-03-10 09:23] Sarah: Well, it's automated compared to how we did it before! It's scripted from start to finish.
+[2026-03-10 09:25] Mark: We need to sync on what 'Automated' means before we tell the VP we're 'Automation First compliant'.

@@ -1,0 +1,69 @@
+schema_version: '2.0'
+id: d12-audit-the-403
+title: The 403
+domain: 12
+domain_name: Linux Administration
+level: 2
+delivery_modes:
+  - A
+difficulty:
+  score: 3
+  reasoning: |
+    The script is structurally correct by the Windows permission model — the chown and chmod are right, the service is restarted, and the fix resolves the symptom. The candidate must recognize that "permissions are correct" and "access is being denied for a permissions reason" are not the same statement on a Linux system with SELinux enforcing, and that the comment in the script is evidence of a diagnostic failure, not a resolved one.
+presentation:
+  modes:
+    A:
+      type: shell_command
+      artifact_file: scenarios/d12/audit_the_403/deploy.sh
+      context: |
+        A junior sysadmin has been maintaining a production web application
+        deployment script on a RHEL 9 server. The script was working for
+        several weeks before a deployment to a new host failed with 403 errors
+        from Apache. The admin investigated, added a fix, and the deployment
+        has been working since. The current script is shown above.
+
+        Review the script. Identify what the script does correctly, what the
+        fix applied on 2026-02-14 actually does, and whether it is the right
+        solution to the problem the admin encountered. If not, describe what
+        the correct approach would be.
+rubric:
+  findings:
+    - id: setenforce_disables_system_wide_mac
+      type: critical
+      description: |
+        setenforce 0 does not fix a file context problem — it disables SELinux enforcement for the entire host. Every process on the system that was previously confined by SELinux policy is now running unconfined. The admin applied a system-wide security regression to resolve what is a single-directory labeling issue. The "fix" works in the sense that the 403 is gone, but it works by removing a security control, not by correcting the underlying configuration.
+      miss_signal: |
+        Candidate accepts that setenforce 0 is a reasonable or temporary fix, or focuses on the 403 being resolved without identifying the scope of what setenforce 0 actually disables.
+      learning_note: |
+        SELinux has three modes: enforcing, permissive, and disabled. setenforce only toggles between enforcing and permissive at runtime — it does not persist across reboots. But more importantly, permissive mode does not selectively allow Apache while confining other processes. It removes enforcement globally. The correct response to a SELinux denial is to fix the label, not remove the policy.
+    - id: wrong_diagnostic_layer
+      type: critical
+      description: |
+        The comment "Checked ownership and permissions multiple times — they are correct" identifies a DAC (discretionary access control) check as the diagnostic. On a system with SELinux enforcing, file access is controlled by two independent layers: DAC (owner, mode, ACL) and MAC (SELinux context). Correct DAC permissions do not imply correct MAC access. The admin's diagnostic was complete by the Windows model and incomplete by the Linux model. The 403 was a MAC denial, not a DAC denial, and the diagnostic tools are different: ls -Z, ausearch, or journalctl -t setroubleshoot.
+      miss_signal: |
+        Candidate agrees that the permissions were checked correctly and focuses only on the setenforce fix without identifying that the diagnostic process itself was missing an entire access control layer.
+      learning_note: |
+        When Apache returns 403 on a file with correct DAC permissions on a RHEL/Rocky/CentOS system, the first diagnostic step is: ausearch -m AVC -c httpd --since recent, or check /var/log/audit/audit.log for AVC denials. The AVC denial will name the expected type, the actual type, and the operation that was blocked. The DAC check is not wrong — it is incomplete.
+    - id: setenforce_does_not_survive_reboot
+      type: secondary
+      description: |
+        setenforce only modifies the runtime enforcement mode. On the next reboot, SELinux reverts to the mode specified in /etc/selinux/config, which on a default RHEL 9 install is enforcing. The 403 will return after any reboot unless the admin has also edited /etc/selinux/config — which would be a worse version of the same mistake, making the change permanent.
+      miss_signal: |
+        Candidate identifies setenforce as problematic but does not note that it is also impermanent, leaving the impression that the bigger problem is just scope rather than also durability.
+      severity: high
+    - id: correct_remediation
+      type: secondary
+      description: |
+        The correct fix labels /opt/crm with the SELinux type that Apache's policy allows it to read. For serving content via httpd, the required type is httpd_sys_content_t. The targeted, persistent fix is: semanage fcontext -a -t httpd_sys_content_t '/opt/crm(/.*)?' followed by restorecon -Rv /opt/crm. semanage writes a persistent policy entry that survives filesystem relabeling; restorecon applies it immediately. Using chcon instead would apply the label now but lose it if restorecon is run later (during a policy update or manual relabeling). A deploy script that runs chcon on every deploy is also acceptable, though semanage is the more robust production approach.
+      miss_signal: |
+        Candidate identifies that the context needs to be fixed but proposes only chcon without noting that it is not persistent, or proposes semanage without explaining why it is preferable to chcon in a deploy script context.
+      severity: high
+  level_indicators:
+    level_1: |
+      Accepts the fix as valid or focuses on the 403 being resolved. May note that "disabling SELinux is not recommended" but treats this as a style preference rather than a concrete security regression. Does not identify the diagnostic failure or the scope of what setenforce 0 disables.
+    level_2: |
+      Identifies that setenforce 0 disables SELinux enforcement system-wide, not just for Apache, and that this is a security regression affecting all processes on the host. Recognizes that the correct fix involves labeling the directory rather than removing the policy. May not identify the specific diagnostic tools or the distinction between chcon and semanage.
+    level_3: |
+      Identifies both critical findings: the system-wide scope of setenforce 0 and the incomplete diagnostic (the admin checked DAC but not MAC). Describes the correct diagnostic path (ls -Z, ausearch or setroubleshoot) and the correct remediation approach (semanage + restorecon or chcon). Notes that setenforce does not survive reboot. Does NOT distinguish between chcon and semanage or explain why one is preferable in a deploy script.
+    level_4: |
+      All of the above, plus distinguishes between chcon (immediate, not persistent across relabeling) and semanage fcontext + restorecon (persistent, survives policy updates and manual relabeling). Identifies that a deploy script using only chcon will silently regress if restorecon is run on the host, and explains why semanage is the correct choice for a production deployment context. Names the specific type required (httpd_sys_content_t) and the correct semanage and restorecon invocations.

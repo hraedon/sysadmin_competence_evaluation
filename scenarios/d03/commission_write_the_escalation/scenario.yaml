@@ -1,166 +1,90 @@
+schema_version: '2.0'
 id: d03-commission-write-the-escalation
+title: Write the Escalation
 domain: 3
-domain_name: "Networking Fundamentals"
+domain_name: Networking Fundamentals
 level: 3
-title: "Write the Escalation"
-delivery_mode: B
-subtype: null
-
+delivery_modes:
+  - B
 difficulty: 3
-difficulty_note: >
-  The diagnostic context is provided in full — there is no artifact to analyze.
-  The challenge is production quality: a complete escalation that gives the network
-  team everything they need without asking for more. Many candidates can identify
-  the problem but struggle to specify the hypothesis precisely enough (subnets,
-  protocols, ports, timeframe) to enable targeted investigation.
-
-# Scenario note (for scenario authors and evaluators):
-# Most similar to: d01-commission-write-the-spec (both are Level 3 Mode B exercises
-# where the candidate produces a professional document rather than analyzing an artifact).
-# How the reasoning challenge differs: the scripting spec tests whether candidates can
-# reason about operational safety and requirements. This scenario tests whether candidates
-# can translate diagnostic evidence into an actionable escalation — specifically, the
-# difference between "please look into this" and "please verify whether ACL rule X exists
-# and test path Y." The exercise explicitly rewards hypothesis-led escalations over
-# symptom-led ones.
-
 presentation:
-  type: environment_description
-  artifact_file: null
-  context: |
-    You have been diagnosing a connectivity problem affecting Accounting department
-    users. Your investigation produced the following findings:
+  modes:
+    B:
+      type: environment_description
+      context: |
+        You have been diagnosing a connectivity problem affecting Accounting department
+        users. Your investigation produced the following findings:
 
-    **Symptom:** Users in the Accounting VLAN (VLAN 20, subnet 10.20.0.0/24) cannot
-    reach the ERP application server (ERPSRV01 at 10.30.10.50, VLAN 30). The failure
-    has been present since approximately 14:15 today. Accounting staff confirmed the
-    ERP application was working normally this morning.
+        **Symptom:** Users in the Accounting VLAN (VLAN 20, subnet 10.20.0.0/24) cannot
+        reach the ERP application server (ERPSRV01 at 10.30.10.50, VLAN 30). The failure
+        has been present since approximately 14:15 today. Accounting staff confirmed the
+        ERP application was working normally this morning.
 
-    **Your diagnostic tests:**
-    - Ping from accounting workstation WKSTN-ACC-07 to its default gateway
-      (10.20.0.1): **Succeeds**
-    - Ping from WKSTN-ACC-07 to ERPSRV01 (10.30.10.50): **Fails — no reply**
-    - Ping from IT admin workstation WKSTN-IT-01 (VLAN 10, 10.10.0.0/24) to
-      ERPSRV01: **Succeeds**
-    - ERP application health from another VLAN (VLAN 10): **Normal — application
-      is responding**
-    - Other VLAN 20 users (Accounting): same failure — all cannot reach ERPSRV01
-    - VLAN 20 to other destinations (internet, file shares on VLAN 10): **Working**
+        **Your diagnostic tests:**
+        - Ping from accounting workstation WKSTN-ACC-07 to its default gateway
+          (10.20.0.1): **Succeeds**
+        - Ping from WKSTN-ACC-07 to ERPSRV01 (10.30.10.50): **Fails — no reply**
+        - Ping from IT admin workstation WKSTN-IT-01 (VLAN 10, 10.10.0.0/24) to
+          ERPSRV01: **Succeeds**
+        - ERP application health from another VLAN (VLAN 10): **Normal — application
+          is responding**
+        - Other VLAN 20 users (Accounting): same failure — all cannot reach ERPSRV01
+        - VLAN 20 to other destinations (internet, file shares on VLAN 10): **Working**
 
-    **Change correlation:**
-    The network team performed a scheduled maintenance window from 13:30 to 14:30
-    today. The change record states: "Updated ACL ruleset on distribution switch
-    DIST-SW-01. Updated inbound and outbound ACL rules for inter-VLAN traffic per
-    security review Q1-2026." No specifics are provided in the change record about
-    which rules were changed or which VLANs were affected.
+        **Change correlation:**
+        The network team performed a scheduled maintenance window from 13:30 to 14:30
+        today. The change record states: "Updated ACL ruleset on distribution switch
+        DIST-SW-01. Updated inbound and outbound ACL rules for inter-VLAN traffic per
+        security review Q1-2026." No specifics are provided in the change record about
+        which rules were changed or which VLANs were affected.
 
-    **Your hypothesis:**
-    A permit rule for traffic from VLAN 20 (10.20.0.0/24) to VLAN 30 (specifically
-    to ERPSRV01 at 10.30.10.50, TCP port 1433 for SQL) was removed or not carried
-    forward during the ACL update. The gateway connectivity succeeding rules out a
-    routing table issue; the VLAN 10 → VLAN 30 path working rules out a problem with
-    ERPSRV01 or VLAN 30 generally.
+        **Your hypothesis:**
+        A permit rule for traffic from VLAN 20 (10.20.0.0/24) to VLAN 30 (specifically
+        to ERPSRV01 at 10.30.10.50, TCP port 1433 for SQL) was removed or not carried
+        forward during the ACL update. The gateway connectivity succeeding rules out a
+        routing table issue; the VLAN 10 → VLAN 30 path working rules out a problem with
+        ERPSRV01 or VLAN 30 generally.
 
-    Write the escalation to the network team. The escalation should be specific enough
-    that the network team can investigate and test without asking you any clarifying
-    questions.
-
+        Write the escalation to the network team. The escalation should be specific enough
+        that the network team can investigate and test without asking you any clarifying
+        questions.
 rubric:
-  critical_findings:
+  findings:
     - id: specific_hypothesis_stated
-      description: >
-        The escalation must state the specific hypothesis: a permit rule for traffic
-        from VLAN 20 (10.20.0.0/24) to ERPSRV01 (10.30.10.50) on the relevant port(s)
-        is missing or incorrect in the ACL on DIST-SW-01. Escalations that describe
-        only the symptom ("Accounting can't reach the ERP server") without stating a
-        hypothesis require the network team to re-do the diagnosis. Escalations that
-        state a hypothesis but do not identify the specific source/destination subnet
-        pair or the relevant switch/ACL are not actionable without follow-up questions.
+      description: |
+        The escalation must state the specific hypothesis: a permit rule for traffic from VLAN 20 (10.20.0.0/24) to ERPSRV01 (10.30.10.50) on the relevant port(s) is missing or incorrect in the ACL on DIST-SW-01. Escalations that describe only the symptom ("Accounting can't reach the ERP server") without stating a hypothesis require the network team to re-do the diagnosis. Escalations that state a hypothesis but do not identify the specific source/destination subnet pair or the relevant switch/ACL are not actionable without follow-up questions.
       severity: critical
-      miss_signal: >
-        The escalation asks the network team to "please investigate" or "look into
-        connectivity issues for Accounting" without specifying what to look for. Or:
-        the escalation describes the symptom correctly but does not identify the ACL
-        on DIST-SW-01 as the specific object to inspect. Or: the escalation says
-        "inter-VLAN routing is broken" without identifying which VLAN pair.
-
+      miss_signal: |
+        The escalation asks the network team to "please investigate" or "look into connectivity issues for Accounting" without specifying what to look for. Or: the escalation describes the symptom correctly but does not identify the ACL on DIST-SW-01 as the specific object to inspect. Or: the escalation says "inter-VLAN routing is broken" without identifying which VLAN pair.
+      type: critical
     - id: change_correlation_included
-      description: >
-        The escalation must reference the change window (13:30-14:30 today, ACL update
-        on DIST-SW-01) and state that the problem onset correlates with the change
-        window. This is not optional context — it is the primary diagnostic signal.
-        The network team needs to know which specific change to review, not that
-        "something changed recently." The change reference should be specific enough
-        for the network team to pull the exact change record.
+      description: |
+        The escalation must reference the change window (13:30-14:30 today, ACL update on DIST-SW-01) and state that the problem onset correlates with the change window. This is not optional context — it is the primary diagnostic signal. The network team needs to know which specific change to review, not that "something changed recently." The change reference should be specific enough for the network team to pull the exact change record.
       severity: critical
-      miss_signal: >
-        The escalation mentions that a network change occurred without identifying
-        when it occurred or which device was changed. Or: the escalation omits the
-        change correlation entirely and asks the network team to investigate from
-        scratch. Or: the change is mentioned only in passing ("also a change happened
-        today") rather than as the primary diagnostic anchor.
-
-  secondary_findings:
+      miss_signal: |
+        The escalation mentions that a network change occurred without identifying when it occurred or which device was changed. Or: the escalation omits the change correlation entirely and asks the network team to investigate from scratch. Or: the change is mentioned only in passing ("also a change happened today") rather than as the primary diagnostic anchor.
+      type: critical
     - id: diagnostic_evidence_summarized
-      description: >
-        The escalation should summarize the key diagnostic tests: VLAN 20 to gateway
-        succeeds (rules out local routing); VLAN 10 to ERPSRV01 succeeds (rules out
-        server availability and VLAN 30 routing); all VLAN 20 users affected (rules
-        out a single-workstation issue). These tests constrain the hypothesis space
-        and prevent the network team from re-running diagnostics before reviewing the
-        ACL. The escalation is stronger when it states what was ruled out, not just
-        what was observed.
+      description: |
+        The escalation should summarize the key diagnostic tests: VLAN 20 to gateway succeeds (rules out local routing); VLAN 10 to ERPSRV01 succeeds (rules out server availability and VLAN 30 routing); all VLAN 20 users affected (rules out a single-workstation issue). These tests constrain the hypothesis space and prevent the network team from re-running diagnostics before reviewing the ACL. The escalation is stronger when it states what was ruled out, not just what was observed.
       severity: high
-
+      type: secondary
     - id: specific_test_requested
-      description: >
-        The escalation should request a specific action, not just "please investigate."
-        The appropriate request: verify that a permit rule exists on DIST-SW-01 for
-        traffic from 10.20.0.0/24 to 10.30.10.50 (or 10.30.0.0/24) on the relevant
-        port(s), and test the VLAN 20 → VLAN 30 path after verifying. The escalation
-        should not ask the network team to roll back the change — it should ask them
-        to verify the specific rule and restore it if absent, because rolling back may
-        undo other intended security improvements from the change.
+      description: |
+        The escalation should request a specific action, not just "please investigate." The appropriate request: verify that a permit rule exists on DIST-SW-01 for traffic from 10.20.0.0/24 to 10.30.10.50 (or 10.30.0.0/24) on the relevant port(s), and test the VLAN 20 → VLAN 30 path after verifying. The escalation should not ask the network team to roll back the change — it should ask them to verify the specific rule and restore it if absent, because rolling back may undo other intended security improvements from the change.
       severity: moderate
-
+      type: secondary
     - id: impact_and_urgency_stated
-      description: >
-        The escalation should state the business impact (Accounting staff cannot access
-        the ERP application — payroll, purchasing, or finance operations may be blocked)
-        and urgency. This helps the network team prioritize the escalation relative to
-        other work. The urgency framing should be factual (time since failure, business
-        function blocked) rather than emotional.
+      description: |
+        The escalation should state the business impact (Accounting staff cannot access the ERP application — payroll, purchasing, or finance operations may be blocked) and urgency. This helps the network team prioritize the escalation relative to other work. The urgency framing should be factual (time since failure, business function blocked) rather than emotional.
       severity: low
-
+      type: secondary
   level_indicators:
-    level_1: >
-      Describes the symptom ("Accounting users can't reach the ERP server") and
-      asks the network team to look into it. Does not state a hypothesis. Does not
-      reference the change window or identify DIST-SW-01. The network team would
-      need to re-run all diagnostics from scratch to investigate. May include
-      some diagnostic output but without structure or synthesis.
-    level_2: >
-      Describes the symptom, references that a network change occurred today, and
-      mentions that the problem started around the same time. Identifies that the
-      issue appears to be between VLAN 20 and the ERP server. Does not state a
-      specific ACL hypothesis. Does not specify DIST-SW-01 or the exact rule that
-      may be missing. The network team would still need clarification before
-      investigating efficiently.
-    level_3: >
-      States the specific hypothesis (missing or incorrect permit rule for VLAN 20
-      to VLAN 30 / ERPSRV01 on DIST-SW-01), references the change window by time
-      and device, summarizes the key diagnostic evidence (gateway reachable, VLAN 10
-      path working, all VLAN 20 users affected), and requests a specific verification
-      action. The network team can investigate without asking a single clarifying
-      question. Does NOT specify the exact protocol/port detail (TCP 1433 for SQL
-      Server) or note the risk of a full rollback vs. targeted rule restoration.
-    level_4: >
-      All of the above plus specifies the protocol and port detail (TCP 1433 or the
-      application's relevant service port), notes the rollback risk explicitly (a
-      full ACL rollback may undo other intended security changes and should not be
-      the first approach — verify the specific rule first), includes business impact
-      and urgency framing, and may note a suggested verification sequence: (1) review
-      the ACL diff from the change window to identify what was removed or modified;
-      (2) verify the specific rule exists; (3) restore if absent; (4) test with the
-      affected application before closing. Escalation reads as if written by someone
-      who has done this before and knows what the network team needs.
+    level_1: |
+      Describes the symptom ("Accounting users can't reach the ERP server") and asks the network team to look into it. Does not state a hypothesis. Does not reference the change window or identify DIST-SW-01. The network team would need to re-run all diagnostics from scratch to investigate. May include some diagnostic output but without structure or synthesis.
+    level_2: |
+      Describes the symptom, references that a network change occurred today, and mentions that the problem started around the same time. Identifies that the issue appears to be between VLAN 20 and the ERP server. Does not state a specific ACL hypothesis. Does not specify DIST-SW-01 or the exact rule that may be missing. The network team would still need clarification before investigating efficiently.
+    level_3: |
+      States the specific hypothesis (missing or incorrect permit rule for VLAN 20 to VLAN 30 / ERPSRV01 on DIST-SW-01), references the change window by time and device, summarizes the key diagnostic evidence (gateway reachable, VLAN 10 path working, all VLAN 20 users affected), and requests a specific verification action. The network team can investigate without asking a single clarifying question. Does NOT specify the exact protocol/port detail (TCP 1433 for SQL Server) or note the risk of a full rollback vs. targeted rule restoration.
+    level_4: |
+      All of the above plus specifies the protocol and port detail (TCP 1433 or the application's relevant service port), notes the rollback risk explicitly (a full ACL rollback may undo other intended security changes and should not be the first approach — verify the specific rule first), includes business impact and urgency framing, and may note a suggested verification sequence: (1) review the ACL diff from the change window to identify what was removed or modified; (2) verify the specific rule exists; (3) restore if absent; (4) test with the affected application before closing. Escalation reads as if written by someone who has done this before and knows what the network team needs.

@@ -1,0 +1,5 @@
+David's team didn't complete the job. Compliance means your servers stay compliant — not just on the day you provision them. Any sysadmin worth their salt knows that new servers need to be enrolled in patch management and endpoint monitoring. That's standard practice.
+
+Infrastructure should have included monitoring enrollment in their provisioning checklist. The fact that they didn't is a process failure on their part, not a spec problem. Priya is right to flag these servers — 14 out of 18 non-compliant is not a minor issue.
+
+David's argument that "patches were released after we provisioned" doesn't hold up. That's exactly what patch management is for. The servers need to be remediated and Infrastructure needs to update their provisioning process.

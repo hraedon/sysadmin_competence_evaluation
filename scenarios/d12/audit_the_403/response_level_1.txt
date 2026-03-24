@@ -1,0 +1,5 @@
+The script looks well-structured and the admin did the right things: set correct ownership, applied appropriate permissions, and restarted the service. The comment shows they put in the troubleshooting effort before applying the fix.
+
+The setenforce 0 line resolved the 403 issue, which confirms SELinux was interfering with Apache. Disabling SELinux enforcement is not generally recommended as a long-term approach, but in practice many production environments run with SELinux in permissive mode or disabled because it can cause unexpected issues like this one. The fix is working and the application is deployed.
+
+If the organization wants to improve this, they could look into configuring SELinux properly, but that would require deeper SELinux expertise. For a production script that needs to be reliable, the current approach is pragmatic.

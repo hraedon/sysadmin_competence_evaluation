@@ -1,0 +1,4 @@
+● cron.service - Regular background program processing daemon
+     Loaded: loaded (/lib/systemd/system/cron.service; enabled; vendor preset: enabled)
+     Active: inactive (dead)
+       Docs: man:cron(8)

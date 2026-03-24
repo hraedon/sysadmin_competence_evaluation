@@ -1,89 +1,57 @@
+schema_version: '2.0'
 id: d04-audit-trust-store-addition
+title: Trust Store Addition
 domain: 4
-domain_name: "Certificate & PKI Management"
+domain_name: Certificate & PKI Management
 level: 2
-title: "Trust Store Addition"
-delivery_mode: A
-subtype: null
-
+delivery_modes:
+  - A
 presentation:
-  type: policy_description
-  artifact_file: "scenarios/d04/audit_trust_store_addition/request.txt"
-  context: |
-    The attached request has come in from the vendor integration team. Before approving
-    or denying this request, what questions do you need answered? What are the risks of
-    approving it as described? If you were to approve it, what conditions would you
-    impose, and what monitoring would you put in place afterward?
-
+  modes:
+    A:
+      type: policy_description
+      artifact_file: scenarios/d04/audit_trust_store_addition/request.txt
+      context: |
+        The attached request has come in from the vendor integration team. Before approving
+        or denying this request, what questions do you need answered? What are the risks of
+        approving it as described? If you were to approve it, what conditions would you
+        impose, and what monitoring would you put in place afterward?
 rubric:
-  critical_findings:
+  findings:
     - id: mitm_risk_public_domain_collision
-      description: >
-        The vendor explicitly mentions issuing a certificate for 
-        'autodiscover.outlook.com' from their private CA. If we trust this 
-        CA, domain computers will accept the vendor's certificate for this 
-        public Microsoft domain instead of the real one. This is an 
-        intentional Man-in-the-Middle (MITM) architecture that would allow 
-        the vendor's platform to intercept Outlook/Exchange traffic. Trusting 
+      description: |
+        The vendor explicitly mentions issuing a certificate for  'autodiscover.outlook.com' from their private CA. If we trust this  CA, domain computers will accept the vendor's certificate for this  public Microsoft domain instead of the real one. This is an  intentional Man-in-the-Middle (MITM) architecture that would allow  the vendor's platform to intercept Outlook/Exchange traffic. Trusting 
          a private CA for a public, sensitive namespace is a critical 
         security violation.
       severity: critical
-      miss_signal: >
-        Candidate fails to mention 'autodiscover.outlook.com' or treats it 
-        as a standard integration step.
-
+      miss_signal: |
+        Candidate fails to mention 'autodiscover.outlook.com' or treats it  as a standard integration step.
+      type: critical
     - id: trust_scope_not_limited_to_application
-      description: >
-        Adding a CA to the Windows trust store (via GPO to all domain 
-        computers) means trusting that CA to issue certificates for ANY 
-        domain — not just VendorConnect's application. If VendorConnect's 
-        CA issues a certificate for 'login.microsoftonline.com', domain 
-        computers will trust it. This is unconditional trust delegation.
+      description: |
+        Adding a CA to the Windows trust store (via GPO to all domain  computers) means trusting that CA to issue certificates for ANY  domain — not just VendorConnect's application. If VendorConnect's  CA issues a certificate for 'login.microsoftonline.com', domain  computers will trust it. This is unconditional trust delegation.
       severity: critical
-      miss_signal: >
-        Candidate treats this as a technical task (import the cert, 
-        deploy via GPO) without identifying the unconditional nature of 
-        the trust delegation.
-
+      miss_signal: |
+        Candidate treats this as a technical task (import the cert,  deploy via GPO) without identifying the unconditional nature of  the trust delegation.
+      type: critical
     - id: crl_inaccessible
-      description: >
-        The CRL distribution point is 'http://pki.vendorconnect.internal/crl' 
-        — internal to the vendor's network. Domain computers cannot reach 
-        this endpoint, meaning revocation checking will fail for any 
-        certificate issued by this CA.
+      description: |
+        The CRL distribution point is 'http://pki.vendorconnect.internal/crl'  — internal to the vendor's network. Domain computers cannot reach  this endpoint, meaning revocation checking will fail for any  certificate issued by this CA.
       severity: critical
-      miss_signal: >
-        Candidate does not notice the CRL distribution point is an 
-        internal vendor URL.
-
-  secondary_findings:
+      miss_signal: |
+        Candidate does not notice the CRL distribution point is an  internal vendor URL.
+      type: critical
     - id: governance_questions
-      description: >
-        Questions the candidate should raise: What is VendorConnect's certificate
-        issuance policy? Who controls the private key for this CA? What happens to the
-        trust relationship if the vendor relationship ends? Is there a process for
-        removing the CA from the trust store? Can the trust be scoped to specific URLs
-        or applications rather than all computers?
+      description: |
+        Questions the candidate should raise: What is VendorConnect's certificate issuance policy? Who controls the private key for this CA? What happens to the trust relationship if the vendor relationship ends? Is there a process for removing the CA from the trust store? Can the trust be scoped to specific URLs or applications rather than all computers?
       severity: moderate
-
+      type: secondary
   level_indicators:
-    level_1: >
-      Treats the request as a technical task (e.g., "how to import the cert to GPO").
-      Does not notice the autodiscover.outlook.com name collision or the 
-      unconditional trust delegation risk.
-    level_2: >
-      Identifies that adding a private CA to the trust store allows that CA 
-      to impersonate any domain. Notices the inaccessible CRL. Fails to 
-      explicitly mention the danger of the vendor providing a local cert 
-      for 'autodiscover.outlook.com'.
-    level_3: >
-      All of the above plus identifies the 'autodiscover.outlook.com' request 
-      as a major security risk (MITM for Outlook traffic). Asks governance 
-      questions about why the vendor requires trust for a public Microsoft 
-      namespace.
-    level_4: >
-      All of the above plus identifies the GPO deployment to all domain 
-      computers as excessive blast radius. Strongly recommends rejecting 
-      the 'autodiscover.outlook.com' certificate requirement and suggests 
-      scoping any eventual trust only to the specific computers that need 
-      the application.
+    level_1: |
+      Treats the request as a technical task (e.g., "how to import the cert to GPO"). Does not notice the autodiscover.outlook.com name collision or the  unconditional trust delegation risk.
+    level_2: |
+      Identifies that adding a private CA to the trust store allows that CA  to impersonate any domain. Notices the inaccessible CRL. Fails to  explicitly mention the danger of the vendor providing a local cert  for 'autodiscover.outlook.com'.
+    level_3: |
+      All of the above plus identifies the 'autodiscover.outlook.com' request as a major security risk (MITM for Outlook traffic). Does NOT raise governance questions about the vendor CA's issuance policy or key control, and does NOT identify the GPO deployment to all domain computers as excessive blast radius.
+    level_4: |
+      All of the above plus raises governance questions about the vendor CA (issuance policy, who controls the private key, process for removing the CA if the vendor relationship ends). Identifies the GPO deployment to all domain computers as excessive blast radius and recommends scoping any eventual trust only to the specific computers that need the application.

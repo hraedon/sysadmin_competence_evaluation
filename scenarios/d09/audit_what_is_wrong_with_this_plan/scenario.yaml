@@ -1,210 +1,74 @@
+schema_version: '2.0'
 id: d09-audit-what-is-wrong-with-this-plan
+title: The Eight-Step Plan
 domain: 9
-domain_name: "Change Management Discipline"
+domain_name: Change Management Discipline
 level: 2
-title: "The Eight-Step Plan"
-delivery_mode: A
-subtype: null
-
+delivery_modes:
+  - A
 difficulty: 3
-difficulty_note: >
-  The change plan is formatted correctly and has eight steps — it looks like a complete
-  document. The difficulty is distinguishing formatting completeness from substantive
-  completeness: a rollback that sounds complete ("restore from backup if needed") but
-  is not a viable procedure under change window conditions, abort criteria that are
-  absent rather than vague, and an off-hours scheduling risk that is only a problem
-  in combination with the unescalated vendor support case. Candidates who focus on
-  what the plan says will miss what it doesn't say. The blast radius finding
-  (authentication impact during DC cutover) requires domain knowledge about what
-  a domain controller upgrade actually affects.
-
-# Scenario note (for scenario authors and evaluators):
-# Most similar to: d04-audit-trust-store-addition (both test whether candidates
-# can audit a request/plan for implicit risks that are not stated as problems in
-# the document itself — the risk exists in what is absent, not what is present).
-# How the reasoning challenge differs: the PKI scenario tests risk reasoning about
-# a specific technical operation (adding a CA to trust). This scenario tests change
-# management discipline: identifying structural gaps in a change plan (missing abort
-# criteria, unviable rollback, undisclosed blast radius, degraded escalation path).
-# The findings are not about the technical correctness of the steps — the steps may
-# be correct — but about the planning gaps that make the change dangerous regardless
-# of technical correctness.
-
 presentation:
-  type: change_plan
-  artifact_file: "scenarios/d09/audit_what_is_wrong_with_this_plan/change_request.txt"
-  context: |
-    The following change request has been submitted for CAB review. Your role is
-    to assess the plan and identify any gaps before it is approved.
+  modes:
+    A:
+      type: change_plan
+      artifact_file: scenarios/d09/audit_what_is_wrong_with_this_plan/change_request.txt
+      context: |
+        The following change request has been submitted for CAB review. Your role is
+        to assess the plan and identify any gaps before it is approved.
 
-    Review the plan and identify all significant gaps. For each gap you identify,
-    assess its severity — explain what could go wrong if the change proceeds with
-    this gap unaddressed.
-
+        Review the plan and identify all significant gaps. For each gap you identify,
+        assess its severity — explain what could go wrong if the change proceeds with
+        this gap unaddressed.
 rubric:
-  critical_findings:
+  findings:
     - id: missing_abort_criteria
-      description: >
-        The change plan has no abort criteria — no defined conditions under which the
-        executor should stop, declare the change failed, and initiate rollback rather
-        than continuing. Abort criteria must be specific and pre-committed: defined
-        before the change window begins, when the executor is not yet under time
-        pressure, cognitive load, or sunk cost bias. Without abort criteria, the
-        decision of when to abort is made in the moment by an executor at 2am who
-        has already spent 90 minutes on a complex upgrade. That decision will be
-        systematically biased toward continuing, because the executor does not have
-        pre-committed rules to anchor against. Domain controller upgrades are
-        particularly high-stakes for abort decisions: a DC that is partway through
-        an OS upgrade is in an indeterminate state; aborting vs. continuing has
-        different implications depending on how far the upgrade has progressed.
-        Abort criteria should specify: which steps are abort-safe (can be abandoned
-        cleanly), which steps are not (must proceed to completion once started), and
-        what observable conditions (time elapsed, error messages, service check
-        failures) trigger the abort decision.
+      description: |
+        The change plan has no abort criteria — no defined conditions under which the executor should stop, declare the change failed, and initiate rollback rather than continuing. Abort criteria must be specific and pre-committed: defined before the change window begins, when the executor is not yet under time pressure, cognitive load, or sunk cost bias. Without abort criteria, the decision of when to abort is made in the moment by an executor at 2am who has already spent 90 minutes on a complex upgrade. That decision will be systematically biased toward continuing, because the executor does not have pre-committed rules to anchor against. Domain controller upgrades are particularly high-stakes for abort decisions: a DC that is partway through an OS upgrade is in an indeterminate state; aborting vs. continuing has different implications depending on how far the upgrade has progressed. Abort criteria should specify: which steps are abort-safe (can be abandoned cleanly), which steps are not (must proceed to completion once started), and what observable conditions (time elapsed, error messages, service check failures) trigger the abort decision.
       severity: critical
-      miss_signal: >
-        Candidate notes the plan is missing some elements but does not specifically
-        identify the absence of abort criteria as a critical gap. Or: candidate
-        identifies the abort criteria are missing but does not explain why this
-        is critical (the decision is made under time pressure without pre-committed
-        rules, which systematically biases toward continuing past the point of
-        reversibility).
-      learning_note: >
-        Abort criteria are the pre-committed decision rule that prevents the most
-        dangerous failure mode in change management: continuing past the point of
-        reversibility because stopping feels worse than continuing. The human brain
-        under time pressure with sunk cost (we've already been at this for two hours)
-        is bad at evaluating when to stop. Abort criteria do the cognitive work in
-        advance — they define "if X happens by Y time, we abort" before the executor
-        is in the situation where they have to make that call. Without them, the
-        change has no mechanism for triggering an orderly rollback; it only has
-        escalation as the last resort after something has already gone badly wrong.
-
+      miss_signal: |
+        Candidate notes the plan is missing some elements but does not specifically identify the absence of abort criteria as a critical gap. Or: candidate identifies the abort criteria are missing but does not explain why this is critical (the decision is made under time pressure without pre-committed rules, which systematically biases toward continuing past the point of reversibility).
+      learning_note: |
+        Abort criteria are the pre-committed decision rule that prevents the most dangerous failure mode in change management: continuing past the point of reversibility because stopping feels worse than continuing. The human brain under time pressure with sunk cost (we've already been at this for two hours) is bad at evaluating when to stop. Abort criteria do the cognitive work in advance — they define "if X happens by Y time, we abort" before the executor is in the situation where they have to make that call. Without them, the change has no mechanism for triggering an orderly rollback; it only has escalation as the last resort after something has already gone badly wrong.
+      type: critical
     - id: rollback_not_viable
-      description: >
-        The rollback procedure states "restore from backup if needed." This is not a
-        viable rollback procedure. A viable rollback procedure for this change must
-        specify: which backup (what backup job, what date, what location), how long
-        the restore will take under change window conditions (not happy-path estimates —
-        actual restore times from backup in an environment where the DC is unavailable),
-        what the environment state will be during and after the restore, and what steps
-        are required to return the domain to a functional state after the restore
-        completes. A domain controller restore is not a simple file restore — it
-        involves AD replication, DNS re-registration, and potential tombstone issues if
-        the DC was offline long enough. The rollback procedure needs to account for this
-        complexity. "Restore from backup if needed" treats rollback as an obvious last
-        step; it is actually a complex multi-hour operation that requires its own
-        procedure documentation.
+      description: |
+        The rollback procedure states "restore from backup if needed." This is not a viable rollback procedure. A viable rollback procedure for this change must specify: which backup (what backup job, what date, what location), how long the restore will take under change window conditions (not happy-path estimates — actual restore times from backup in an environment where the DC is unavailable), what the environment state will be during and after the restore, and what steps are required to return the domain to a functional state after the restore completes. A domain controller restore is not a simple file restore — it involves AD replication, DNS re-registration, and potential tombstone issues if the DC was offline long enough. The rollback procedure needs to account for this complexity. "Restore from backup if needed" treats rollback as an obvious last step; it is actually a complex multi-hour operation that requires its own procedure documentation.
       severity: critical
-      miss_signal: >
-        Candidate flags that the rollback is vague without articulating why "restore from
-        backup if needed" is specifically inadequate for a domain controller upgrade
-        rollback — i.e., does not note that DC rollback is a complex multi-hour operation
-        that requires its own procedure, or that the feasibility of restore within the
-        maintenance window has not been assessed.
-
+      miss_signal: |
+        Candidate flags that the rollback is vague without articulating why "restore from backup if needed" is specifically inadequate for a domain controller upgrade rollback — i.e., does not note that DC rollback is a complex multi-hour operation that requires its own procedure, or that the feasibility of restore within the maintenance window has not been assessed.
+      type: critical
     - id: authentication_blast_radius_undisclosed
-      description: >
-        A domain controller operating system upgrade takes the DC offline (or into a
-        degraded state) during the upgrade process. If this DC is the only DC in the
-        domain or is the PDC Emulator FSMO role holder, the impact during the upgrade
-        window includes: potential authentication failures for domain users and
-        computers, Kerberos ticket issuance failures, Group Policy processing failures,
-        and any service that depends on LDAP for authentication. The change plan does
-        not assess or disclose this blast radius. It does not identify whether the
-        organization has other DCs to absorb the authentication load during the upgrade,
-        whether the PDC Emulator role should be transferred before the upgrade, or what
-        user and service impact is expected during the upgrade window. Even at 2am,
-        services that authenticate on startup or scheduled tasks that run overnight may
-        fail if DC authentication is unavailable.
+      description: |
+        A domain controller operating system upgrade takes the DC offline (or into a degraded state) during the upgrade process. If this DC is the only DC in the domain or is the PDC Emulator FSMO role holder, the impact during the upgrade window includes: potential authentication failures for domain users and computers, Kerberos ticket issuance failures, Group Policy processing failures, and any service that depends on LDAP for authentication. The change plan does not assess or disclose this blast radius. It does not identify whether the organization has other DCs to absorb the authentication load during the upgrade, whether the PDC Emulator role should be transferred before the upgrade, or what user and service impact is expected during the upgrade window. Even at 2am, services that authenticate on startup or scheduled tasks that run overnight may fail if DC authentication is unavailable.
       severity: critical
-      miss_signal: >
-        Candidate identifies general "impact on users" without specifically identifying
-        the authentication services dependency (Kerberos, LDAP, Group Policy) and the
-        need to assess whether other DCs exist to absorb the authentication load during
-        the upgrade. Or: candidate does not identify this finding at all, treating DC
-        upgrade as equivalent to upgrading a member server.
-
+      miss_signal: |
+        Candidate identifies general "impact on users" without specifically identifying the authentication services dependency (Kerberos, LDAP, Group Policy) and the need to assess whether other DCs exist to absorb the authentication load during the upgrade. Or: candidate does not identify this finding at all, treating DC upgrade as equivalent to upgrading a member server.
+      type: critical
     - id: off_hours_with_unescalated_vendor_support
-      description: >
-        The change plan notes that a vendor support case has been opened but not
-        escalated. This is a material risk at 2am on a Sunday. Off-hours vendor
-        support is typically staffed at a lower tier than business-hours support —
-        engineers familiar with specific configuration details and capable of authorizing
-        advanced interventions are not available until business hours. If the upgrade
-        encounters a condition that requires vendor involvement (firmware compatibility
-        issue, unexpected upgrade failure, state that vendor tooling must address),
-        the change is in an indeterminate state until Monday morning. The support case
-        being "opened" does not help — the issue is whether the right tier of vendor
-        support is reachable when needed. For changes with vendor dependencies that
-        could produce a multi-hour blocked state, the vendor support status is a
-        risk item requiring either escalation before the change window or explicit
-        acceptance of the risk of a weekend-long outage.
+      description: |
+        The change plan notes that a vendor support case has been opened but not escalated. This is a material risk at 2am on a Sunday. Off-hours vendor support is typically staffed at a lower tier than business-hours support — engineers familiar with specific configuration details and capable of authorizing advanced interventions are not available until business hours. If the upgrade encounters a condition that requires vendor involvement (firmware compatibility issue, unexpected upgrade failure, state that vendor tooling must address), the change is in an indeterminate state until Monday morning. The support case being "opened" does not help — the issue is whether the right tier of vendor support is reachable when needed. For changes with vendor dependencies that could produce a multi-hour blocked state, the vendor support status is a risk item requiring either escalation before the change window or explicit acceptance of the risk of a weekend-long outage.
       severity: critical
-      miss_signal: >
-        Candidate notes the off-hours scheduling as a general concern without connecting
-        it specifically to the unescalated vendor support case. The off-hours scheduling
-        alone is not automatically a problem — it is a problem in combination with the
-        dependency on vendor expertise that is not available off-hours. Or: candidate
-        does not identify this finding at all.
-
-  secondary_findings:
+      miss_signal: |
+        Candidate notes the off-hours scheduling as a general concern without connecting it specifically to the unescalated vendor support case. The off-hours scheduling alone is not automatically a problem — it is a problem in combination with the dependency on vendor expertise that is not available off-hours. Or: candidate does not identify this finding at all.
+      type: critical
     - id: missing_expected_outputs_per_step
-      description: >
-        Each step in the change plan has a description of the action but no expected
-        output or verification criterion. "Install Windows Server 2022" is not a
-        complete step — a complete step specifies what the system should look like
-        after this step completes, and how the executor verifies that it is in the
-        expected state before proceeding to the next step. Without expected outputs,
-        the executor cannot distinguish "this step completed correctly and we can
-        proceed" from "this step appeared to complete but something is wrong." Discovery
-        of a problem at step 7 is much worse than discovery at step 2 if steps 3-6
-        were executed on a partially-broken state.
+      description: |
+        Each step in the change plan has a description of the action but no expected output or verification criterion. "Install Windows Server 2022" is not a complete step — a complete step specifies what the system should look like after this step completes, and how the executor verifies that it is in the expected state before proceeding to the next step. Without expected outputs, the executor cannot distinguish "this step completed correctly and we can proceed" from "this step appeared to complete but something is wrong." Discovery of a problem at step 7 is much worse than discovery at step 2 if steps 3-6 were executed on a partially-broken state.
       severity: high
-
+      type: secondary
     - id: maintenance_window_duration_absent
-      description: >
-        The change plan does not specify a maintenance window duration — no stated end
-        time by which the executor must abort if the change is not complete. Without a
-        window duration, there is no mechanism for triggering the abort decision based
-        on elapsed time. A domain controller upgrade at 2am has no natural stop point
-        if it starts overrunning. The window duration provides the outer bound: "if the
-        upgrade is not complete and verified by 05:00, we abort regardless of progress."
+      description: |
+        The change plan does not specify a maintenance window duration — no stated end time by which the executor must abort if the change is not complete. Without a window duration, there is no mechanism for triggering the abort decision based on elapsed time. A domain controller upgrade at 2am has no natural stop point if it starts overrunning. The window duration provides the outer bound: "if the upgrade is not complete and verified by 05:00, we abort regardless of progress."
       severity: moderate
-
+      miss_signal: |
+        Candidate identifies the missing abort criteria and inadequate rollback procedure but does not separately identify the maintenance window end time as a distinct gap. Or: candidate notes the change should have a defined window duration but does not articulate why it is required — the end time is the time-based trigger that makes abort criteria operational. Without it, even well-written abort criteria have no elapsed-time condition to activate them.
+      type: secondary
   level_indicators:
-    level_1: >
-      Can read the change plan and describe what it proposes to do: upgrade the domain
-      controller operating system in eight steps. May note the plan looks complete
-      because it has eight steps and a rollback statement. Does not identify the
-      absence of abort criteria, the inadequacy of the rollback procedure, the
-      authentication blast radius, or the off-hours/vendor support combination as
-      significant gaps. May flag that the plan "needs more detail" in general terms
-      without identifying specific critical omissions.
-    level_2: >
-      Identifies the absence of abort criteria as a critical gap — no pre-committed
-      decision rule for when to stop. Identifies the rollback procedure as inadequate
-      (no backup named, no restore time, no DC-specific restore complexity addressed).
-      Identifies the authentication blast radius: DC upgrade takes the authentication
-      service offline and the plan does not assess the impact. Does NOT connect the
-      off-hours scheduling to the unescalated vendor support case as a specific combined
-      risk, or address the missing expected outputs per step as a separate structural gap.
-    level_3: >
-      All of the above plus: explicitly identifies the off-hours/vendor support
-      combination as a specific risk (unescalated vendor case = no expert access if
-      the change produces a vendor-dependent failure state). Distinguishes between the
-      off-hours scheduling (not inherently a problem) and the combination of off-hours
-      scheduling plus vendor dependency (problem). Notes missing expected outputs per
-      step as a separate structural gap. Does NOT address the missing maintenance window
-      duration or the specific DC-restore complexity (FSMO roles, AD replication,
-      tombstone timing) required for a viable rollback procedure.
-    level_4: >
-      All of the above plus: addresses the specific complexity of DC rollback beyond
-      "restore from backup" — FSMO role considerations, AD replication reconvergence
-      after restore, tombstone lifetime implications if the DC is offline for extended
-      periods. Notes the absence of a maintenance window end time as a mechanism for
-      triggering the abort decision. Provides a clear prioritization of findings by
-      severity and explains the interaction between the missing abort criteria and the
-      inadequate rollback: without abort criteria, the executor will likely continue
-      past the point where rollback is feasible, making the rollback procedure's
-      inadequacy irrelevant in practice — there will be nothing to roll back to.
+    level_1: |
+      Can read the change plan and describe what it proposes to do: upgrade the domain controller operating system in eight steps. May note the plan looks complete because it has eight steps and a rollback statement. Does not identify the absence of abort criteria, the inadequacy of the rollback procedure, the authentication blast radius, or the off-hours/vendor support combination as significant gaps. May flag that the plan "needs more detail" in general terms without identifying specific critical omissions.
+    level_2: |
+      Identifies the absence of abort criteria as a critical gap — no pre-committed decision rule for when to stop. Identifies the rollback procedure as inadequate (no backup named, no restore time, no DC-specific restore complexity addressed). Identifies the authentication blast radius: DC upgrade takes the authentication service offline and the plan does not assess the impact. Does NOT connect the off-hours scheduling to the unescalated vendor support case as a specific combined risk, or address the missing expected outputs per step as a separate structural gap.
+    level_3: |
+      All of the above plus: explicitly identifies the off-hours/vendor support combination as a specific risk (unescalated vendor case = no expert access if the change produces a vendor-dependent failure state). Distinguishes between the off-hours scheduling (not inherently a problem) and the combination of off-hours scheduling plus vendor dependency (problem). Notes missing expected outputs per step as a separate structural gap. Does NOT address the missing maintenance window duration or the specific DC-restore complexity (FSMO roles, AD replication, tombstone timing) required for a viable rollback procedure.
+    level_4: |
+      All of the above plus: addresses the specific complexity of DC rollback beyond "restore from backup" — FSMO role considerations, AD replication reconvergence after restore, tombstone lifetime implications if the DC is offline for extended periods. Notes the absence of a maintenance window end time as a mechanism for triggering the abort decision. Provides a clear prioritization of findings by severity and explains the interaction between the missing abort criteria and the inadequate rollback: without abort criteria, the executor will likely continue past the point where rollback is feasible, making the rollback procedure's inadequacy irrelevant in practice — there will be nothing to roll back to.

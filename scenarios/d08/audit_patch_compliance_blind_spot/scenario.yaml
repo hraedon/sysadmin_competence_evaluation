@@ -1,212 +1,74 @@
+schema_version: '2.0'
 id: d08-audit-patch-compliance-blind-spot
+title: The Green Report
 domain: 8
-domain_name: "Security Reasoning"
+domain_name: Security Reasoning
 level: 2
-title: "The Green Report"
-delivery_mode: A
-subtype: null
-
-# Scenario note (for scenario authors and evaluators):
-# Most similar to: d08-audit-exchange-patch-gap (both test whether candidates
-# recognize that a compliance report's "green" status does not mean the reported
-# systems are actually protected — only that the reporting mechanism returned a
-# clean result within its own scope).
-# How the reasoning challenge differs: the Exchange patch gap scenario tests whether
-# candidates recognise that a Windows Update compliance report excludes Exchange
-# Cumulative Updates by design. This scenario tests a different but structurally
-# parallel failure: the compliance report's "Compliant" classification is only valid
-# when the underlying scan data is current. Candidates must read the report's own
-# footnotes against the incident context and recognise that the compliance status
-# for the three compromised machines is frozen data from before the breach window —
-# not a post-breach assessment. The KB5034763 survivorship clue requires candidates
-# to reason backwards from a seemingly positive datum to a negative diagnostic
-# conclusion.
-
-presentation:
-  type: log_extract
-  artifact_file: "scenarios/d08/audit_patch_compliance_blind_spot/compliance_report.txt"
-  context: |
-    Following a ransomware compromise on three workstations, the security team has
-    asked you to assess the estate's patch compliance posture. The SCCM administrator
-    has pulled the Software Updates Compliance report below.
-
-    The CTO wants to know two things: (1) whether the remaining machines in the estate
-    are protected, and (2) whether patching could have been a contributing factor in
-    the three compromised machines.
-
-    Review the report and provide your assessment.
-
+delivery_modes:
+  - A
 difficulty: 3
-difficulty_note: >
-  The compliance summary is unambiguously green — 97.5% compliant, threshold met,
-  zero unknown. The critical flaw is buried in a footnote-style note in the Scan
-  Health section, which must then be cross-referenced against a sample table and
-  the incident context to produce the core finding. The KB5034763 detail functions
-  as a distractor that superficially looks like good news about the compromised
-  machines, but which actually confirms WUA was broken before February Patch Tuesday.
-  Candidates who read the report top-to-bottom without interrogating the Scan Health
-  section will reach the wrong conclusion with high confidence.
+presentation:
+  modes:
+    A:
+      type: log_extract
+      artifact_file: scenarios/d08/audit_patch_compliance_blind_spot/compliance_report.txt
+      context: |
+        Following a ransomware compromise on three workstations, the security team has
+        asked you to assess the estate's patch compliance posture. The SCCM administrator
+        has pulled the Software Updates Compliance report below.
 
+        The CTO wants to know two things: (1) whether the remaining machines in the estate
+        are protected, and (2) whether patching could have been a contributing factor in
+        the three compromised machines.
+
+        Review the report and provide your assessment.
 rubric:
-  critical_findings:
+  findings:
     - id: stale_scan_means_unreliable_compliance
-      description: >
-        SCCM "Compliant" status means "at the time of the most recent successful scan,
-        0 required updates were found." It does not mean the device is currently patched.
-        The report's own footnote states: "Devices with no successful scan in >60 days
-        are showing compliance status from their most recent completed scan. Their status
-        does not reflect any updates released after that scan date." The three compromised
-        machines (WORKSTATION-047, -083, -091) all appear as "Compliant: 0 required" but
-        their last successful scans are from January 6–13, 2026 — 68–75 days before this
-        report was generated. Their compliance status is frozen at a snapshot from before
-        the breach window and cannot be used to assess their current patch state. The
-        97.5% compliance figure therefore cannot support a conclusion that the estate is
-        protected.
+      description: |
+        SCCM "Compliant" status means "at the time of the most recent successful scan, 0 required updates were found." It does not mean the device is currently patched. The report's own footnote states: "Devices with no successful scan in >60 days are showing compliance status from their most recent completed scan. Their status does not reflect any updates released after that scan date." The three compromised machines (WORKSTATION-047, -083, -091) all appear as "Compliant: 0 required" but their last successful scans are from January 6–13, 2026 — 68–75 days before this report was generated. Their compliance status is frozen at a snapshot from before the breach window and cannot be used to assess their current patch state. The 97.5% compliance figure therefore cannot support a conclusion that the estate is protected.
       severity: critical
-      miss_signal: >
-        Candidate reads the 97.5% compliance figure as good news and concludes the
-        remaining machines are protected. Or: candidate notes the four non-compliant
-        machines as the primary finding without observing that the three compromised
-        machines' "Compliant" status is based on 70+ day old scan data. The tell is
-        any phrasing suggesting the green number reflects current patch state.
-      learning_note: >
-        SCCM compliance status is a cached value, not a live query. When SCCM evaluates
-        a device against a software update group, it compares the device's installed
-        updates (as reported by WUA at last scan) against the updates in the group. If
-        WUA stops scanning — because the Windows Update Agent service has failed, a
-        required component is broken, or a network policy is blocking connections to
-        the SCCM Software Update Point — the device's compliance record is never
-        refreshed. The device continues to appear in the collection with its last known
-        status. A device that was fully patched on January 9 and whose WUA then broke
-        will show "Compliant: 0 required" indefinitely, accumulating actual patch debt
-        invisibly. The scan timestamp is the signal that this has happened, but it
-        appears in the Scan Health section, not the main compliance table.
-
+      miss_signal: |
+        Candidate reads the 97.5% compliance figure as good news and concludes the remaining machines are protected. Or: candidate notes the four non-compliant machines as the primary finding without observing that the three compromised machines' "Compliant" status is based on 70+ day old scan data. The tell is any phrasing suggesting the green number reflects current patch state.
+      learning_note: |
+        SCCM compliance status is a cached value, not a live query. When SCCM evaluates a device against a software update group, it compares the device's installed updates (as reported by WUA at last scan) against the updates in the group. If WUA stops scanning — because the Windows Update Agent service has failed, a required component is broken, or a network policy is blocking connections to the SCCM Software Update Point — the device's compliance record is never refreshed. The device continues to appear in the collection with its last known status. A device that was fully patched on January 9 and whose WUA then broke will show "Compliant: 0 required" indefinitely, accumulating actual patch debt invisibly. The scan timestamp is the signal that this has happened, but it appears in the Scan Health section, not the main compliance table.
+      type: critical
     - id: compromised_machines_had_pre_breach_scan_cutoff
-      description: >
-        All three compromised machines — WORKSTATION-047 (last scan 2026-01-09),
-        WORKSTATION-083 (last scan 2026-01-13), and WORKSTATION-091 (last scan
-        2026-01-06) — stopped successfully scanning within a narrow window: January 6–13.
-        Earliest confirmed attacker activity is January 15. The machines' WUA clients
-        stopped functioning approximately 2–9 days before the breach. Their compliance
-        status is therefore a snapshot from before the breach, not evidence that they were
-        patched when compromised. Patching cannot be ruled out as a contributing factor
-        on the basis of this report.
+      description: |
+        All three compromised machines — WORKSTATION-047 (last scan 2026-01-09), WORKSTATION-083 (last scan 2026-01-13), and WORKSTATION-091 (last scan 2026-01-06) — stopped successfully scanning within a narrow window: January 6–13. Earliest confirmed attacker activity is January 15. The machines' WUA clients stopped functioning approximately 2–9 days before the breach. Their compliance status is therefore a snapshot from before the breach, not evidence that they were patched when compromised. Patching cannot be ruled out as a contributing factor on the basis of this report.
       severity: critical
-      miss_signal: >
-        Candidate observes the compromised machines show "Compliant" in SCCM and concludes
-        that patching was not a contributing factor, or that the attack came through a
-        non-patch vector. This is the failure mode the stale scan finding is designed to
-        catch — the "Compliant" label actively misleads if the scan timestamp is not
-        examined. Any response that uses the green status for the three machines as
-        exculpatory evidence for patching has missed this finding.
-      learning_note: >
-        When investigating whether patch state contributed to a compromise, the relevant
-        question is "what was the device's actual patch state at the time of the breach?"
-        not "what does the compliance system currently report?" These diverge whenever the
-        reporting mechanism has a gap. In this case, SCCM compliance for the three machines
-        answers the question "were they patched as of January 6–13?" — not "were they
-        patched when the attacker arrived on January 15?" The scan cutoff means the estate's
-        patch management lost visibility on these machines before the breach, not after.
-
-  secondary_findings:
+      miss_signal: |
+        Candidate observes the compromised machines show "Compliant" in SCCM and concludes that patching was not a contributing factor, or that the attack came through a non-patch vector. This is the failure mode the stale scan finding is designed to catch — the "Compliant" label actively misleads if the scan timestamp is not examined. Any response that uses the green status for the three machines as exculpatory evidence for patching has missed this finding.
+      learning_note: |
+        When investigating whether patch state contributed to a compromise, the relevant question is "what was the device's actual patch state at the time of the breach?" not "what does the compliance system currently report?" These diverge whenever the reporting mechanism has a gap. In this case, SCCM compliance for the three machines answers the question "were they patched as of January 6–13?" — not "were they patched when the attacker arrived on January 15?" The scan cutoff means the estate's patch management lost visibility on these machines before the breach, not after.
+      type: critical
     - id: twelve_machines_at_same_risk
-      description: >
-        The Scan Health section shows 12 total machines have last successful scans older
-        than 60 days. The three compromised machines are a subset of this population.
-        The remaining 9 machines with stale scans have the same reliability problem: their
-        "Compliant" status reflects scan data from 60+ days ago and does not reflect their
-        current patch state. The CTO cannot be told the remaining estate is protected
-        without first establishing current scan health on these 9 machines.
+      description: |
+        The Scan Health section shows 12 total machines have last successful scans older than 60 days. The three compromised machines are a subset of this population. The remaining 9 machines with stale scans have the same reliability problem: their "Compliant" status reflects scan data from 60+ days ago and does not reflect their current patch state. The CTO cannot be told the remaining estate is protected without first establishing current scan health on these 9 machines.
       severity: high
-      learning_note: >
-        This finding scales the exposure beyond the incident. The instinct after a
-        compromise is to focus on the three affected machines. The correct security
-        analysis asks: are there other machines in the same degraded state? Here, the
-        Scan Health section provides the answer directly — 12 machines total, not 3.
-        The CTO question ("are the remaining machines protected?") cannot be answered
-        affirmatively until the 9 non-compromised stale machines are also assessed.
-
+      learning_note: |
+        This finding scales the exposure beyond the incident. The instinct after a compromise is to focus on the three affected machines. The correct security analysis asks: are there other machines in the same degraded state? Here, the Scan Health section provides the answer directly — 12 machines total, not 3. The CTO question ("are the remaining machines protected?") cannot be answered affirmatively until the 9 non-compromised stale machines are also assessed.
+      type: secondary
     - id: survived_bad_update_is_diagnostic_signal
-      description: >
-        The SCCM administrator notes that KB5034763 (February 2026 Patch Tuesday) caused
-        boot loops on ~8% of endpoints, and that the three compromised machines "did not
-        receive KB5034763 and were unaffected by this issue." This is presented as a
-        positive outcome. It is not. A machine that did not receive a February Patch Tuesday
-        update did not receive it because WUA was not functioning in February. The three
-        compromised machines last scanned on January 6–13. WUA was therefore already broken
-        before February Patch Tuesday. The KB5034763 "survivorship" is consistent with and
-        corroborates the January scan cutoff: these machines were in a degraded WUA state
-        from mid-January onward, meaning they also did not receive any security updates
-        released between January 14 and the date of this report.
+      description: |
+        The SCCM administrator notes that KB5034763 (February 2026 Patch Tuesday) caused boot loops on ~8% of endpoints, and that the three compromised machines "did not receive KB5034763 and were unaffected by this issue." This is presented as a positive outcome. It is not. A machine that did not receive a February Patch Tuesday update did not receive it because WUA was not functioning in February. The three compromised machines last scanned on January 6–13. WUA was therefore already broken before February Patch Tuesday. The KB5034763 "survivorship" is consistent with and corroborates the January scan cutoff: these machines were in a degraded WUA state from mid-January onward, meaning they also did not receive any security updates released between January 14 and the date of this report.
       severity: moderate
-      learning_note: >
-        A machine that "survived" a bad update by not receiving it is not a success story
-        if the reason it didn't receive it is that its update client was already broken.
-        The framing matters: the SCCM administrator's note characterises the non-receipt
-        as benign ("unaffected by this issue"), which is accurate in the narrow sense that
-        the machines didn't boot-loop. But read in context, it's confirmatory evidence
-        that WUA was broken from at least January — because a working WUA would have
-        attempted to install KB5034763 in February. Reasoning backwards from the
-        KB5034763 non-receipt to the WUA failure timeline is the diagnostic step here.
-
+      learning_note: |
+        A machine that "survived" a bad update by not receiving it is not a success story if the reason it didn't receive it is that its update client was already broken. The framing matters: the SCCM administrator's note characterises the non-receipt as benign ("unaffected by this issue"), which is accurate in the narrow sense that the machines didn't boot-loop. But read in context, it's confirmatory evidence that WUA was broken from at least January — because a working WUA would have attempted to install KB5034763 in February. Reasoning backwards from the KB5034763 non-receipt to the WUA failure timeline is the diagnostic step here.
+      type: secondary
     - id: monitoring_design_gap
-      description: >
-        The default SCCM compliance summary does not surface scan staleness. A device
-        with a 75-day-old scan appears identically to a device with a 1-day-old scan in
-        the main compliance table — both show "Compliant: 0 required." The Scan Health
-        data is in a separate section and is not combined with compliance status in the
-        primary view. A combined indicator — "Compliant AND last scan within 7 days" —
-        would have flagged all 12 stale machines. The current report structure allows
-        a false-green compliance posture to persist undetected in the summary view.
+      description: |
+        The default SCCM compliance summary does not surface scan staleness. A device with a 75-day-old scan appears identically to a device with a 1-day-old scan in the main compliance table — both show "Compliant: 0 required." The Scan Health data is in a separate section and is not combined with compliance status in the primary view. A combined indicator — "Compliant AND last scan within 7 days" — would have flagged all 12 stale machines. The current report structure allows a false-green compliance posture to persist undetected in the summary view.
       severity: moderate
-      learning_note: >
-        Security controls that report on their own health can obscure failures in their
-        coverage. An endpoint management system that shows a machine as "Compliant" when
-        its reporting agent is broken is providing a false signal — it appears to confirm
-        protection that it is no longer able to verify. The correct design combines
-        compliance status with agent health into a single indicator, so that agent failure
-        produces a visible status change (Unknown or At Risk) rather than a frozen
-        last-known-good result.
-
+      learning_note: |
+        Security controls that report on their own health can obscure failures in their coverage. An endpoint management system that shows a machine as "Compliant" when its reporting agent is broken is providing a false signal — it appears to confirm protection that it is no longer able to verify. The correct design combines compliance status with agent health into a single indicator, so that agent failure produces a visible status change (Unknown or At Risk) rather than a frozen last-known-good result.
+      type: secondary
   level_indicators:
-    level_1: >
-      Reads the compliance summary as reassuring. Notes 97.5% compliance is above
-      threshold. Recommends getting the four non-compliant machines patched as the
-      primary action item. May observe that the three compromised machines show
-      "Compliant" in SCCM and suggest that patching was probably not the attack
-      vector, or that the attack came through a different means. Does not examine
-      the Scan Health section or the scan timestamps for the compromised machines.
-    level_2: >
-      Identifies that the three compromised machines — WORKSTATION-047, -083, -091 —
-      have last successful scans from January 6–13, just before attacker activity
-      began January 15. Recognises that SCCM "Compliant: 0 required" on a 70+ day
-      old scan does not reflect the device's current patch state — compliance status
-      is frozen at the last scan. Flags the 12 machines with scans older than 60 days
-      as having unreliable compliance status. Concludes the CTO cannot be told the
-      remaining machines are protected, and that patching cannot be ruled out as a
-      contributing factor for the three compromised machines. Does NOT specify
-      remediation steps for broken WUA, does not explain the WUA component health
-      mechanism, and does not connect the KB5034763 survivorship to the WUA failure
-      timeline.
-    level_3: >
-      All of the above plus: addresses how to verify the finding — trigger a fresh
-      software updates scan cycle on the stale machines and check WUA event logs for
-      scan failures. Explains that WUA health (the scan agent) is tracked separately
-      from SCCM hardware inventory health — a machine can appear online and report
-      hardware inventory while WUA silently fails to scan. Quantifies the exposure
-      window: 12 machines have potentially missed 10+ weeks of patch cycles. Notes
-      that the compliance UI makes stale-scan "Compliant" indistinguishable from
-      fresh-scan "Compliant" without examining the Scan Health section. Does NOT
-      connect the KB5034763 survivorship to the WUA timeline, and does not propose
-      a combined compliance indicator as a standing control improvement.
-    level_4: >
-      All of the above plus: identifies the KB5034763 survivorship as diagnostic
-      evidence rather than good news. The three compromised machines did not receive
-      the February cumulative update because WUA was already broken before February
-      Patch Tuesday — this is consistent with the January scan cutoff and is additional
-      confirmation that the WUA failure predates the breach. Proposes a combined
-      compliance indicator (Compliant AND last scan within 7 days) as a standing report,
-      noting that the current report structure allows a false-green posture to persist
-      undetected in the summary view. Identifies this as a monitoring design gap, not
-      just an operational oversight.
+    level_1: |
+      Reads the compliance summary as reassuring. Notes 97.5% compliance is above threshold. Recommends getting the four non-compliant machines patched as the primary action item. May observe that the three compromised machines show "Compliant" in SCCM and suggest that patching was probably not the attack vector, or that the attack came through a different means. Does not examine the Scan Health section or the scan timestamps for the compromised machines.
+    level_2: |
+      Identifies that the three compromised machines — WORKSTATION-047, -083, -091 — have last successful scans from January 6–13, just before attacker activity began January 15. Recognises that SCCM "Compliant: 0 required" on a 70+ day old scan does not reflect the device's current patch state — compliance status is frozen at the last scan. Flags the 12 machines with scans older than 60 days as having unreliable compliance status. Concludes the CTO cannot be told the remaining machines are protected, and that patching cannot be ruled out as a contributing factor for the three compromised machines. Does NOT specify remediation steps for broken WUA, does not explain the WUA component health mechanism, and does not connect the KB5034763 survivorship to the WUA failure timeline.
+    level_3: |
+      All of the above plus: addresses how to verify the finding — trigger a fresh software updates scan cycle on the stale machines and check WUA event logs for scan failures. Explains that WUA health (the scan agent) is tracked separately from SCCM hardware inventory health — a machine can appear online and report hardware inventory while WUA silently fails to scan. Quantifies the exposure window: 12 machines have potentially missed 10+ weeks of patch cycles. Notes that the compliance UI makes stale-scan "Compliant" indistinguishable from fresh-scan "Compliant" without examining the Scan Health section. Does NOT connect the KB5034763 survivorship to the WUA timeline, and does not propose a combined compliance indicator as a standing control improvement.
+    level_4: |
+      All of the above plus: identifies the KB5034763 survivorship as diagnostic evidence rather than good news. The three compromised machines did not receive the February cumulative update because WUA was already broken before February Patch Tuesday — this is consistent with the January scan cutoff and is additional confirmation that the WUA failure predates the breach. Proposes a combined compliance indicator (Compliant AND last scan within 7 days) as a standing report, noting that the current report structure allows a false-green posture to persist undetected in the summary view. Identifies this as a monitoring design gap, not just an operational oversight.

@@ -1,0 +1,67 @@
+schema_version: '2.0'
+id: d14-audit-the-taxonomy-gap
+title: The Taxonomy Gap
+domain: 14
+domain_name: Theory of Mind & Communication
+level: 3
+delivery_modes:
+  - A
+difficulty:
+  score: 4
+  reasoning: |
+    This scenario requires identifying how professional identity and historical context shape the definition of technical terms. The candidate must look past the "argument" to identify the underlying taxonomy divergence.
+presentation:
+  modes:
+    A:
+      type: communication_transcript
+      artifact_file: scenarios/d14/audit_the_taxonomy_gap/slack_thread.txt
+      context: |
+        A new corporate directive, 'Automation First', has been issued.
+        The Infrastructure and DevOps teams are meeting to discuss its
+        implementation for a new regional rollout.
+
+        Review the transcript. Identify the core disagreement between Sarah
+        and Mark. What is the "load-bearing" term that they are using
+        differently? Why does each believe their interpretation is correct
+        given their professional background?
+rubric:
+  findings:
+    - id: taxomony_clash_automated
+      type: critical
+      description: |
+        The candidate must identify 'Automated' as the load-bearing term. They must explain that Sarah (Infra) defines it as "scripted execution that replaces manual CLI steps", while Mark (DevOps) defines it as "orchestrated execution within a CI/CD pipeline".
+      miss_signal: |
+        Candidate focuses on personality conflict or Sarah being "lazy" vs Mark being "elitist". Fails to identify the semantic gap.
+      learning_note: |
+        Technical terms often carry different "weight" and definitions depending on a team's maturity model. In traditional Sysadmin roles, scripting is the highest form of automation. In DevOps/SRE, scripting is a component, but the pipeline is the automation.
+    - id: identification_of_operational_models
+      type: critical
+      description: |
+        Candidate explains the different mental models: Sarah's model is centered on the "management workstation" as the source of truth; Mark's model is centered on the "source control/pipeline" as the source of truth.
+      miss_signal: |
+        Candidate identifies that they disagree about Jenkins but doesn't explain the underlying shift in "who/what triggers the work".
+      learning_note: |
+        Theory of Mind in IT requires understanding not just what a team does, but where they perceive the "center of gravity" of their work to be.
+    - id: compliance_risk_identified
+      type: secondary
+      description: |
+        Candidate identifies the risk Mark mentions: if they report being 'compliant' to the VP, they may be misleading leadership because their definitions don't match, creating a future "expectation gap" during an audit or a scale-up event.
+      miss_signal: |
+        Candidate treats this as just a technical debate and ignores the organizational/reporting risk.
+      severity: medium
+    - id: proposal_of_disambiguation
+      type: secondary
+      description: |
+        An L4-level candidate identifies that neither party is "wrong" within their own context, but they are both "wrong" for the project because they haven't agreed on a shared taxonomy. They propose creating a "Definition of Done" or a specific "Automation Maturity Matrix" to resolve the ambiguity.
+      miss_signal: |
+        Candidate takes a side (e.g. "Mark is right, Sarah is wrong") rather than identifying the need for a shared spec.
+      severity: high
+  level_indicators:
+    level_1: |
+      Sides with one party. Usually blames Sarah for "not doing it right" or supports Sarah because "it's better than manual". Fails to identify that the word 'Automated' is being used differently.
+    level_2: |
+      Acknowledges that Sarah and Mark have different ideas about automation. Notes that they "need to talk more". Does not explicitly name the different definitions (scripted vs pipeline) or explain why their backgrounds lead to this.
+    level_3: |
+      Identifies the core semantic gap in the word 'Automated'. Explains the two definitions: scripted execution vs. pipeline orchestration. Recognizes that Sarah's background in Infra makes scripting feel like "full automation" while Mark's DevOps background requires more. Notes the risk of reporting conflicting 'compliance' statuses.
+    level_4: |
+      All of the above, plus identifies the "Management Workstation" vs "Pipeline" center-of-truth shift. Explains that "Automated" in this context is a load-bearing word for the corporate directive and that the lack of a shared definition will lead to a reporting failure at the executive level. Proposes a linguistic fix: distinguish between 'Scripted' and 'Orchestrated' in the project spec.

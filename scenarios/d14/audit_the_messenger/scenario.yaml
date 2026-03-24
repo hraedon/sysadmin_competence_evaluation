@@ -1,0 +1,69 @@
+schema_version: '2.0'
+id: d14-audit-the-messenger
+title: The Messenger
+domain: 14
+domain_name: Theory of Mind & Communication
+level: 3
+delivery_modes:
+  - A
+difficulty:
+  score: 4
+  reasoning: |
+    Rachel's forward is not obviously wrong — she calls a meeting, communicates the change, and acknowledges the difficulty. The failures are in what she didn't do: surface the stable constraint, filter the executive anxiety, and distinguish between "the timeline was uncertain" and "management was inconsistent." The scenario requires resisting sympathy for Rachel's visible stress and modeling the downstream effects of her framing choices.
+presentation:
+  modes:
+    A:
+      type: email_chain
+      artifact_file: scenarios/d14/audit_the_messenger/email_chain.txt
+      context: |
+        An infrastructure team has been working on an IT integration project tied
+        to a corporate acquisition. The deal's regulatory approval was delayed for
+        months and came through two weeks before deal close, compressing the
+        go-live timeline significantly. You are reviewing the email chain as part
+        of a post-project retrospective on team communication.
+
+        Evaluate Rachel's forward to her team. What is she communicating — explicitly
+        and implicitly? What is she missing about the situation, and what is her
+        forward doing to the team that the situation itself was not already doing?
+        Describe what a more effective approach would have looked like.
+rubric:
+  findings:
+    - id: stability_signal_buried
+      type: critical
+      description: |
+        Kevin's message contains the key information the team needs to execute: the date is fixed by the acquisition agreement and is not coming from a management decision. Rachel's forward buries this under "I'm sorry" and "moving target since day one." Her team walks away knowing the date moved and feeling demoralized; they should have walked away knowing the deadline is the one stable thing in the situation — which is the piece of information that actually allows planning.
+      miss_signal: |
+        Candidate focuses on Rachel's tone or empathy without identifying that she had the specific signal the team needed (the date is contractually fixed, not a management call) and did not surface it as such.
+      learning_note: |
+        In high-uncertainty situations, the team lead's job is to identify and amplify whatever IS stable, not to faithfully transmit the overall level of uncertainty. A locked constraint is more valuable to a team under pressure than a sympathetic acknowledgment that things are hard.
+    - id: chain_forwarded_without_translation
+      type: critical
+      description: |
+        Rachel forwards the executive chain directly and tells her team "I don't have any more context than what's here." This abdicates the translation role. The team now has to process Sandra's COO-level framing, Kevin's explanation of the regulatory timeline, and the scope of the change simultaneously. Rachel had enough information to give her team a clear, filtered summary — she chose instead to pass the cognitive load down.
+      miss_signal: |
+        Candidate says Rachel "should have explained things better" without identifying the specific translation failure: she delegated the work of making sense of the chain to her team rather than doing it herself.
+      learning_note: |
+        "I'm forwarding for full context" is often a way of avoiding the harder job of deciding what the context means. Team leads are not message routers. Their value in an escalation chain is filtering organizational signal into actionable guidance for the people below them.
+    - id: moving_target_narrative
+      type: secondary
+      description: |
+        "This project has been a moving target since day one" conflates two different things: the genuine uncertainty of the regulatory approval process (which was outside anyone's control) and management inconsistency (which would be a legitimate failure). Kevin's message explicitly explains that the timeline uncertainty came from not knowing when approval would arrive. Rachel's framing erases that distinction and creates a "chaotic management" narrative that will shape how her team talks about this project for months.
+      miss_signal: |
+        Candidate identifies that Rachel's tone is sympathetic without naming the specific false equivalence: she is treating externally-constrained uncertainty as organizational dysfunction.
+      severity: high
+    - id: floor_ceiling_framing_absent
+      type: secondary
+      description: |
+        Rachel tells her team to "think about what's actually possible in two weeks versus what we need to flag as at-risk" — which is the right question but frames the entire scope as uncertain. Some work was already in progress and remains on the critical path; the deadline is now fixed. The L4 candidate identifies the specific communication structure Rachel should have used: name the stable constraint (the 19th is the date, full stop), name what the two-week compression means for specific work streams, acknowledge that prioritization will be hard without framing the situation as chaos. This gives the team a planning surface rather than a pile of uncertainty to sort through.
+      miss_signal: |
+        Candidate identifies that Rachel buried the stability signal, or says the team "needed to know the date was fixed" — but does NOT describe what Rachel's communication should have looked like. Identifying what was wrong is L3. This finding requires the candidate to name the specific structure Rachel should have used: explicitly separate the stable constraint (the date is fixed) from the uncertain elements (task re-sequencing), and describe how a message built around that split would read differently. "She should have led with the date" is not sufficient — the candidate must articulate what the floor/ceiling structure produces for the team.
+      severity: high
+  level_indicators:
+    level_1: |
+      Sympathizes with Rachel or blames management. "The project has been mismanaged from the start — Rachel is right to be frustrated." Does not recognize that the timeline uncertainty had a legitimate external cause or that Rachel's framing choices have consequences distinct from the situation itself.
+    level_2: |
+      Identifies that Rachel's forward is demoralizing and that she could have been more professional or structured. Notes that forwarding the full chain "without context" was not ideal. Still attributes the root problem to management's shifting timeline rather than to the regulatory approval process — treats the moving target as a management failure rather than an external constraint accurately relayed.
+    level_3: |
+      Recognizes that Kevin's message explains the uncertainty (regulatory approval delay, not management indecision) and that Rachel's framing erases this distinction. Identifies that Rachel buried the key stability signal — the date is contractually fixed — under her empathy framing. Notes that forwarding without translation delegated cognitive load to the team. Does NOT identify the specific communication structure that would have worked or name the floor/ceiling framing Rachel should have provided.
+    level_4: |
+      All of the above, plus identifies the specific stable/unstable split Rachel should have surfaced: the deadline is fixed and contractual (stable floor), the specific task re-sequencing is uncertain but bounded by a known date (workable ceiling). Proposes a communication structure that names what is not changing, acknowledges what is hard without framing it as chaos, and gives the team a planning surface rather than a pile of uncertainty. Names the "moving target since day one" framing as a false equivalence between external constraint and organizational failure — and identifies the long-term consequence of that framing on how the team relates to leadership. Does NOT merely say Rachel should have been "clearer" — specifies what the stable constraint was and how to lead with it.

@@ -41,6 +41,11 @@ for (const file of yamlFiles) {
     const raw = readFileSync(file, 'utf8')
     const data = parseYaml(raw)
     
+    if (!data) {
+      console.warn(`Skipping empty file: ${file}`)
+      continue
+    }
+    
     // Normalize Schema V2 to V1 for the current frontend
     if (data.schema_version >= 2.0) {
       // 1. Map first delivery mode to the legacy delivery_mode field

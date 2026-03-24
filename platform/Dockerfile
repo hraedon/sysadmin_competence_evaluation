@@ -4,9 +4,10 @@
 FROM node:20-alpine AS build
 WORKDIR /build
 
-# Copy frontend source and scenarios together so the manifest generator can find them
+# Copy frontend source, scenarios, and core logic together
 COPY platform/frontend/ ./frontend/
 COPY scenarios/ ./scenarios/
+COPY core/ ./core/
 
 WORKDIR /build/frontend
 RUN npm ci

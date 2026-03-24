@@ -10,8 +10,8 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     guacamole_url: str = "http://localhost:8080/guacamole"
-    guacamole_username: str = "guadmin"
-    guacamole_password: str = "guadmin"
+    guacamole_username: str = ""
+    guacamole_password: str = ""
     dry_run: bool = True
 
     class Config:
@@ -127,7 +127,7 @@ async def provision_lab(scenario_id: str, background_tasks: BackgroundTasks):
     conn_params = {
         "hostname": primary_vm, # In prod, this would be an IP address
         "username": "Administrator",
-        "password": "Password123!" # Placeholder from lab baseline
+        "password": "" # Should be retrieved from a secure vault or session context
     }
     
     guac_url = await guac_client.create_connection(

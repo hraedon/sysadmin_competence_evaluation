@@ -40,6 +40,25 @@ for (const file of yamlFiles) {
   try {
     const raw = readFileSync(file, 'utf8')
     const data = parseYaml(raw)
+    
+    // Normalize Schema V2 to V1 for the current frontend
+    if (data.schema_version >= 2.0) {
+      // 1. Map first delivery mode to the legacy delivery_mode field
+      if (Array.isArray(data.delivery_modes) && data.delivery_modes.length > 0) {
+        data.delivery_mode = data.delivery_modes[0]
+      }
+      
+      // 2. Extract Mode A presentation for the current static UI
+      const modeA = data.presentation?.modes?.A
+      if (modeA) {
+        data.presentation = {
+          type: modeA.type,
+          artifact_file: modeA.artifact_file,
+          context: modeA.context
+        }
+      }
+    }
+
     // Store the path relative to SCENARIOS_DIR so the frontend can build fetch URLs
     data._scenarios_path = 'scenarios/' + relative(SCENARIOS_DIR, file).replace(/\\/g, '/').replace('scenario.yaml', '').replace(/\/$/, '')
     scenarios.push(data)

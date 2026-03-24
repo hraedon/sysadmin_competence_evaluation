@@ -6,3 +6,6 @@ platform/frontend/public/scenarios-manifest.json
 # OS
 .DS_Store
 Thumbs.db
+
+# Secrets
+.env

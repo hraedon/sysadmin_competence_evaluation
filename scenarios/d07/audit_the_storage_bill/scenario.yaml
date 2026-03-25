@@ -1,0 +1,196 @@
+schema_version: '2.0'
+id: d07-audit-the-storage-bill
+title: The Storage Bill
+domain: 7
+domain_name: Cloud Infrastructure
+level: 3
+delivery_modes:
+  - A
+
+difficulty: 4
+difficulty_note: >
+  The policy artifact looks correct on its face — the tier transitions match
+  the stated requirements exactly. The cost driver is the interaction between
+  the transition schedule and the minimum retention periods enforced by the
+  storage tiers, which requires the learner to cross-reference the policy
+  against tier pricing rules not present in the artifact. A second, independent
+  cost driver (archive retrieval fees from a predictable access pattern) is
+  buried in the operations log and is easy to overlook once the early deletion
+  finding is made.
+
+presentation:
+  modes:
+    A:
+      type: log_extract
+      artifact_file: scenarios/d07/audit_the_storage_bill/billing_report.txt
+      context: |
+        A mid-sized logistics company stores shipment manifest files in Azure Blob
+        Storage. Files are generated continuously and follow a predictable access
+        pattern: they are read frequently in the first week after creation, queried
+        occasionally around day 8 for exception processing, and queried again around
+        day 25 for month-end reconciliation. After that they are retained for
+        compliance and rarely accessed.
+
+        The infrastructure team implemented a lifecycle management policy six weeks
+        ago with the goal of reducing storage costs. The policy was based on a
+        requirements document that specified: move to cool storage after 7 days,
+        move to archive after 14 days, delete after 45 days.
+
+        The first full billing cycle under the new policy came in significantly over
+        budget. The team lead has opened the following ticket.
+
+        ---
+        Ticket #4471 — Storage costs 168% over budget
+        Opened by: T. Vasquez (Infrastructure Lead)
+
+        We implemented the lifecycle policy last month expecting a cost reduction.
+        Instead the first bill under the new policy is $3,216 against a $1,200
+        budget. The policy is configured exactly as the requirements doc specified.
+        I've attached the billing breakdown and the operations log. Can you tell me
+        what's driving the cost and whether the policy needs to change?
+
+rubric:
+  findings:
+    - id: cool_early_deletion
+      description: >
+        Objects are moved from Cool to Archive after only 7 days in the Cool tier
+        (day 7 to day 14). Azure Cool tier enforces a 30-day minimum retention
+        period. Any object deleted or tiered out of Cool before 30 days incurs an
+        early deletion charge for the remaining days. At the current transition
+        schedule, every object incurs a 23-day early deletion penalty when it moves
+        to Archive.
+      severity: critical
+      miss_signal: >
+        Learner notes that costs are elevated but attributes the early deletion
+        line item to object volume rather than the transition schedule. Or learner
+        correctly identifies that the Cool window is short but does not connect it
+        to the 30-day minimum retention rule specifically. Partial credit does not
+        apply: identifying "the Cool window seems short" without naming the
+        minimum retention mechanism is an L2 observation, not an L3 finding.
+      learning_note: >
+        Azure Cool Blob Storage has a 30-day minimum storage duration. If a blob is
+        deleted, overwritten, or transitioned to a different tier before 30 days,
+        you are billed for the remaining days at the Cool rate. This is charged as
+        an early deletion fee and appears as a separate line item in the bill. The
+        same principle applies to Archive (180-day minimum) and, in some Azure
+        configurations, to Cold tier (90-day minimum). The minimum retention period
+        is a pricing mechanism, not a technical restriction — the tier transition
+        succeeds, but the fee is still charged. AWS S3 Glacier Instant Retrieval
+        and Glacier Flexible Retrieval have equivalent minimum storage duration
+        rules (90 and 180 days respectively).
+
+    - id: archive_early_deletion
+      description: >
+        Objects are deleted at day 45, which is only 31 days after entering the
+        Archive tier at day 14. Azure Archive tier enforces a 180-day minimum
+        retention period. Every object deleted under the current policy incurs a
+        149-day early deletion penalty at the Archive rate. Given that the Archive
+        rate per GB is lower than Cool, this penalty may be smaller in absolute
+        terms than the Cool early deletion charge, but it applies to every object
+        and compounds the cost of the Cool early deletion finding.
+      severity: critical
+      miss_signal: >
+        Learner identifies the Cool early deletion finding but does not apply the
+        same analysis to the Archive-to-delete transition. A response that correctly
+        diagnoses Cool early deletion and recommends extending the Cool window to
+        30 days has addressed the most visible cost driver but has not identified
+        that the Archive window has the same structural problem at a longer scale.
+      learning_note: >
+        Azure Archive tier has a 180-day minimum storage duration. A lifecycle
+        policy that deletes objects at day 45 (31 days after Archive transition)
+        incurs early deletion fees for the remaining 149 days on every object.
+        Correcting the Cool-to-Archive transition does not fix this: if the Archive
+        transition is moved to day 30 (to satisfy the Cool minimum), the Archive
+        early deletion window becomes 15 days in Archive before deletion at day 45,
+        making the penalty worse. The retention requirements and the deletion policy
+        are structurally incompatible with Archive tier unless the deletion date is
+        moved to at least day 194 (14 + 180), or the Archive tier is removed from
+        the policy entirely.
+
+    - id: archive_retrieval_fees
+      description: >
+        The operations log shows read requests against objects at approximately day
+        25 post-creation. At day 25, objects have been in the Archive tier for 11
+        days. Archive-tier blobs in Azure are offline and not directly readable.
+        Retrieval requires either a rehydration operation (which can take hours and
+        incurs a per-GB retrieval fee) or a copy operation to a warmer tier. The
+        billing breakdown shows retrieval fees as the second-largest cost line item.
+        Because the day-25 access pattern is consistent and predictable (month-end
+        reconciliation), this cost recurs every month for every object in the archive
+        window.
+      severity: critical
+      miss_signal: >
+        Learner identifies the early deletion findings but does not examine the
+        operations log in sufficient detail to connect the day-25 reads to archive
+        retrieval fees. A response that diagnoses the early deletion charges and
+        recommends extending the tier windows is on the right path but incomplete:
+        if the Archive transition is retained, the day-25 access pattern will
+        continue to generate retrieval fees regardless of how the retention windows
+        are adjusted. The access pattern and the archiving decision are
+        incompatible, not just misconfigured.
+      learning_note: >
+        Archive-tier blob storage in Azure (and Glacier in AWS) is designed for
+        data that is accessed rarely or never. Retrieval is neither instant nor
+        free: standard rehydration from Azure Archive to Online tiers takes up to
+        15 hours and is charged per GB retrieved plus per-operation fees. High
+        Priority rehydration is faster but significantly more expensive. If a
+        predictable access pattern exists — such as monthly reconciliation reads —
+        archiving the data before that access window is an expensive mistake. The
+        correct approach is either to delay the Archive transition until after the
+        last predictable read, or to treat the data as long-lived Cool rather than
+        archival if regular access is expected within the compliance retention
+        period.
+
+    - id: policy_vs_requirements_gap
+      description: >
+        The lifecycle policy is implemented exactly as the requirements document
+        specified. The cost problem is not a misconfiguration — it is a requirements
+        document that specified tier transitions without knowledge of minimum
+        retention periods or the access pattern. The sysadmin who implemented the
+        policy executed the requirements correctly. The requirements were wrong. An
+        L4 response identifies this as a process failure: the requirements were
+        accepted and implemented without validating them against the pricing model
+        of the tiers being used.
+      severity: secondary
+      miss_signal: >
+        Learner frames the issue as a configuration error rather than a
+        requirements validation failure. The distinction matters for what gets
+        recommended: a configuration fix repairs the current policy; a process
+        observation prevents the same class of error on future storage decisions.
+
+  level_indicators:
+    level_1: >
+      Notes that the bill is significantly over budget. May suggest checking whether
+      data volume has increased unexpectedly. Does not identify any specific cost
+      driver from the billing breakdown. Does not examine the lifecycle policy or
+      the operations log in relation to the costs.
+    level_2: >
+      Identifies the early deletion charges as the primary elevated line item from
+      the billing summary. Notes that the lifecycle policy moves objects through
+      tiers quickly and that this may be causing the charges. Does not name the
+      minimum retention periods for Cool (30 days) or Archive (180 days) as the
+      mechanism. Does not examine the operations log. Does not identify the archive
+      retrieval fees as a separate cost driver. Does NOT identify the archive early
+      deletion finding or the requirements validation gap.
+    level_3: >
+      Identifies the Cool early deletion penalty by name and connects it to the
+      30-day minimum retention period — objects spend only 7 days in Cool before
+      the Archive transition triggers a 23-day penalty on every object. Examines
+      the operations log and connects the day-25 read pattern to Archive retrieval
+      fees. Identifies both as distinct cost drivers rather than treating them as
+      the same problem. Does NOT independently derive the Archive early deletion
+      finding without the billing breakdown drawing attention to it, and does NOT
+      identify the requirements validation gap as a systemic finding.
+    level_4: >
+      Identifies all three critical findings: Cool early deletion, Archive early
+      deletion, and Archive retrieval fees from the day-25 access pattern. Recognises
+      that correcting the Cool transition window alone does not resolve the Archive
+      early deletion problem — the 45-day deletion policy is incompatible with
+      Archive minimum retention at any transition date that satisfies the Cool
+      minimum. Proposes a structurally correct alternative: either (a) move Archive
+      transition to after day 30, extend deletion to at least day 194, and address
+      the month-end retrieval pattern by rehydrating objects proactively before
+      day 25; or (b) skip Archive entirely and use Cool as the long-term tier if
+      the compliance window is under 30 days and monthly access is expected.
+      Identifies that the policy was implemented correctly against incorrect
+      requirements and flags the requirements validation step as the systemic gap.

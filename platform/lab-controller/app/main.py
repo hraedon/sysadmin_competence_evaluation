@@ -99,15 +99,20 @@ async def provision_lab(scenario_id: str, background_tasks: BackgroundTasks):
         if not res.success:
             raise HTTPException(status_code=500, detail=f"Failed to start {vm}: {res.error}")
 
-    # 3. Execute Provisioning Actions (Scripts/File Copies)
-    # TODO: Wait for VMs to be ready (IP address / Guest Services)
+    # 3. Wait for Guests and Execute Provisioning Actions
+    # Use the first target as the primary for readiness check if it's the console target
+    primary_vm = vm_targets[0] if vm_targets else "unknown"
+    
+    for vm in vm_targets:
+        logger.info(f"Waiting for guest services on {vm}...")
+        orchestrator.wait_for_guest_readiness(vm)
+
     for action in provisioning_actions:
         target = action.get('target')
         act_type = action.get('action')
         
         if act_type == "run_script":
             script_file = action.get('file')
-            # Resolve script path relative to scenario dir
             script_path = scenario_path.parent / script_file
             res = orchestrator.run_script_in_guest(target, str(script_path))
         elif act_type == "copy_file":
@@ -115,19 +120,22 @@ async def provision_lab(scenario_id: str, background_tasks: BackgroundTasks):
             dest = action.get('destination')
             res = orchestrator.copy_file_to_guest(target, str(src), dest)
         
-        if not res.success:
+        if res and not res.success:
             logger.error(f"Provisioning action failed on {target}: {res.error}")
-            # We might not want to hard-fail here, but log it
 
-    # 4. Create Guacamole Connection
-    # For now, we assume the first VM is the primary target for RDP/SSH
-    primary_vm = vm_targets[0] if vm_targets else "unknown"
-    # Parameters would normally come from an environment map (IPs etc)
-    # For this scaffold, we'll use a placeholder or lookup logic
+    # 4. Resolve Primary IP for Guacamole
+    # If the VM name ends in 'DC' or 'DHCP', we might prefer static or DNS,
+    # but Hyper-V retrieval is a robust fallback/verifier.
+    ip_res = orchestrator.get_vm_ip(primary_vm)
+    target_host = ip_res.output if (ip_res.success and ip_res.output) else primary_vm
+
+    logger.info(f"Target host for Guacamole: {target_host} (VM: {primary_vm})")
+
+    # 5. Create Guacamole Connection
     conn_params = {
-        "hostname": primary_vm, # In prod, this would be an IP address
+        "hostname": target_host,
         "username": "Administrator",
-        "password": "" # Should be retrieved from a secure vault or session context
+        "password": "" 
     }
     
     guac_url = await guac_client.create_connection(

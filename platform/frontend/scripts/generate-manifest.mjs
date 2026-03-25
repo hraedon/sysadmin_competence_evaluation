@@ -49,17 +49,21 @@ for (const file of yamlFiles) {
     // Normalize Schema V2 to V1 for the current frontend
     if (data.schema_version >= 2.0) {
       // 1. Map first delivery mode to the legacy delivery_mode field
+      let mode = data.delivery_mode
       if (Array.isArray(data.delivery_modes) && data.delivery_modes.length > 0) {
-        data.delivery_mode = data.delivery_modes[0]
+        mode = data.delivery_modes[0]
+        data.delivery_mode = mode
       }
       
-      // 2. Extract Mode A presentation for the current static UI
-      const modeA = data.presentation?.modes?.A
-      if (modeA) {
+      // 2. Extract presentation for the active mode (fallback to A)
+      const activeMode = mode || 'A'
+      const activePresentation = data.presentation?.modes?.[activeMode] || data.presentation?.modes?.A
+      
+      if (activePresentation) {
         data.presentation = {
-          type: modeA.type,
-          artifact_file: modeA.artifact_file,
-          context: modeA.context
+          type: activePresentation.type,
+          artifact_file: activePresentation.artifact_file,
+          context: activePresentation.context
         }
       }
     }

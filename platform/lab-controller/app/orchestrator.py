@@ -87,3 +87,28 @@ class HyperVOrchestrator:
         # Copy-Item -ToSession requires a session, but Copy-Item -VMName works in newer PS versions
         cmd = f"Copy-Item -Path '{source}' -Destination '{destination}' -VMName '{vm_name}'"
         return self._run_ps(cmd)
+
+    def get_vm_ip(self, vm_name: str) -> OrchestrationResult:
+        """Retrieves the primary IPv4 address of a VM from Hyper-V Guest Services."""
+        # Filter for IPv4 addresses (containing dots)
+        cmd = f"(Get-VMNetworkAdapter -VMName '{vm_name}').IPAddresses | Where-Object {{ $_ -like '*.*' }} | Select-Object -First 1"
+        return self._run_ps(cmd)
+
+    def wait_for_guest_readiness(self, vm_name: str, timeout_seconds: int = 60) -> bool:
+        """Polls the VM's heartbeat and network status until it's ready."""
+        import time
+        start_time = time.time()
+        
+        if self.dry_run:
+            return True
+
+        while time.time() - start_time < timeout_seconds:
+            # Check for a non-empty IPv4 address
+            res = self.get_vm_ip(vm_name)
+            if res.success and res.output:
+                logger.info(f"VM {vm_name} is ready with IP: {res.output}")
+                return True
+            time.sleep(2)
+        
+        logger.warning(f"Timed out waiting for VM {vm_name} to report an IP address.")
+        return False

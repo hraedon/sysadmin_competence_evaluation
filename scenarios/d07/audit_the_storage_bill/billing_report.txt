@@ -1,0 +1,117 @@
+================================================================================
+AZURE BLOB STORAGE — MONTHLY COST REPORT
+Account: logistics-manifests-prod
+Period:  01 February 2026 – 28 February 2026
+================================================================================
+
+COST SUMMARY
+------------
+Storage (capacity)                         $312.44
+Operations & transactions                   $89.17
+Data retrieval fees                        $891.44
+Early deletion charges                   $1,923.68
+                                         ---------
+Total                                    $3,216.73
+
+Budget                                   $1,200.00
+Variance                                +$2,016.73  (+168%)
+
+
+STORAGE CAPACITY BREAKDOWN
+--------------------------
+Hot tier (< 7 days)              1.8 TB     $36.86
+Cool tier (7–14 days)            0.9 TB     $18.14   [avg daily volume in window]
+Archive tier (14–45 days)        4.1 TB    $257.44
+                                           -------
+                                           $312.44
+
+Estimated monthly ingest: ~200 GB/day
+Estimated active object count: ~4.2 million objects
+
+
+OPERATIONS & TRANSACTIONS
+-------------------------
+Write operations (Put, Copy, List)          $41.23
+Read operations — Hot tier                   $6.88
+Read operations — Cool tier                 $12.44
+Read operations — Archive tier (retrieval)  $28.62
+                                           ------
+                                           $89.17
+
+
+DATA RETRIEVAL FEES
+-------------------
+Cool tier retrievals                        $23.17
+Archive tier retrievals                    $868.27
+                                           -------
+                                           $891.44
+
+  Note: Archive retrieval fees include per-GB retrieval charges for
+  standard-priority rehydration operations. 847 GB retrieved from
+  Archive in February.
+
+
+EARLY DELETION CHARGES
+----------------------
+Cool tier early deletions                  $634.91
+Archive tier early deletions             $1,288.77
+                                         ---------
+                                         $1,923.68
+
+  Note: Early deletion charges are assessed when blobs are deleted or
+  tiered out of a storage tier before the minimum retention period has
+  elapsed. Cool minimum: 30 days. Archive minimum: 180 days.
+
+
+================================================================================
+LIFECYCLE POLICY — logistics-manifests-prod (active since 2026-01-10)
+================================================================================
+
+Rule name:   tier-and-expire
+Scope:       All block blobs
+Enabled:     Yes
+
+Actions:
+  tierToCool:    daysAfterModificationGreaterThan: 7
+  tierToArchive: daysAfterModificationGreaterThan: 14
+  delete:        daysAfterModificationGreaterThan: 45
+
+Filter:      None (applies to all containers)
+Last run:    2026-02-28 02:14 UTC — 4,218,443 blobs evaluated, 4,218,443 matched
+
+
+================================================================================
+STORAGE OPERATIONS LOG — February 2026 (sampled, read operations only)
+================================================================================
+
+Columns: Timestamp | Object age at access (days) | Operation | Tier at access | Object size
+
+2026-02-01 08:14:33 |  1d | GetBlob  | Hot     |  2.1 MB
+2026-02-01 08:14:41 |  2d | GetBlob  | Hot     |  1.8 MB
+2026-02-01 09:02:17 |  1d | GetBlob  | Hot     |  2.4 MB
+2026-02-01 14:33:52 |  3d | GetBlob  | Hot     |  1.9 MB
+2026-02-02 07:45:11 |  1d | GetBlob  | Hot     |  2.2 MB
+2026-02-02 11:22:04 |  2d | GetBlob  | Hot     |  1.7 MB
+... [Hot-tier reads continue at similar volume throughout month] ...
+
+2026-02-04 09:31:17 |  8d | GetBlob  | Cool    |  2.1 MB
+2026-02-04 09:31:44 |  8d | GetBlob  | Cool    |  1.8 MB
+2026-02-04 09:32:01 |  8d | GetBlob  | Cool    |  2.3 MB
+2026-02-04 09:32:18 |  8d | GetBlob  | Cool    |  1.9 MB
+2026-02-04 09:32:35 |  8d | GetBlob  | Cool    |  2.1 MB
+2026-02-04 09:33:02 |  8d | GetBlob  | Cool    |  2.0 MB
+... [Pattern repeats: burst of reads at ~8 days post-creation, ~200–300 objects/day] ...
+2026-02-11 09:18:44 |  8d | GetBlob  | Cool    |  1.8 MB
+2026-02-11 09:19:01 |  8d | GetBlob  | Cool    |  2.2 MB
+
+2026-02-01 06:00:44 | 25d | GetBlob  | Archive |  2.1 MB   [BlobAccessTierInferred: Archive]
+2026-02-01 06:01:03 | 25d | GetBlob  | Archive |  1.9 MB   [BlobAccessTierInferred: Archive]
+2026-02-01 06:01:22 | 25d | GetBlob  | Archive |  2.3 MB   [BlobAccessTierInferred: Archive]
+2026-02-01 06:01:41 | 25d | GetBlob  | Archive |  1.8 MB   [BlobAccessTierInferred: Archive]
+... [Month-end pattern: high-volume reads against ~25-day-old objects, ~800–900 GB total] ...
+2026-02-01 11:44:03 | 25d | GetBlob  | Archive |  2.0 MB   [BlobAccessTierInferred: Archive]
+2026-02-01 11:44:22 | 25d | GetBlob  | Archive |  2.1 MB   [BlobAccessTierInferred: Archive]
+
+================================================================================
+END OF REPORT
+================================================================================

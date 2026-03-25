@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: sysadmin-assessment
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/hraedon/sysadmin_competence_evaluation.git
+    targetRevision: HEAD
+    path: platform/k8s
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: assessment
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+    - CreateNamespace=true

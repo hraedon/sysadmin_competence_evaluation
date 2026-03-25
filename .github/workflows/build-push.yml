@@ -30,12 +30,3 @@ jobs:
           tags: |
             ghcr.io/${{ github.repository }}:latest
             ghcr.io/${{ github.repository }}:${{ github.sha }}
-
-      - name: Deploy to K8s
-        if: github.ref == 'refs/heads/main'
-        env:
-          KUBECONFIG_B64: ${{ secrets.KUBECONFIG }}
-        run: |
-          mkdir -p ~/.kube
-          echo "$KUBECONFIG_B64" | base64 -d > ~/.kube/config
-          kubectl rollout restart deployment/assessment -n assessment

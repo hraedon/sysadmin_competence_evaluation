@@ -1,0 +1,13 @@
+There are two distinct cost drivers in this bill, and they are independent problems. Fixing one will not fix the other.
+
+First: the Cool tier early deletion charges.
+
+The lifecycle policy moves objects to Archive at day 14 — which means objects spend only 7 days in the Cool tier (day 7 to day 14). Azure Cool tier has a 30-day minimum storage duration. Any object moved out of Cool before 30 days is charged an early deletion fee for the remaining days. At the current transition schedule, every object that passes through Cool incurs a 23-day early deletion penalty. At an ingest rate of ~200 GB/day with ~4.2 million objects, this penalty is applied continuously to the entire working set. The $634.91 Cool early deletion charge in the breakdown reflects this.
+
+The fix for this specific problem is to move the Archive transition from day 14 to at least day 37 (7 + 30), so that objects complete the full Cool minimum retention period before being tiered again.
+
+Second: the Archive retrieval fees.
+
+The operations log shows a consistent pattern of read requests against objects that are approximately 25 days old. At day 25, under the current policy, objects have been in the Archive tier for 11 days. Archive-tier blobs in Azure are offline storage — they are not directly readable and require a rehydration operation before the data can be accessed. The billing shows 847 GB retrieved from Archive in February, with $868.27 in retrieval fees. This is the month-end reconciliation read pattern hitting objects that the lifecycle policy has already moved to Archive.
+
+These two problems are independent: the Cool early deletion issue is about the transition schedule violating minimum retention rules, and the retrieval issue is about the access pattern being incompatible with the tier the objects are in at the time of access. Extending the Cool window to fix the early deletion charges will not resolve the retrieval fees — objects will still be in Archive at day 25 under any policy that archives before that point.

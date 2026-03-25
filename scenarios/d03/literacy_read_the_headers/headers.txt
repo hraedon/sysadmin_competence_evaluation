@@ -1,0 +1,25 @@
+Delivered-To: j.chen@warelogix.com
+Received: by mail.warelogix.com with SMTP id x7sm2041884wrb
+        for <j.chen@warelogix.com>; Wed, 12 Mar 2026 09:14:22 -0700 (PDT)
+Received: from mail-relay.sgmail.net (mail-relay.sgmail.net [167.89.47.23])
+        by mx.warelogix.com (Postfix) with ESMTPS id A3F2C1D8B4
+        for <j.chen@warelogix.com>; Wed, 12 Mar 2026 09:14:21 -0700 (PDT)
+Authentication-Results: mx.warelogix.com;
+        spf=pass (mx.warelogix.com: 167.89.47.23 is authorized sender for
+             meridianconsulting.com) smtp.mailfrom=bounce.meridianconsulting.com;
+        dkim=pass header.d=sgmail.net header.s=s1 header.b=XkQ9mZ2r;
+        dmarc=pass (p=NONE) header.from=meridianconsulting.com
+Received: from [10.14.0.88] (unknown [10.14.0.88])
+        by smtp-out.sgmail.net (SendGrid MTA) with ESMTP id 7Hv3kP
+        for <j.chen@warelogix.com>; Wed, 12 Mar 2026 16:14:19 +0000 (UTC)
+X-SG-EID: abc123xyz456def789
+Return-Path: <bounce+7Hv3kP-j.chen=warelogix.com@bounce.meridianconsulting.com>
+From: "Rachel Okonkwo" <r.okonkwo@meridianconsulting.com>
+Reply-To: r.okonkwo@meridianconsulting.com
+To: j.chen@warelogix.com
+Subject: Follow-up: Q1 Supply Chain Audit
+Date: Wed, 12 Mar 2026 16:14:17 +0000
+Message-ID: <01020194d7a3bc8f-e2941cc0-sgmail.net>
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="0000000000abc123def"
+X-Mailer: Microsoft Outlook 16.0.18624

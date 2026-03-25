@@ -1,0 +1,14 @@
+The headers are clean. The email was sent through SendGrid on Meridian Consulting's behalf and all authentication checks pass. Here is the full picture.
+
+Relay chain (read bottom-to-top):
+The message was submitted into SendGrid's infrastructure from [10.14.0.88] (an internal SendGrid host representing the customer's injection point), relayed through SendGrid's outbound MTA at 167.89.47.23, and delivered to mx.warelogix.com, which then placed it in j.chen's mailbox.
+
+Authentication:
+- SPF passes: 167.89.47.23 is listed as an authorised sender for meridianconsulting.com in their DNS. The SPF check is against smtp.mailfrom (the envelope sender domain, bounce.meridianconsulting.com), which aligns.
+- DKIM passes: The signature is from header.d=sgmail.net, not meridianconsulting.com. This is not a red flag — it is standard relay architecture. When an organisation sends through SendGrid, SendGrid signs outbound messages with its own private key. The DKIM pass means the message was not modified in transit; the signing domain being sgmail.net simply identifies who applied the signature, not who sent the email. Meridianconsulting.com has authorised SendGrid to relay on their behalf, which the SPF result confirms.
+- DMARC passes: The from-domain is meridianconsulting.com. DMARC alignment is satisfied via SPF — the envelope sender domain (bounce.meridianconsulting.com) is a subdomain of meridianconsulting.com, which counts as aligned. DKIM alignment is not required to carry the DMARC result when SPF alignment succeeds.
+
+Return-Path:
+The encoded bounce address (bounce+7Hv3kP-j.chen=warelogix.com@bounce.meridianconsulting.com) is SendGrid's per-message bounce tracking format. The recipient address is encoded into the Return-Path so that bounces route back to the correct account. It is still in the meridianconsulting.com domain.
+
+Conclusion: No technical indicators of spoofing or tampering. J. Chen can treat this as a legitimately sent email from Meridian Consulting's authorised mail infrastructure.

@@ -1,0 +1,27 @@
+There are three distinct cost drivers in this bill. They share a common root cause — the lifecycle policy was specified without accounting for the minimum retention periods enforced by the tiers or the actual access pattern — but each requires a separate fix.
+
+1. Cool tier early deletion ($634.91)
+
+Objects transition from Cool to Archive after 7 days in Cool. Azure Cool tier has a 30-day minimum storage duration. Every object incurs a 23-day early deletion penalty at the Cool rate when it transitions to Archive on day 14. With ~200 GB/day ingest and 4.2 million objects, this applies continuously across the working set.
+
+2. Archive tier early deletion ($1,288.77)
+
+Objects are deleted at day 45, which means they spend only 31 days in Archive (day 14 to day 45). Azure Archive tier has a 180-day minimum storage duration. Every object incurs a 149-day early deletion penalty at the Archive rate when deleted. This is the larger penalty in dollar terms and it applies to every deleted object.
+
+Correcting the Cool transition (moving Archive to day 37+) does not fix this: if Archive transition moves to day 37, objects still spend only 8 days in Archive before deletion at day 45, making the Archive penalty worse, not better. The policy as written is incompatible with Archive tier at any transition date that keeps the current 45-day deletion window. The deletion date would need to move to at least day 194 (14 + 180) — or Archive must be removed from the policy entirely.
+
+3. Archive retrieval fees ($868.27)
+
+The operations log shows consistent reads against ~25-day-old objects. At day 25, objects are in Archive and require rehydration before they can be read. This is the month-end reconciliation access pattern. These retrieval fees recur every month for as long as objects reach Archive before day 25. Adjusting the minimum retention windows does not resolve this — the access pattern and the tier assignment are incompatible regardless of how the transition dates shift.
+
+Root cause and structural fix:
+
+The policy was implemented correctly against requirements that were written without knowledge of tier minimum retention periods or the access pattern. The implementer is not at fault; the requirements were wrong. This class of error — accepting and implementing a storage policy without validating it against tier pricing rules — is the systemic gap.
+
+A workable policy given the actual access pattern:
+- Days 0–7: Hot (existing access is heavy)
+- Days 7–30+: Cool (satisfies 30-day minimum before any transition)
+- Day 30+ access window must be cleared: if month-end reconciliation reads at day 25 can shift, push Archive transition to day 30. If the day-25 read is fixed, skip Archive for compliance-window data and retain in Cool, or accept rehydration cost as a known line item with a budget for it.
+- Deletion: only if objects can remain in Archive for 180+ days. If the compliance requirement is 45-day retention, Archive is the wrong tier — Cool retention at 45 days is more expensive per GB but avoids the 149-day early deletion penalty entirely, and the total cost may be lower.
+
+The immediate action is to suspend the lifecycle policy, calculate the break-even between Cool-only retention vs Archive with penalties, and present the finance team with a corrected cost model before re-enabling.

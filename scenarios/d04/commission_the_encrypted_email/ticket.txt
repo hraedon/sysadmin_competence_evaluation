@@ -1,0 +1,17 @@
+Ticket #2847 — Encrypted email to external auditor
+Opened by: D. Kowalski (Finance Director)
+Priority: High
+
+Our external auditors at Vance & Partners have asked us to send financial
+documents over encrypted email going forward. They mentioned something about
+it being a requirement from their own compliance review. I need to start
+sending them the Q1 close package next week.
+
+Can you set this up on my laptop? I use Outlook.
+
+---
+
+Note added by helpdesk (M. Santos, L1):
+Passed to sysadmin team — outside L1 scope. User confirmed they currently
+send email normally with no special configuration. No prior encrypted email
+capability on this account. Auditor contact is p.wade@vanceandpartners.com.

@@ -1,0 +1,17 @@
+Hi D. Kowalski,
+
+Thanks for raising this. To set up encrypted email, we would use a technology called S/MIME (Secure/Multipurpose Internet Mail Extensions), which is supported natively by Outlook.
+
+S/MIME works by issuing you a digital certificate — a small file that contains your identity and encryption keys. Once configured, Outlook can use it to encrypt messages so that only the intended recipient can read them, and to digitally sign messages so recipients can verify they came from you.
+
+I should also mention that email between our mail servers and Vance & Partners' servers is already encrypted in transit using TLS, which protects messages on the wire. S/MIME goes further by encrypting the message content itself, so it is protected end-to-end rather than just during transmission.
+
+To get this set up for you, I would need to:
+1. Issue you an S/MIME certificate from our certificate authority
+2. Install and configure it in Outlook on your laptop
+3. Walk you through how to send an encrypted message
+
+Please let me know when you are available and I can arrange a remote session to get this done ahead of your deadline next week.
+
+Thanks,
+IT Support

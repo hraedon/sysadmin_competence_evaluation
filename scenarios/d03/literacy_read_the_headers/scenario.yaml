@@ -1,0 +1,168 @@
+schema_version: '2.0'
+id: d03-literacy-read-the-headers
+title: Read the Headers
+domain: 3
+domain_name: Networking & DNS
+level: 1
+delivery_modes:
+  - A
+subtype: null
+
+difficulty: 2
+difficulty_note: >
+  The relay chain reads bottom-to-top, which is unintuitive. Two fields
+  produce misleading surface readings: the DKIM signing domain is sgmail.net
+  (the relay service) rather than meridianconsulting.com, which can look
+  suspicious to a learner who conflates the signing domain with the sender
+  domain; and the Return-Path encodes a bounce-tracking address that differs
+  structurally from the From: address, which looks like spoofing to someone
+  unfamiliar with commercial email relay architecture.
+
+presentation:
+  modes:
+    A:
+      type: log_extract
+      artifact_file: scenarios/d03/literacy_read_the_headers/headers.txt
+      context: |
+        A colleague, J. Chen, forwards you an email and asks whether it is
+        legitimate. She received it from someone claiming to be Rachel Okonkwo
+        at Meridian Consulting, a firm she has been in contact with, but she
+        noticed that some of the header fields look unusual and wants a second
+        opinion before opening the attachment.
+
+        The full headers from the email are attached. Describe what the headers
+        tell you about how this email was sent and whether anything in them
+        suggests the email is not what it claims to be.
+
+rubric:
+  findings:
+    - id: relay_chain_direction
+      description: >
+        The Received: headers must be read bottom-to-top to reconstruct the
+        delivery path. The correct relay sequence is: originating client
+        [10.14.0.88] → SendGrid outbound MTA (smtp-out.sgmail.net) → warelogix.com
+        inbound MX (mx.warelogix.com) → delivery to j.chen's mailbox. A response
+        that reads top-to-bottom inverts the path and will draw incorrect conclusions
+        about where the email originated.
+      severity: critical
+      miss_signal: >
+        Learner describes the path as starting at warelogix.com or describes the
+        top Received: header as the originating hop. Or learner skips the relay
+        chain entirely and focuses only on the From: and Return-Path fields.
+      learning_note: >
+        Each mail server that handles a message prepends a Received: header as it
+        forwards the message. The first server to handle the message adds the
+        bottom-most Received: header; the final delivery server adds the top-most.
+        Reading top-to-bottom shows the message arriving, not departing. To trace
+        where a message actually came from, start at the bottom. The originating
+        IP is in the bottom-most Received: header that was added by a system you
+        do not control — in this case, the SendGrid MTA recording its intake from
+        [10.14.0.88], an internal SendGrid host representing the client's injected
+        submission.
+
+    - id: commercial_relay_identification
+      description: >
+        The email was sent through SendGrid (sgmail.net), a commercial email relay
+        service, not directly from Meridian Consulting's own mail infrastructure.
+        This is common and legitimate. Meridian Consulting has authorised SendGrid
+        to send on their behalf, as confirmed by the SPF pass. The DKIM signature
+        is from sgmail.net rather than meridianconsulting.com because SendGrid signs
+        outbound mail with its own keys on behalf of customers — this is normal
+        relay architecture, not an indication of tampering.
+      severity: critical
+      miss_signal: >
+        Learner flags the DKIM signing domain (sgmail.net) as suspicious because
+        it does not match the From: domain (meridianconsulting.com), without
+        recognising that relay services sign with their own keys. This is the
+        primary distractor in the artifact: the mismatch looks like a red flag
+        until you understand what DKIM signing via a relay actually means.
+        A response that flags this as evidence of spoofing or tampering has
+        misread the authentication model.
+      learning_note: >
+        DKIM signing does not require the signing domain to match the From: domain.
+        When an organisation sends through a commercial relay such as SendGrid,
+        Mailchimp, or similar, the relay service signs the message with its own
+        private key (header.d=sgmail.net). The DKIM pass result means the signature
+        is cryptographically valid — the message was not altered in transit — not
+        that the signing domain is the sending organisation. DMARC alignment
+        is what ties the From: domain to authentication: in this case DMARC passes
+        because SPF is aligned (the bounce domain is bounce.meridianconsulting.com)
+        even though DKIM alignment is on sgmail.net. The combined result is a
+        message that passes full authentication despite the DKIM domain mismatch.
+
+    - id: return_path_explanation
+      description: >
+        The Return-Path (bounce+7Hv3kP-j.chen=warelogix.com@bounce.meridianconsulting.com)
+        differs from the From: address (r.okonkwo@meridianconsulting.com). This is
+        expected when sending through a relay service. The Return-Path is the
+        envelope sender — the address that receives bounce notifications if delivery
+        fails. SendGrid generates a per-message encoded Return-Path for bounce
+        tracking. The address is still in the meridianconsulting.com domain,
+        confirming it is an authorised address under their domain, not an external
+        party injecting a different bounce destination.
+      severity: critical
+      miss_signal: >
+        Learner identifies the Return-Path/From: difference but concludes it
+        indicates spoofing without explaining the bounce tracking mechanism, or
+        learner does not notice the difference at all. The expected L1 response
+        notes the difference and explains it correctly without necessarily knowing
+        the term "envelope sender" — describing it as a bounce address or a
+        tracking address set by the relay service is sufficient.
+      learning_note: >
+        Every email has two sender addresses: the envelope sender (MAIL FROM in
+        the SMTP transaction, recorded as Return-Path after delivery) and the
+        header From: address (what the recipient's mail client displays). These
+        can legitimately differ. Commercial relay services routinely replace the
+        envelope sender with a service-specific bounce address that encodes the
+        original recipient, so that bounces can be tracked and attributed to the
+        correct sending account. When the Return-Path domain is still controlled
+        by the sending organisation (as here: bounce.meridianconsulting.com), it
+        is not a spoofing signal. When the Return-Path domain is entirely different
+        from the From: domain and does not pass SPF, that is a significant red flag.
+
+    - id: overall_legitimacy_conclusion
+      description: >
+        The correct conclusion is that the email shows no technical indicators of
+        spoofing or tampering. SPF passes (the sending IP is authorised for the
+        domain), DKIM passes (the message was not altered in transit), DMARC passes
+        (alignment is satisfied), the Return-Path is in the meridianconsulting.com
+        domain, and the Reply-To matches the From: address. The email was sent
+        through a commercial relay service, which accounts for all of the features
+        that appear unusual on first reading.
+      severity: secondary
+      miss_signal: >
+        Learner hedges the conclusion without grounds ("it could still be
+        suspicious") or reaches a definitive verdict (legitimate or spoofed)
+        without grounding it in the specific header fields. A correct L1 response
+        names the authentication results and states what they mean for the
+        legitimacy question posed in the scenario.
+
+  level_indicators:
+    level_1: >
+      Reads the Received: chain in the correct order (bottom-to-top) and identifies
+      that the email was sent through a commercial relay service (SendGrid/sgmail.net)
+      on behalf of meridianconsulting.com. Explains that the Return-Path differs from
+      From: because the relay uses a bounce-tracking address, and that this is expected
+      behaviour. Notes that SPF, DKIM, and DMARC all pass. Concludes that the headers
+      do not show technical indicators of spoofing, while correctly explaining what
+      the authentication results mean rather than just stating they pass.
+    level_2: >
+      All of level 1, and additionally explains the distinction between the envelope
+      sender (MAIL FROM / Return-Path) and the header From: as separate SMTP
+      concepts rather than treating them as interchangeable. Explains what it would
+      look like if these fields were used for spoofing — a different Return-Path
+      domain that does not align with the From: domain, or an SPF fail — and
+      contrasts that with what is actually present in the artifact.
+    level_3: >
+      All of level 2, and explains DMARC alignment: why the DMARC pass is valid
+      even though DKIM is signed by sgmail.net rather than meridianconsulting.com
+      (SPF alignment carries the DMARC result). Notes that the legitimacy of the
+      relay relationship is confirmed by SPF authorisation and the shared domain
+      on the Return-Path, not by DKIM domain match.
+    level_4: >
+      All of level 3, and observes that while the headers are technically clean,
+      they cannot confirm the identity of the person who submitted the message to
+      SendGrid — only that an account authorised to use meridianconsulting.com's
+      SendGrid instance sent it. A compromised SendGrid account or a malicious
+      insider at Meridian would produce identical headers. The authentication chain
+      authenticates the sending infrastructure, not the human sender.

@@ -1,0 +1,7 @@
+Looking at the billing breakdown, the two elevated line items are the early deletion charges ($1,923.68) and the data retrieval fees ($891.44). Together these account for the majority of the overage — the storage capacity charges themselves ($312.44) are relatively modest for 4+ TB.
+
+The early deletion charges are the primary driver. These are assessed when blobs are moved out of a storage tier before a minimum retention period has elapsed. The lifecycle policy moves objects to Archive after only 7 days in the Cool tier, which is a short window. This is likely generating early deletion charges on a large number of objects each day. The data retrieval fees are also elevated, which suggests that objects are being read back out of cooler tiers more often than expected.
+
+The lifecycle policy appears to be configured exactly as the requirements document specified, so this is not a misconfiguration in the traditional sense. The issue is that the policy transitions objects through tiers very quickly, and the billing reflects the cost of those rapid transitions.
+
+I would recommend reviewing the tier transition schedule — specifically whether 7 days in Cool before moving to Archive is the right window for this workload — and comparing it against the tier pricing documentation to understand the minimum retention thresholds. Adjusting the transitions to allow objects to remain in each tier longer before moving on would reduce the early deletion charges.

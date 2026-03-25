@@ -1,0 +1,5 @@
+The bill is significantly over budget — $3,216 against a $1,200 budget is a 168% overage.
+
+The most likely explanation is that the volume of data being stored has increased more than expected since the lifecycle policy was put in place. The policy has been running for six weeks and if ingest rates have been higher than anticipated, storage costs will be higher than the budget assumed.
+
+I would recommend checking how much data was actually ingested during February versus what the budget was based on, and whether any large data transfers or new workloads were added to the storage account. Once we have a clearer picture of actual data volumes, we can reassess whether the budget needs to be revised or whether the policy needs adjustment.

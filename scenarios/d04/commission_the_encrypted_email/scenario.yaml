@@ -1,0 +1,192 @@
+schema_version: '2.0'
+id: d04-commission-the-encrypted-email
+title: The Encrypted Email Request
+domain: 4
+domain_name: PKI & Certificates
+level: 3
+delivery_modes:
+  - B
+subtype: synthesis
+
+difficulty: 3
+difficulty_note: >
+  The scenario surface is simple — a user wants encrypted email — but the
+  correct response requires holding three distinct concepts simultaneously:
+  what is already in place (TLS transport encryption), what the user
+  probably means (message-level encryption), and what is required from
+  the other side before either party can exchange encrypted messages.
+  The most common failure is collapsing these into one ("we'll set up
+  S/MIME"), which produces a response that sounds complete but omits the
+  recipient dependency and leaves the user unable to send encrypted mail
+  next week as requested.
+
+presentation:
+  modes:
+    B:
+      type: shell_command
+      artifact_file: scenarios/d04/commission_the_encrypted_email/ticket.txt
+      context: |
+        The ticket below has been escalated to you from the helpdesk.
+        Write the response you would send to D. Kowalski. Your response
+        should tell him what encrypted email means in practice, what is
+        already in place, what would be required to fulfil the request,
+        and what the next steps are. Assume a standard on-premises Exchange
+        / Microsoft 365 hybrid environment with no existing S/MIME deployment.
+
+rubric:
+  findings:
+    - id: tls_already_present
+      description: >
+        Transport encryption (TLS) is already in use between mail servers.
+        When Kowalski sends an email today, the connection between the
+        organisation's mail server and Vance & Partners' mail server is
+        encrypted in transit by TLS in the vast majority of cases. This
+        is automatic and requires no user action or configuration. A response
+        that proposes "setting up encryption" without acknowledging what is
+        already in place will either confuse the user or give them a false
+        impression that email is currently being sent in plaintext.
+      severity: critical
+      miss_signal: >
+        Response does not mention TLS or equivalent transport encryption, or
+        mentions it only in passing without explaining what it covers and what
+        it does not cover. A response that jumps directly to S/MIME setup
+        without establishing the baseline state has skipped this finding.
+      learning_note: >
+        SMTP between modern mail servers almost always uses STARTTLS or SMTPS,
+        encrypting the connection between MTAs. This protects the message in
+        transit between servers — an eavesdropper on the network cannot read
+        the content. However, TLS is hop-by-hop: each mail server in the relay
+        chain decrypts the message to process it, then re-encrypts it for the
+        next hop. The mail server operators can read the message. TLS does not
+        provide end-to-end confidentiality — only the envelope in transit
+        between any two adjacent hops is protected.
+
+    - id: tls_limitation
+      description: >
+        TLS does not provide end-to-end message encryption. The message content
+        is accessible to each mail server that handles it, including the
+        recipient's mail provider. If the auditor's compliance requirement is
+        for the message content to be readable only by the intended recipient —
+        not by any mail server operator in the chain — then TLS alone does not
+        satisfy that requirement. This distinction must be communicated clearly
+        to Kowalski so he can confirm with the auditor what they actually need.
+      severity: critical
+      miss_signal: >
+        Response either (a) tells Kowalski that email is already encrypted
+        and closes the ticket, treating TLS as sufficient without discussing
+        what it does and does not protect; or (b) skips directly to S/MIME
+        without explaining what the gap is between TLS and message encryption.
+        In case (a), the user's compliance requirement may not be met. In
+        case (b), the user does not understand why the additional step is
+        needed. Both are incomplete responses.
+
+    - id: recipient_dependency
+      description: >
+        S/MIME message encryption requires both parties to have certificates
+        and to have exchanged public keys before the first encrypted message
+        can be sent. The sender encrypts the message using the recipient's
+        public key; the recipient decrypts it using their private key. This
+        means Kowalski cannot send an encrypted message to p.wade@vanceandpartners.com
+        until: (1) Kowalski has an S/MIME certificate, (2) Wade has an S/MIME
+        certificate, and (3) Kowalski has obtained Wade's public key/certificate.
+        The ticket timeline ("next week") cannot be met without first confirming
+        that Vance & Partners supports S/MIME and obtaining Wade's certificate.
+        This is the most operationally critical finding: the user cannot act
+        on a one-sided setup.
+      severity: critical
+      miss_signal: >
+        Response describes S/MIME setup for Kowalski without mentioning that
+        the auditor must also have a certificate and that Kowalski needs the
+        auditor's public key before encryption is possible. A response that
+        says "I'll get you a certificate and configure Outlook" gives Kowalski
+        a false impression that the work is entirely on the internal side.
+        The ticket cannot be resolved without contact with p.wade@vanceandpartners.com.
+      learning_note: >
+        S/MIME uses asymmetric encryption. The sender needs the recipient's
+        public key (typically embedded in their certificate) to encrypt a message
+        that only the recipient can decrypt with their private key. Before two
+        parties can exchange encrypted S/MIME messages, they typically send each
+        other a signed (but unencrypted) email first — the signature carries the
+        sender's certificate, which the other party's client stores automatically.
+        After that exchange, both sides can encrypt. If the recipient organisation
+        does not use S/MIME, no amount of internal configuration will allow the
+        message to be encrypted end-to-end. PGP/GPG is an alternative that does
+        not require a PKI, but requires manual key exchange and is not natively
+        supported in Outlook without a plugin.
+
+    - id: clarify_requirement
+      description: >
+        The auditor's stated requirement ("encrypted email") may mean different
+        things. It may mean transport encryption (TLS — already present), message
+        confidentiality (S/MIME or PGP), or it may mean the auditor's preferred
+        alternative of using a secure file transfer portal rather than email at
+        all. Before committing to an S/MIME deployment, the correct step is to
+        contact Vance & Partners and ask what they mean by the requirement and
+        what they support. This is not scope-creep — it is the information
+        needed to determine whether S/MIME is the right solution or whether a
+        different approach serves everyone better.
+      severity: secondary
+      miss_signal: >
+        Response proposes a specific technical solution (S/MIME) without
+        recommending that the requirement be clarified with the auditor first.
+        Many professional auditing firms use secure client portals for document
+        exchange and do not use S/MIME at all — the "encrypted email" requirement
+        may reflect an auditor expectation that the client will upload documents
+        to their portal, which the auditor's staff considers "encrypted." Assuming
+        S/MIME without checking is a common implementation-before-requirements
+        failure.
+
+    - id: practical_next_steps
+      description: >
+        A complete response gives Kowalski a clear set of next steps that he
+        can actually take. The minimum viable next step is to contact
+        p.wade@vanceandpartners.com and ask: what does "encrypted email" mean
+        for their requirement, and do they use S/MIME or a secure portal?
+        The response should not leave Kowalski with a general explanation
+        and no actionable path forward, especially given the stated one-week
+        timeline.
+      severity: secondary
+      miss_signal: >
+        Response provides a technically accurate explanation but ends without
+        concrete next steps, or lists only internal steps (obtaining a certificate)
+        without the external dependency step (contacting the auditor). Kowalski
+        cannot send an encrypted email next week without the auditor contact step.
+
+  level_indicators:
+    level_1: >
+      Acknowledges the request and offers to help set up encrypted email.
+      May mention S/MIME or certificates generically. Does not distinguish
+      between transport and message encryption. Does not identify the recipient
+      dependency. Response gives Kowalski no actionable path forward and
+      may leave him believing the problem is entirely on the internal side.
+    level_2: >
+      Mentions TLS and S/MIME as distinct things. Explains that a certificate
+      is needed for S/MIME. Does not explain TLS clearly enough to tell
+      Kowalski what it covers (in-transit between servers) and what it does
+      not (message content at the server). May describe the S/MIME setup
+      process without addressing the recipient dependency. Does NOT identify
+      the need to clarify the auditor's actual requirement before committing
+      to a solution.
+    level_3: >
+      Clearly distinguishes transport encryption (TLS, already in place,
+      hop-by-hop, does not protect content from server operators) from
+      message encryption (S/MIME, end-to-end, requires certificates on both
+      sides). Identifies the recipient dependency: Kowalski cannot send
+      encrypted messages until the auditor's certificate is obtained.
+      Recommends contacting Vance & Partners before any internal configuration
+      work to confirm they support S/MIME and to exchange certificates.
+      Provides actionable next steps. Does NOT raise the alternative (secure
+      portal / different approach) or the question of whether TLS satisfies
+      the auditor's actual requirement.
+    level_4: >
+      All of level 3, and raises the possibility that the auditor's
+      "encrypted email" requirement may be satisfied by TLS (if their concern
+      is network interception) or may mean something different entirely (a
+      secure portal). Recommends confirming the threat model or compliance
+      rationale with Vance & Partners before committing to S/MIME, since
+      a portal-based exchange may be simpler and more reliable for both
+      parties. If S/MIME is confirmed as the requirement, notes the practical
+      workflow for certificate exchange (signed email first, then encrypted)
+      and addresses the operational reality that Kowalski will need to manage
+      a certificate with an expiry date and understand what happens when it
+      expires or is sent to a contact who does not have his public key.

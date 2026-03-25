@@ -1,0 +1,22 @@
+Hi D. Kowalski,
+
+Thanks for this — happy to help get it sorted before your Q1 close deadline. Let me explain what "encrypted email" means in practice and what we need to do.
+
+What is already in place:
+Email between our mail servers and Vance & Partners' servers is already encrypted in transit using TLS. This protects the message while it is travelling between servers — someone intercepting the network connection cannot read the content. However, TLS is hop-by-hop: each mail server in the chain decrypts the message to process and forward it, then re-encrypts it for the next leg. The message content is accessible to the mail server operators at each hop. TLS does not protect the message from the receiving mail server or give you end-to-end confidentiality.
+
+What the auditor's request probably means:
+If Vance & Partners require message-level encryption — meaning only you and their staff can read the content, regardless of what mail servers handle it — that requires S/MIME. S/MIME encrypts the message body itself using the recipient's public key. Only someone with the corresponding private key can decrypt and read it.
+
+The critical dependency:
+S/MIME requires both parties to have certificates. To send an encrypted email to p.wade@vanceandpartners.com, you need Wade's public key — and Wade needs yours to reply encrypted. Neither side can encrypt to the other until they have exchanged certificates. This means the next step is not internal configuration work; it is a conversation with Vance & Partners to confirm they support S/MIME and to arrange the certificate exchange.
+
+Recommended next steps:
+1. Contact p.wade@vanceandpartners.com (or their IT team) and ask whether they support S/MIME and how they want to handle the initial key exchange. Many firms will send a signed email first, which carries their certificate automatically.
+2. Once confirmed, I will issue you an S/MIME certificate and configure Outlook on your laptop.
+3. We will do a test exchange with their team before you send anything sensitive.
+
+The setup on our side is straightforward once we know the auditor supports S/MIME. Please let me know what Vance & Partners say and we can move quickly from there.
+
+Thanks,
+IT Support

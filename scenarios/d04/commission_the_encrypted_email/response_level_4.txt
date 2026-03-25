@@ -1,0 +1,23 @@
+Hi D. Kowalski,
+
+Happy to help get this in place before your Q1 close. Before I start any configuration work, I want to make sure we set up the right thing — "encrypted email" can mean several different things, and which one is correct here depends on what Vance & Partners actually require.
+
+What is already in place:
+Email between our servers and Vance & Partners' servers is almost certainly already encrypted in transit via TLS. This protects the connection between mail servers — it is the email equivalent of HTTPS. If their compliance requirement is simply that documents should not be transmitted over an unencrypted connection, this is already satisfied and no additional configuration is needed.
+
+What S/MIME provides (and what it requires):
+If they require end-to-end message encryption — meaning only you and the recipient can read the content, with no mail server in the chain having access — that is S/MIME. S/MIME encrypts the message body itself. The key constraint is that it requires both parties to have digital certificates, and you need each other's public keys before the first encrypted message can be sent. This is not something we can configure unilaterally on our side; Vance & Partners must also support S/MIME and be willing to exchange certificates with you. Many auditing firms do not use S/MIME and instead prefer secure client portals for document exchange.
+
+What I would recommend:
+Before I issue you a certificate or configure anything, please reach out to p.wade@vanceandpartners.com or their IT team and ask two things: (1) what specifically does "encrypted email" mean for their requirement, and (2) do they support S/MIME or do they have a preferred secure document exchange method?
+
+If they confirm S/MIME: I will issue you a certificate from our CA, configure Outlook, and coordinate a test signed-email exchange with their team so both sides have each other's public keys before you send anything sensitive. Be aware that the certificate will have an expiry date (typically one year) and will need to be renewed — I will flag this for you well in advance.
+
+If they use a secure portal: this is often simpler and more reliable than S/MIME for external document exchange. I can help you get access set up.
+
+If TLS satisfies their requirement: no additional work is needed on either side.
+
+The one-week timeline is achievable for any of these paths, but only once we know which path is correct. Please let me know what Vance & Partners say.
+
+Thanks,
+IT Support

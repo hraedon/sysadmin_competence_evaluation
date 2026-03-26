@@ -1,0 +1,9 @@
+environments:
+  - id: env-01
+    vms: ["Env01-DC01", "Env01-SRV01"]
+    guac_connection_id: "10"
+    capabilities: ["windows-domain", "ad-ds", "iis"]
+  - id: env-02
+    vms: ["Env02-DC01", "Env02-SRV01"]
+    guac_connection_id: "11"
+    capabilities: ["windows-domain", "ad-ds", "iis"]

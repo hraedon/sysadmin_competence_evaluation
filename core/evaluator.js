@@ -144,7 +144,7 @@ export async function performEvaluation({
 
   const response = await client.chat.completions.create({
     model: model,
-    max_tokens: 2048,
+    max_tokens: 4096,
     messages,
   })
 

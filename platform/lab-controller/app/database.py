@@ -1,8 +1,10 @@
 from sqlalchemy import Column, Integer, String, DateTime, JSON, ForeignKey, Boolean
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy import create_engine
 import datetime
 import uuid
+from contextlib import contextmanager
 
 SQLALCHEMY_DATABASE_URL = "sqlite:///./lab_state.db"
 Base = declarative_base()
@@ -30,7 +32,6 @@ class LabSession(Base):
     max_expires_at = Column(DateTime)  # Hard cap (e.g., 4h)
 
 # Initialize engine and session
-from sqlalchemy import create_engine
 engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
@@ -43,3 +44,16 @@ def get_db():
         yield db
     finally:
         db.close()
+
+@contextmanager
+def session_scope():
+    """Provide a transactional scope around a series of operations."""
+    session = SessionLocal()
+    try:
+        yield session
+        session.commit()
+    except:
+        session.rollback()
+        raise
+    finally:
+        session.close()

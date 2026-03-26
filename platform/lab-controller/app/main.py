@@ -1,18 +1,20 @@
 from typing import List, Optional, Dict, Any
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 import yaml
 import os
 import datetime
 import uuid
 import logging
+import re
+import asyncio
 from pathlib import Path
 from sqlalchemy.orm import Session
 from apscheduler.schedulers.background import BackgroundScheduler
 
 from .orchestrator import HyperVOrchestrator
 from .guacamole import GuacamoleClient
-from .database import init_db, get_db, LabEnvironment, LabSession
+from .database import init_db, get_db, session_scope, LabEnvironment, LabSession
 from pydantic_settings import BaseSettings
 
 # ---------------------------------------------------------------------------
@@ -83,17 +85,18 @@ guac_client = GuacamoleClient(
 )
 
 @app.on_event("startup")
-def startup_event():
+async def startup_event():
     init_db()
-    load_environments()
+    await load_environments()
     
     # Start the reaper
     scheduler = BackgroundScheduler()
-    scheduler.add_job(reap_expired_sessions, 'interval', minutes=1)
+    # Note: reaper needs to be async-aware or run in a thread
+    scheduler.add_job(reap_expired_sessions_wrapper, 'interval', minutes=1)
     scheduler.start()
     app.state.scheduler = scheduler
 
-def load_environments():
+async def load_environments():
     """Seed the database with environments from config if not already present."""
     if not os.path.exists(settings.environments_config):
         logger.warning(f"Environments config {settings.environments_config} not found.")
@@ -102,77 +105,96 @@ def load_environments():
     with open(settings.environments_config, 'r') as f:
         config = yaml.safe_load(f)
     
-    db = next(get_db())
-    for env_data in config.get('environments', []):
-        existing = db.query(LabEnvironment).filter(LabEnvironment.id == env_data['id']).first()
-        if not existing:
-            env = LabEnvironment(
-                id=env_data['id'],
-                vms=env_data['vms'],
-                guac_connection_id=env_data['guac_connection_id'],
-                capabilities=env_data['capabilities'],
-                status="available"
-            )
-            db.add(env)
-    db.commit()
-    db.close()
+    with session_scope() as db:
+        for env_data in config.get('environments', []):
+            existing = db.query(LabEnvironment).filter(LabEnvironment.id == env_data['id']).first()
+            if not existing:
+                env = LabEnvironment(
+                    id=env_data['id'],
+                    vms=env_data['vms'],
+                    guac_connection_id=env_data['guac_connection_id'],
+                    capabilities=env_data['capabilities'],
+                    status=env_data.get('status', "available")
+                )
+                db.add(env)
 
 # ---------------------------------------------------------------------------
 # Reaper & Teardown
 # ---------------------------------------------------------------------------
 
-def reap_expired_sessions():
+def reap_expired_sessions_wrapper():
+    """Sync wrapper for async reaper."""
+    asyncio.run(reap_expired_sessions())
+
+async def reap_expired_sessions():
     """Background task to clean up expired lab environments."""
-    db = next(get_db())
     now = datetime.datetime.utcnow()
     
-    expired = db.query(LabSession).filter(LabSession.expires_at < now).all()
-    for session in expired:
-        logger.info(f"Reaping expired session {session.session_token} for env {session.environment_id}")
-        teardown_environment(session.environment_id, session.session_token)
-    
-    db.close()
+    with session_scope() as db:
+        expired = db.query(LabSession).filter(LabSession.expires_at < now).all()
+        for session in expired:
+            logger.info(f"Reaping expired session {session.session_token} for env {session.environment_id}")
+            # We trigger teardown but we need to be careful about async from sync reaper
+            # For now we'll do it sequentially in this background task
+            await teardown_environment_logic(session.environment_id, session.session_token)
 
-def teardown_environment(env_id: str, session_token: str):
+async def teardown_environment_logic(env_id: str, session_token: str):
     """Reverts VMs and marks environment as available."""
-    db = next(get_db())
-    env = db.query(LabEnvironment).filter(LabEnvironment.id == env_id).first()
-    if not env:
-        db.close()
-        return
+    with session_scope() as db:
+        env = db.query(LabEnvironment).filter(LabEnvironment.id == env_id).first()
+        if not env:
+            return
 
-    env.status = "teardown"
-    db.commit()
+        env.status = "teardown"
+        db.commit() # Commit status change immediately
 
-    try:
-        # Assuming all VMs in the pool use the same 'Baseline' checkpoint for now
-        # In the future, this could be scenario-specific if we don't revert to absolute zero
-        checkpoint = "Baseline" 
-        
-        success = True
-        for vm in env.vms:
-            logger.info(f"Teardown: Reverting {vm}")
-            res = orchestrator.revert_to_checkpoint(vm, checkpoint)
-            if not res.success:
-                success = False
-                env.last_error = f"Teardown failed on {vm}: {res.error}"
-                break
-        
-        if success:
-            env.status = "available"
-            env.last_error = None
-            # Delete the session
-            db.query(LabSession).filter(LabSession.session_token == session_token).delete()
-        else:
-            env.status = "faulted"
+        try:
+            checkpoint = "Baseline" 
+            success = True
+            for vm in env.vms:
+                logger.info(f"Teardown: Reverting {vm}")
+                res = await orchestrator.revert_to_checkpoint(vm, checkpoint)
+                if not res.success:
+                    success = False
+                    env.last_error = f"Teardown failed on {vm}: {res.error}"
+                    break
             
-    except Exception as e:
-        logger.error(f"Teardown exception for {env_id}: {str(e)}")
-        env.status = "faulted"
-        env.last_error = str(e)
+            if success:
+                env.status = "available"
+                env.last_error = None
+                # Delete the session
+                db.query(LabSession).filter(LabSession.session_token == session_token).delete()
+            else:
+                env.status = "faulted"
+                
+        except Exception as e:
+            logger.error(f"Teardown exception for {env_id}: {str(e)}")
+            env.status = "faulted"
+            env.last_error = str(e)
+
+# ---------------------------------------------------------------------------
+# Utilities
+# ---------------------------------------------------------------------------
+
+def sanitize_scenario_id(scenario_id: str) -> str:
+    """Validate and sanitize scenario_id to prevent path traversal."""
+    if not re.match(r'^[a-z0-9\-]+$', scenario_id):
+        raise HTTPException(status_code=400, detail="Invalid scenario_id format.")
+    return scenario_id
+
+def resolve_scenario_path(scenario_id: str) -> Path:
+    """Resolve scenario_id to a file path, ensuring it stays within scenarios_dir."""
+    scenarios_dir = Path(settings.scenarios_dir).resolve()
+    # Standard convention: dXX-name-here -> dXX/name_here/scenario.yaml
+    # But current data uses hyphens in IDs that map to underscores in dirs sometimes.
+    # We'll use the ID-to-path logic from the current implementation but sanitize.
+    rel_path = scenario_id.replace('-', '/')
+    scenario_path = (scenarios_dir / rel_path / "scenario.yaml").resolve()
     
-    db.commit()
-    db.close()
+    if not str(scenario_path).startswith(str(scenarios_dir)):
+        raise HTTPException(status_code=400, detail="Invalid scenario_id path.")
+    
+    return scenario_path
 
 # ---------------------------------------------------------------------------
 # API Endpoints
@@ -188,7 +210,7 @@ async def get_status(db: Session = Depends(get_db)):
     sessions = db.query(LabSession).all()
     return {
         "environments": [
-            {"id": e.id, "status": e.status, "capabilities": e.capabilities, "updated_at": e.updated_at} 
+            {"id": e.id, "status": e.status, "capabilities": e.capabilities, "updated_at": e.updated_at, "last_error": e.last_error} 
             for e in envs
         ],
         "active_sessions": len(sessions)
@@ -201,9 +223,8 @@ async def provision_lab(
     background_tasks: BackgroundTasks, 
     db: Session = Depends(get_db)
 ):
-    # 1. Load scenario to verify it exists and get Mode E config
-    scenarios_dir = Path(settings.scenarios_dir)
-    scenario_path = scenarios_dir / f"{scenario_id.replace('-', '/')}/scenario.yaml"
+    scenario_id = sanitize_scenario_id(scenario_id)
+    scenario_path = resolve_scenario_path(scenario_id)
     
     if not scenario_path.exists():
         raise HTTPException(status_code=404, detail=f"Scenario {scenario_id} not found.")
@@ -215,22 +236,27 @@ async def provision_lab(
     if not mode_e:
         raise HTTPException(status_code=400, detail="Scenario does not support Mode E (Lab)")
 
-    # 2. Find an available environment that matches capabilities
-    # SQLite doesn't have SELECT FOR UPDATE but for this scale a simple status check is okay.
-    # In production with multiple workers, we'd use a more robust locking mechanism.
-    env = db.query(LabEnvironment).filter(
-        LabEnvironment.status == "available"
-    ).first()
-    
+    # 1. Atomic search-and-lock
+    # We use a transaction and an immediate update to ensure we own the environment.
+    # SQLite doesn't have SELECT FOR UPDATE, so we update status and check if it worked.
+    env = db.query(LabEnvironment).filter(LabEnvironment.status == "available").first()
     if not env:
-        # TODO: Implement queueing. For now, 503.
-        raise HTTPException(status_code=503, detail="No lab environments currently available. Please try again in a few minutes.")
+        raise HTTPException(status_code=503, detail="No lab environments currently available.")
 
-    # 3. Lock the environment immediately (The Mutex)
-    env.status = "provisioning"
+    # Mutex: Update status to provisioning only if it's still available
+    affected = db.query(LabEnvironment).filter(
+        LabEnvironment.id == env.id,
+        LabEnvironment.status == "available"
+    ).update({"status": "provisioning"})
+    
+    if affected == 0:
+        # Someone else grabbed it between our SELECT and UPDATE
+        db.rollback()
+        raise HTTPException(status_code=503, detail="Contention detected. Please retry.")
+    
     db.commit()
 
-    # 4. Create Session
+    # 2. Create Session
     session_token = str(uuid.uuid4())
     expires_at = datetime.datetime.utcnow() + datetime.timedelta(minutes=settings.session_timeout_minutes)
     max_expires_at = datetime.datetime.utcnow() + datetime.timedelta(hours=settings.max_session_hours)
@@ -238,7 +264,7 @@ async def provision_lab(
     new_session = LabSession(
         session_token=session_token,
         environment_id=env.id,
-        user_id=req.user_id,
+        user_id=req.id if hasattr(req, 'id') else req.user_id, # Handle minor model mismatch
         scenario_id=scenario_id,
         expires_at=expires_at,
         max_expires_at=max_expires_at
@@ -246,18 +272,16 @@ async def provision_lab(
     db.add(new_session)
     db.commit()
 
-    # 5. Run provisioning in background
+    # 3. Run provisioning in background
+    # BackgroundTasks handles async def correctly
     background_tasks.add_task(
         run_provisioning_flow, 
         env.id, 
-        scenario_id, 
+        scenario_path, 
         mode_e, 
         session_token
     )
 
-    # Note: Returning Guacamole URL immediately might be premature if it's still provisioning,
-    # but the frontend will poll /status or handle the delay.
-    # For now, we return the pre-configured Guac connection URL or similar.
     guac_url = f"{settings.guacamole_url}/#/client/{env.guac_connection_id}"
 
     return ProvisionResponse(
@@ -269,54 +293,60 @@ async def provision_lab(
         instructions=mode_e.get('instructions', '')
     )
 
-async def run_provisioning_flow(env_id: str, scenario_id: str, mode_e: dict, session_token: str):
+async def run_provisioning_flow(env_id: str, scenario_path: Path, mode_e: dict, session_token: str):
     """The actual heavy lifting of reverting, starting, and configuring VMs."""
-    db = next(get_db())
-    env = db.query(LabEnvironment).filter(LabEnvironment.id == env_id).first()
-    
     try:
         checkpoint = mode_e.get('checkpoint', 'Baseline')
-        vm_targets = env.vms # Use all VMs in the pool for this environment
         config = mode_e.get('config', {})
-        provisioning_actions = config.get('provisioning', [])
-
-        # 1. Revert & Start
-        for vm in vm_targets:
-            orchestrator.revert_to_checkpoint(vm, checkpoint)
-            orchestrator.start_vm(vm)
+        provisioning_actions = config.get('provisioning', []) if config else []
         
-        # 2. Wait for readiness
-        for vm in vm_targets:
-            orchestrator.wait_for_guest_readiness(vm)
+        with session_scope() as db:
+            env = db.query(LabEnvironment).filter(LabEnvironment.id == env_id).first()
+            if not env: return
+            vm_targets = env.vms
 
-        # 3. Provisioning Actions (Scripts, Files)
-        # (Implementation same as previous main.py but mapping to correct VM targets)
-        # ... logic omitted for brevity but would iterate actions ...
+            # 1. Revert & Start
+            for vm in vm_targets:
+                await orchestrator.revert_to_checkpoint(vm, checkpoint)
+                await orchestrator.start_vm(vm)
+            
+            # 2. Wait for readiness
+            for vm in vm_targets:
+                await orchestrator.wait_for_guest_readiness(vm)
 
-        env.status = "busy"
-        env.last_error = None
+            # 3. Provisioning Actions (Scripts, Files)
+            for action in provisioning_actions:
+                target = action.get('target')
+                act_type = action.get('action')
+                
+                if act_type == "run_script":
+                    script_file = action.get('file')
+                    script_path = scenario_path.parent / script_file
+                    await orchestrator.run_script_in_guest(target, str(script_path))
+                elif act_type == "copy_file":
+                    src = scenario_path.parent / action.get('source')
+                    dest = action.get('destination')
+                    await orchestrator.copy_file_to_guest(target, str(src), dest)
+
+            env.status = "busy"
+            env.last_error = None
     except Exception as e:
         logger.error(f"Provisioning failed for {env_id}: {str(e)}")
-        env.status = "faulted"
-        env.last_error = str(e)
-    
-    db.commit()
-    db.close()
+        with session_scope() as db:
+            env = db.query(LabEnvironment).filter(LabEnvironment.id == env_id).first()
+            if env:
+                env.status = "faulted"
+                env.last_error = str(e)
 
 @app.post("/lab/renew/{session_token}")
 async def renew_session(session_token: str, db: Session = Depends(get_db)):
     session = db.query(LabSession).filter(LabSession.session_token == session_token).first()
     if not session:
-        raise HTTPException(status_code=404, detail="Session not found or already reaped.")
+        raise HTTPException(status_code=404, detail="Session not found.")
     
     now = datetime.datetime.utcnow()
-    new_expiry = now + datetime.timedelta(minutes=30)
-    
-    # Cap at max_expires_at
-    if new_expiry > session.max_expires_at:
-        new_expiry = session.max_expires_at
-        
-    session.expires_at = new_expiry
+    # Renewal adds 30m from now, up to the max cap
+    session.expires_at = min(now + datetime.timedelta(minutes=30), session.max_expires_at)
     db.commit()
     
     return {"expires_at": session.expires_at}
@@ -327,14 +357,51 @@ async def verify_lab(session_token: str, db: Session = Depends(get_db)):
     if not session:
         raise HTTPException(status_code=404, detail="Active session not found.")
     
-    # TODO: Implement actual verification via scripts
-    return [
-        VerificationResult(
-            finding_id="example", 
-            status="correct", 
-            detail="Verified successfully."
-        )
-    ]
+    # 1. Resolve scenario path to find verification scripts
+    scenario_id = session.scenario_id
+    scenario_path = resolve_scenario_path(scenario_id)
+    
+    with open(scenario_path, 'r') as f:
+        scenario = yaml.safe_load(f)
+    
+    mode_e = scenario.get('presentation', {}).get('modes', {}).get('E', {})
+    config = mode_e.get('config', {})
+    verification_steps = config.get('verification', [])
+    
+    env = db.query(LabEnvironment).filter(LabEnvironment.id == session.environment_id).first()
+    
+    results = []
+    for step in verification_steps:
+        target = step.get('target')
+        script_file = step.get('file')
+        finding_id = step.get('finding_id')
+        
+        script_path = scenario_path.parent / script_file
+        res = await orchestrator.run_script_in_guest(target, str(script_path))
+        
+        if res.success:
+            try:
+                # Expecting JSON output from the script
+                parsed = json.loads(res.output)
+                results.append(VerificationResult(
+                    finding_id=finding_id,
+                    status=parsed.get('status', 'incomplete'),
+                    detail=parsed.get('detail', '')
+                ))
+            except:
+                results.append(VerificationResult(
+                    finding_id=finding_id,
+                    status="incomplete",
+                    detail="Verification script output could not be parsed."
+                ))
+        else:
+            results.append(VerificationResult(
+                finding_id=finding_id,
+                status="incomplete",
+                detail=f"Verification script failed: {res.error}"
+            ))
+            
+    return results
 
 if __name__ == "__main__":
     import uvicorn

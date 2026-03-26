@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: assessment
-          image: ghcr.io/hraedon/sysadmin_competence_evaluation:196083ff6010480f4682756ae40f2d40ca2f31c8
+          image: ghcr.io/hraedon/sysadmin_competence_evaluation:d028e5d7a8ce5a9c62335b739bec8e679f02b16e
           imagePullPolicy: Always
           ports:
             - containerPort: 80

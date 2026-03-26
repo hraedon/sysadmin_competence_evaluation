@@ -1,8 +1,8 @@
-schema_version: '2.0'
+schema_version: 2.0
 id: d04-commission-the-encrypted-email
 title: The Encrypted Email Request
 domain: 4
-domain_name: PKI & Certificates
+domain_name: Certificate & PKI Management
 level: 3
 delivery_modes:
   - B

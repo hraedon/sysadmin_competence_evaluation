@@ -1,4 +1,4 @@
-schema_version: '2.0'
+schema_version: 2.0
 id: d09-commission-write-the-pre-mortem
 title: Assume It Failed
 domain: 9

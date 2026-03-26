@@ -1,4 +1,4 @@
-schema_version: '2.0'
+schema_version: 2.0
 id: d04-audit-trust-store-addition
 title: Trust Store Addition
 domain: 4

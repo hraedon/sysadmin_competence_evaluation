@@ -25,7 +25,8 @@ The exercises test reasoning, not recall. A candidate who has memorized the righ
 
 ```
 core/                    Shared JavaScript evaluator logic
-scenarios/               Exercise definitions and artifacts (50+ scenarios)
+scenarios/               Exercise definitions and artifacts (53 scenarios)
+
   d01-d11/               Standard technical domains
   d12/                   Linux Administration (3 synthesis scenarios)
   d13/                   Cross-domain Synthesis

@@ -1,4 +1,4 @@
-schema_version: '2.0'
+schema_version: 2.0
 id: d13-audit-the-cloud-access-failure
 title: The Change That Didn't Touch Azure
 domain: 13

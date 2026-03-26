@@ -1,4 +1,4 @@
-schema_version: '2.0'
+schema_version: 2.0
 id: d12-audit-the-403
 title: The 403
 domain: 12

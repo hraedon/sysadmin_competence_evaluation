@@ -1,8 +1,8 @@
-schema_version: '2.0'
+schema_version: 2.0
 id: d09-audit-the-incident-review
 title: Admin Error
 domain: 9
-domain_name: Change Management
+domain_name: Change Management Discipline
 level: 2
 delivery_modes:
   - A

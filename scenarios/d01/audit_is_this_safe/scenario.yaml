@@ -1,4 +1,4 @@
-schema_version: '2.0'
+schema_version: 2.0
 id: d01-audit-is-this-safe
 title: Is This Safe to Run in Production?
 domain: 1

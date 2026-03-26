@@ -1,4 +1,4 @@
-schema_version: '2.0'
+schema_version: 2.0
 id: d02-audit-mfa-exclusion-outlived
 title: The Exclusion That Outlived Its Purpose
 domain: 2

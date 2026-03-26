@@ -1,4 +1,4 @@
-schema_version: '2.0'
+schema_version: 2.0
 id: d05-audit-cloud-storage-complaint
 title: The Test That Didn't Test
 domain: 5

@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     guacamole_url: str = "http://localhost:8080/guacamole"
     guacamole_username: str = ""
     guacamole_password: str = ""
+    scenarios_dir: str = "../../scenarios"
     dry_run: bool = True
 
     class Config:
@@ -64,12 +65,13 @@ async def health_check():
 
 @app.post("/lab/provision/{scenario_id}")
 async def provision_lab(scenario_id: str, background_tasks: BackgroundTasks):
-    # Path to scenarios (assuming relative to project root)
-    scenario_path = Path(f"../../scenarios/{scenario_id.replace('-', '/')}/scenario.yaml")
+    # Path to scenarios (using configured directory)
+    scenarios_dir = Path(settings.scenarios_dir)
+    scenario_path = scenarios_dir / f"{scenario_id.replace('-', '/')}/scenario.yaml"
     
     if not scenario_path.exists():
         # Fallback search if path doesn't exist
-        raise HTTPException(status_code=404, detail=f"Scenario {scenario_id} not found.")
+        raise HTTPException(status_code=404, detail=f"Scenario {scenario_id} not found at {scenario_path}.")
 
     with open(scenario_path, 'r') as f:
         scenario = yaml.safe_load(f)

@@ -1,4 +1,4 @@
-schema_version: '2.0'
+schema_version: 2.0
 id: d07-audit-the-blocked-access
 title: Cloud Access Troubleshooting
 domain: 7

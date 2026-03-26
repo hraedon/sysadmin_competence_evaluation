@@ -66,6 +66,20 @@ for (const file of yamlFiles) {
           context: activePresentation.context
         }
       }
+
+      // 3. Normalize rubric findings for backward compatibility with EvalPanel.jsx
+      if (data.rubric && Array.isArray(data.rubric.findings)) {
+        data.rubric.critical_findings = data.rubric.findings.filter(f => f.type === 'critical')
+        data.rubric.secondary_findings = data.rubric.findings.filter(f => f.type === 'secondary')
+      }
+
+      // 4. Normalize difficulty to a number
+      if (typeof data.difficulty === 'object' && data.difficulty !== null) {
+        data.difficulty = data.difficulty.score
+      }
+      if (data.difficulty) {
+        data.difficulty = Number(data.difficulty)
+      }
     }
 
     // Store the path relative to SCENARIOS_DIR so the frontend can build fetch URLs

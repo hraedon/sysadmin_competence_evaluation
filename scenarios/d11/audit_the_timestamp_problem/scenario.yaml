@@ -1,4 +1,4 @@
-schema_version: '2.0'
+schema_version: 2.0
 id: d11-audit-the-timestamp-problem
 title: The Four-Hour Gap
 domain: 11

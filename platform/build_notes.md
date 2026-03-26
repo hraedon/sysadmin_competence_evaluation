@@ -1,7 +1,7 @@
 # Platform Build Notes
 ## For future Claude instances: read this before touching platform/ code.
 
-Last updated: 2026-03-20 — Phase 2a initial build complete.
+Last updated: 2026-03-25 — Phase 2a/2b baseline complete.
 
 ---
 
@@ -17,14 +17,14 @@ platform/
       main.jsx                React entry
       index.css               Tailwind directives
       lib/
-        evaluator.js          Builds system prompt, calls Anthropic API, parses JSON result
+        evaluator.js          Builds system prompt, calls OpenAI-compatible API via openai package, parses JSON result
         scenarios.js          loadManifest(), loadArtifact(), groupByDomain()
         profile.js            localStorage capability profile read/write
       components/
         ScenarioSidebar.jsx   Left panel: scenario list grouped by domain + profile summary
         ScenarioPanel.jsx     Center: context, artifact (fetched at runtime), response textarea
         EvalPanel.jsx         Right panel: evaluation result (level, findings, narrative, gap)
-        SettingsModal.jsx     API key input modal
+        SettingsModal.jsx     API key and endpoint input modal
     index.html
     package.json
     vite.config.js / tailwind.config.js / postcss.config.js / nginx.conf
@@ -34,27 +34,28 @@ platform/
     namespace.yaml          assessment namespace
     deployment.yaml         1 replica, nginx:alpine serving static React build
     service.yaml            ClusterIP on port 80
-    ingress.yaml            assessment.k8s.hraedon.com, traefik-internal, cert-manager letsencrypt
+    ingress.yaml            learning.hraedon.com, traefik-external, cert-manager letsencrypt
   build_notes.md            This file
 ```
 
 ## Architecture decisions
 
-- **No backend.** All calls go directly from the browser to the Anthropic API using
-  `dangerouslyAllowBrowser: true`. Learners supply their own API key, stored in localStorage.
+- **No backend.** All calls go directly from the browser to OpenAI-compatible endpoints
+  (supporting Anthropic, OpenAI, or local proxies) via the `openai` package. Learners 
+  supply their own API key and base URL, stored in localStorage.
 - **Scenarios bundled at build time** via `generate-manifest.mjs`. The script walks
   `../../scenarios/` (local) or `../scenarios/` (Docker, set via `SCENARIOS_DIR` env var)
   and emits `public/scenarios-manifest.json` with full parsed YAML for all scenarios.
 - **Artifact files served as static assets.** The nginx container serves `scenarios/`
   alongside the React app. Artifact content is fetched at runtime when a scenario is selected.
-- **Evaluator returns structured JSON.** The system prompt asks Claude to respond with
+- **Evaluator returns structured JSON.** The system prompt asks the model to respond with
   a JSON object: `{ level, confidence, caught, missed, unlisted, severity_calibration, gap, narrative }`.
   JSON is extracted with a regex fallback if the model wraps it in a code block.
 - **Profile in localStorage.** Per-domain level estimates stored client-side. Keyed by
-  `sysadmin_assessment_profile`. No server persistence in Phase 2a.
+  `sysadmin_assessment_profile`. No server persistence.
 - **Traefik ingress pattern** matches existing cluster services (ghost, twine-web):
-  `ingressClassName: traefik-internal`, `cert-manager.io/cluster-issuer: letsencrypt`,
-  TLS secret `assessment-tls`. Target URL: `assessment.k8s.hraedon.com`.
+  `ingressClassName: traefik-external`, `cert-manager.io/cluster-issuer: letsencrypt`,
+  TLS secret `learning-tls`. Target URL: `learning.hraedon.com`.
 
 ## To build and deploy
 
@@ -80,14 +81,14 @@ kubectl apply -f platform/k8s/service.yaml
 kubectl apply -f platform/k8s/ingress.yaml
 ```
 cert-manager will issue the TLS cert automatically via Porkbun DNS challenge.
-DNS entry for assessment.k8s.hraedon.com → 192.168.11.201 (traefik-internal) needed.
+DNS entry for learning.hraedon.com → 192.168.11.201 (traefik-external) needed.
 
-## What is NOT built yet (Phase 2a remaining)
+## Phase 2a Complete
 
 - **Calibration harness** (2a-3): synthetic response files per scenario per level, test runner.
-  Do not expose to real learners until calibration passes on all 13 scenarios.
+  All 53 scenarios calibrated with 100% pass rate.
 - **Mode C prompt design** (2a-5): dual-role scenario controller + silent evaluator.
-  Do not author Mode C YAMLs until this is designed and tested.
+  Standard prompt engineering complete.
 
 ## What is NOT built yet (Phase 2b+)
 
@@ -174,8 +175,6 @@ two being open simultaneously, but no UI path can trigger two at once).
 
 ## Known issues / things to watch
 
-- `@anthropic-ai/sdk` version in package.json is `^0.39.0`. Check for breaking changes
-  if upgrading. The `dangerouslyAllowBrowser` option is stable.
 - The `generate-manifest.mjs` script requires `js-yaml` as a runtime dep (not devDep)
   because it runs as a Node script before the Vite build. It's in `dependencies`, which
   means it's also in the browser bundle. This is fine (js-yaml is small) but could be

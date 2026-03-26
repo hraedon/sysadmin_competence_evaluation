@@ -1,4 +1,4 @@
-schema_version: '2.0'
+schema_version: 2.0
 id: d02-audit-pta-agent-outage
 title: The Redundant Outage
 domain: 2

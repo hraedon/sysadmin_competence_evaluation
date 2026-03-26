@@ -1,4 +1,4 @@
-schema_version: '2.0'
+schema_version: 2.0
 id: d02-audit-sql-spn-break
 title: The Change That Wasn't Rolled Back
 domain: 2

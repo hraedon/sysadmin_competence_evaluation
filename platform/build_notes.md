@@ -83,14 +83,17 @@ kubectl apply -f platform/k8s/ingress.yaml
 cert-manager will issue the TLS cert automatically via Porkbun DNS challenge.
 DNS entry for learning.hraedon.com → 192.168.11.201 (traefik-external) needed.
 
-## Phase 2a Complete
+## Phase 2a/2b Baseline Complete
 
 - **Calibration harness** (2a-3): synthetic response files per scenario per level, test runner.
   All 53 scenarios calibrated with 100% pass rate.
 - **Mode C prompt design** (2a-5): dual-role scenario controller + silent evaluator.
   Standard prompt engineering complete.
+- **Lab Controller** (2b-1): Scaffolded and feature-complete (async orchestration, 
+  pooled environment locking, session lifecycle, verification). Awaiting 
+  production deployment against live Hyper-V VMs.
 
-## What is NOT built yet (Phase 2b+)
+## What is NOT built yet (Phase 2b+ remaining)
 
 - Lab controller API (setup/restore VM checkpoints, run validation scripts)
 - Guacamole deployment for browser-based RDP/SSH

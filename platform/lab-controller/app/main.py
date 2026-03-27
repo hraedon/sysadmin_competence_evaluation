@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     guacamole_url: str = "http://localhost:8080/guacamole"
     guacamole_username: str = ""
     guacamole_password: str = ""
-    scenarios_dir: str = "../../scenarios"
+    scenarios_dir: str = "/scenarios"
     environments_config: str = "environments.yaml"
     session_timeout_minutes: int = 120
     max_session_hours: int = 4
@@ -253,8 +253,18 @@ def sanitize_scenario_id(scenario_id: str) -> str:
 
 def resolve_scenario_path(scenario_id: str) -> Path:
     scenarios_dir = Path(settings.scenarios_dir).resolve()
-    rel_path = scenario_id.replace('-', '/')
-    scenario_path = (scenarios_dir / rel_path / "scenario.yaml").resolve()
+    
+    # Expected format: dXX-scenario-name
+    # Maps to: dXX/scenario_name/scenario.yaml
+    parts = scenario_id.split('-', 1)
+    if len(parts) != 2:
+        raise HTTPException(status_code=400, detail="Invalid scenario_id format. Expected dXX-name.")
+    
+    domain_dir = parts[0]
+    scenario_folder = parts[1].replace('-', '_')
+    
+    scenario_path = (scenarios_dir / domain_dir / scenario_folder / "scenario.yaml").resolve()
+    
     if not str(scenario_path).startswith(str(scenarios_dir)):
         raise HTTPException(status_code=400, detail="Invalid scenario_id path.")
     return scenario_path

@@ -1,0 +1,80 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lab-controller
+  namespace: assessment
+  labels:
+    app: lab-controller
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: lab-controller
+  template:
+    metadata:
+      labels:
+        app: lab-controller
+    spec:
+      containers:
+        - name: lab-controller
+          image: ghcr.io/hraedon/sysadmin_competence_evaluation-lab-controller:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8000
+              name: http
+          env:
+            - name: GUACAMOLE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: lab-controller-secret
+                  key: GUACAMOLE_URL
+            - name: GUACAMOLE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: lab-controller-secret
+                  key: GUACAMOLE_USERNAME
+            - name: GUACAMOLE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: lab-controller-secret
+                  key: GUACAMOLE_PASSWORD
+            - name: HYPERV_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: lab-controller-secret
+                  key: HYPERV_HOST
+            - name: HYPERV_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: lab-controller-secret
+                  key: HYPERV_USERNAME
+            - name: HYPERV_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: lab-controller-secret
+                  key: HYPERV_PASSWORD
+            - name: HYPERV_GUEST_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: lab-controller-secret
+                  key: HYPERV_GUEST_USERNAME
+            - name: HYPERV_GUEST_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: lab-controller-secret
+                  key: HYPERV_GUEST_PASSWORD
+            - name: CONTROLLER_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: lab-controller-secret
+                  key: CONTROLLER_API_KEY
+            - name: DRY_RUN
+              value: "False"
+            - name: SQLALCHEMY_DATABASE_URL
+              value: "sqlite:////data/lab_state.db"
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          emptyDir: {}

@@ -21,7 +21,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push
+      - name: Build and push assessment app
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -33,11 +33,23 @@ jobs:
           build-args: |
             VITE_CONTROLLER_KEY=${{ secrets.VITE_CONTROLLER_KEY }}
 
-      - name: Update deployment image tag
+      - name: Build and push lab controller
+        uses: docker/build-push-action@v6
+        with:
+          context: platform/lab-controller
+          file: platform/lab-controller/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}-lab-controller:latest
+            ghcr.io/${{ github.repository }}-lab-controller:${{ github.sha }}
+
+      - name: Update deployment image tags
         run: |
           sed -i "s|image: ghcr.io/${{ github.repository }}:.*|image: ghcr.io/${{ github.repository }}:${{ github.sha }}|" platform/k8s/deployment.yaml
+          sed -i "s|image: ghcr.io/${{ github.repository }}-lab-controller:.*|image: ghcr.io/${{ github.repository }}-lab-controller:${{ github.sha }}|" platform/k8s/lab-controller-deployment.yaml
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add platform/k8s/deployment.yaml
-          git diff --staged --quiet || git commit -m "ci: update assessment image to ${{ github.sha }}"
+          git add platform/k8s/lab-controller-deployment.yaml
+          git diff --staged --quiet || git commit -m "ci: update image tags to ${{ github.sha }}"
           git push

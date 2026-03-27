@@ -13,6 +13,13 @@ spec:
     - host: learning.hraedon.com
       http:
         paths:
+          - path: /lab
+            pathType: Prefix
+            backend:
+              service:
+                name: lab-controller
+                port:
+                  number: 8000
           - path: /
             pathType: Prefix
             backend:

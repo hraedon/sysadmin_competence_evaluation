@@ -18,7 +18,7 @@ export const DEFAULT_SETTINGS = {
   apiKey: '',
   model: 'qwen3-next-80b-a3b-instruct-mlx',
   evaluatorMode: 'auditor',
-  labControllerUrl: 'http://localhost:8000',
+  labControllerUrl: IS_PRODUCTION ? 'https://learning.hraedon.com/lab' : 'http://localhost:8000',
 }
 
 /** Load settings from localStorage, migrating legacy keys and ensuring modern defaults. */

@@ -44,14 +44,16 @@ class HyperVOrchestrator:
     def _remote_wrap(self, inner_command: str) -> str:
         """Wraps an inner PowerShell command to execute on the Hyper-V host via WinRM."""
         esc_user = self.username.replace("'", "''")
-        esc_pw   = self.password.replace("'", "''")
         esc_host = self.host.replace("'", "''")
+        # Pass the Hyper-V host password via environment variable (local to pwsh process).
+        # Pass the Guest OS password via -ArgumentList so it's available inside the remote ScriptBlock.
         return (
             f"$ErrorActionPreference = 'Stop'; "
             f"$cred = [System.Management.Automation.PSCredential]::new("
-            f"'{esc_user}', (ConvertTo-SecureString '{esc_pw}' -AsPlainText -Force)); "
+            f"'{esc_user}', (ConvertTo-SecureString $env:HYPERV_PASSWORD -AsPlainText -Force)); "
             f"Invoke-Command -ComputerName '{esc_host}' -Credential $cred "
-            f"-ScriptBlock {{ {inner_command} }}"
+            f"-ScriptBlock {{ param($GUEST_PW) {inner_command} }} "
+            f"-ArgumentList $env:HYPERV_GUEST_PASSWORD"
         )
 
     async def _run_ps(self, command: str) -> OrchestrationResult:
@@ -61,11 +63,16 @@ class HyperVOrchestrator:
             await asyncio.sleep(0.5)
             return OrchestrationResult(success=True, output="Dry run success")
 
+        env = os.environ.copy()
+        env["HYPERV_PASSWORD"] = self.password
+        env["HYPERV_GUEST_PASSWORD"] = self.guest_password
+
         try:
             process = await asyncio.create_subprocess_exec(
                 "pwsh", "-NoProfile", "-NonInteractive", "-Command", command,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
+                env=env
             )
             stdout, stderr = await process.communicate()
             if process.returncode == 0:
@@ -131,20 +138,19 @@ class HyperVOrchestrator:
     def _guest_cred_ps(self) -> str:
         """Returns a PowerShell snippet that creates $guestCred from guest credentials."""
         esc_user = self.guest_username.replace("'", "''")
-        esc_pw   = self.guest_password.replace("'", "''")
+        # GUEST_PW is passed via -ArgumentList in _remote_wrap and available in the remote ScriptBlock.
         return (
             f"$guestCred = [System.Management.Automation.PSCredential]::new("
-            f"'{esc_user}', (ConvertTo-SecureString '{esc_pw}' -AsPlainText -Force)); "
+            f"'{esc_user}', (ConvertTo-SecureString $GUEST_PW -AsPlainText -Force)); "
         )
 
     async def run_script_in_guest(self, vm_name: str, script_path: str) -> OrchestrationResult:
         """
         Runs a local script file inside the guest VM using PowerShell Direct.
 
-        The script content is read from disk, single-quotes are escaped, and the
-        content is embedded in a ScriptBlock sent to the VM via Invoke-Command -VMName
-        (which runs on the Hyper-V host). Scripts should prefer double-quoted strings
-        to keep escaping straightforward.
+        Instead of injecting script content into a string (which is fragile),
+        this method copies the script file to the guest's C:\Windows\Temp
+        directory and then executes it.
         """
         if self.dry_run:
             logger.info(f"[DRY RUN] Running script in {vm_name}: {script_path}")
@@ -156,16 +162,22 @@ class HyperVOrchestrator:
 
         if not os.path.exists(script_path):
             return OrchestrationResult(success=False, output="", error=f"Script not found: {script_path}")
+
+        # 1. Copy script to guest
+        filename = os.path.basename(script_path)
+        guest_path = f"C:\\Windows\\Temp\\{filename}"
+        copy_res = await self.copy_file_to_guest(vm_name, script_path, guest_path)
+        if not copy_res.success:
+            return copy_res
+
+        # 2. Execute script in guest
         try:
-            with open(script_path, 'r', encoding='utf-8') as f:
-                content = f.read()
-            escaped = content.replace("'", "''")
             cred_snippet = self._guest_cred_ps() if self.guest_username else ""
             inner = (
                 f"{cred_snippet}"
                 f"Invoke-Command -VMName '{vm_name}'"
                 f"{' -Credential $guestCred' if self.guest_username else ''}"
-                f" -ScriptBlock {{ {escaped} }}"
+                f" -ScriptBlock {{ & '{guest_path}' }}"
             )
             return await self._run_ps(self._remote_wrap(inner))
         except Exception as e:

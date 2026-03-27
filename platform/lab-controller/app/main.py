@@ -1,5 +1,5 @@
 from typing import List, Optional, Dict, Any
-from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends, Header
 from pydantic import BaseModel, Field
 import yaml
 import os
@@ -39,11 +39,21 @@ class Settings(BaseSettings):
     # Guest OS credentials for PowerShell Direct (lab domain admin)
     hyperv_guest_username: str = "ad.labdomain.dev\\claude"
     hyperv_guest_password: str = ""
+    controller_api_key: str = "dev-key-change-me"
 
     class Config:
         env_file = ".env"
 
 settings = Settings()
+
+# ---------------------------------------------------------------------------
+# Auth Dependency
+# ---------------------------------------------------------------------------
+
+async def verify_api_key(x_api_key: str = Header(...)):
+    if x_api_key != settings.controller_api_key:
+        raise HTTPException(status_code=403, detail="Invalid API Key")
+    return x_api_key
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -140,6 +150,8 @@ async def load_environments():
                     id=env_data['id'],
                     vms=env_data['vms'],
                     guac_connection_id=env_data['guac_connection_id'],
+                    guac_target_vm=env_data.get('guac_target_vm'),
+                    guac_protocol=env_data.get('guac_protocol'),
                     capabilities=env_data['capabilities'],
                     status=target_status
                 )
@@ -149,6 +161,8 @@ async def load_environments():
                 existing.vms = env_data['vms']
                 existing.capabilities = env_data['capabilities']
                 existing.guac_connection_id = env_data['guac_connection_id']
+                existing.guac_target_vm = env_data.get('guac_target_vm')
+                existing.guac_protocol = env_data.get('guac_protocol')
                 # Reset status to available/default on reboot to ensure health
                 if existing.status not in ["available", "faulted"]:
                     existing.status = target_status
@@ -177,14 +191,22 @@ async def reap_expired_sessions():
             await teardown_environment_logic(session.environment_id, session.session_token)
 
 async def teardown_environment_logic(env_id: str, session_token: str):
-    """Reverts VMs and marks environment as available."""
+    """Reverts VMs and marks environment as available. Deletes dynamic Guacamole connections."""
     with session_scope() as db:
         env = db.query(LabEnvironment).filter(LabEnvironment.id == env_id).first()
+        session = db.query(LabSession).filter(LabSession.session_token == session_token).first()
         if not env:
             return
 
         env.status = "teardown"
         db.commit()
+
+        # Delete dynamic Guacamole connection if it exists
+        if session and session.guac_connection_id:
+            try:
+                await guac_client.delete_connection(session.guac_connection_id)
+            except Exception as e:
+                logger.error(f"Failed to delete Guacamole connection {session.guac_connection_id}: {str(e)}")
 
         try:
             checkpoint = "Baseline" 
@@ -233,7 +255,7 @@ def resolve_scenario_path(scenario_id: str) -> Path:
 async def health_check():
     return {"status": "healthy"}
 
-@app.get("/lab/status")
+@app.get("/lab/status", dependencies=[Depends(verify_api_key)])
 async def get_status(db: Session = Depends(get_db)):
     envs = db.query(LabEnvironment).all()
     sessions = db.query(LabSession).all()
@@ -245,7 +267,7 @@ async def get_status(db: Session = Depends(get_db)):
         "active_sessions": len(sessions)
     }
 
-@app.post("/lab/provision/{scenario_id}", response_model=ProvisionResponse)
+@app.post("/lab/provision/{scenario_id}", response_model=ProvisionResponse, dependencies=[Depends(verify_api_key)])
 async def provision_lab(
     scenario_id: str, 
     req: ProvisionRequest, 
@@ -348,6 +370,36 @@ async def run_provisioning_flow(env_id: str, scenario_path: Path, mode_e: dict, 
             for vm in vm_targets:
                 await orchestrator.wait_for_guest_readiness(vm)
 
+            # Create dynamic Guacamole connection
+            if env.guac_target_vm and env.guac_protocol:
+                ip_res = await orchestrator.get_vm_ip(env.guac_target_vm)
+                if ip_res.success and ip_res.output:
+                    # Connection parameters
+                    # For RDP: use Labuser; for SSH: use labuser (per .env / session 21 addendum)
+                    # NOTE: credentials should ideally come from a secure store
+                    params = {
+                        "hostname": ip_res.output,
+                        "username": "labuser",
+                        "password": settings.hyperv_guest_password # reuse guest password for lab login
+                    }
+                    if env.guac_protocol == "rdp":
+                        params["ignore-cert"] = "true"
+                        params["security"] = "any"
+
+                    # Create connection in Guacamole
+                    conn_name = f"Session-{session_token[:8]}"
+                    guac_id, guac_url = await guac_client.create_connection(
+                        name=conn_name, 
+                        protocol=env.guac_protocol, 
+                        parameters=params
+                    )
+                    
+                    # Store connection identifier in session
+                    with session_scope() as inner_db:
+                        sess = inner_db.query(LabSession).filter(LabSession.session_token == session_token).first()
+                        if sess:
+                            sess.guac_connection_id = guac_id
+
             for action in provisioning_actions:
                 target = action.get('target')
                 act_type = action.get('action')
@@ -368,22 +420,31 @@ async def run_provisioning_flow(env_id: str, scenario_path: Path, mode_e: dict, 
                 env.status = "faulted"
                 env.last_error = str(e)
 
-@app.get("/lab/session/{session_token}")
+@app.get("/lab/session/{session_token}", dependencies=[Depends(verify_api_key)])
 async def get_session_status(session_token: str, db: Session = Depends(get_db)):
     """Returns the current status of a lab session and its environment."""
     session = db.query(LabSession).filter(LabSession.session_token == session_token).first()
     if not session:
         raise HTTPException(status_code=404, detail="Session not found.")
     env = db.query(LabEnvironment).filter(LabEnvironment.id == session.environment_id).first()
+    
+    guacamole_url = None
+    if session.guac_connection_id:
+        guacamole_url = guac_client._client_url(session.guac_connection_id)
+    elif env and env.guac_connection_id:
+        # Fallback to static ID if dynamic one isn't ready/used
+        guacamole_url = guac_client._client_url(env.guac_connection_id)
+
     return {
         "session_token": session_token,
         "scenario_id": session.scenario_id,
         "environment_id": session.environment_id,
         "environment_status": env.status if env else "unknown",
         "expires_at": session.expires_at,
+        "guacamole_url": guacamole_url
     }
 
-@app.post("/lab/renew/{session_token}")
+@app.post("/lab/renew/{session_token}", dependencies=[Depends(verify_api_key)])
 async def renew_session(session_token: str, db: Session = Depends(get_db)):
     session = db.query(LabSession).filter(LabSession.session_token == session_token).first()
     if not session:
@@ -393,7 +454,20 @@ async def renew_session(session_token: str, db: Session = Depends(get_db)):
     db.commit()
     return {"expires_at": session.expires_at}
 
-@app.post("/lab/verify/{session_token}")
+@app.post("/lab/teardown/{session_token}", dependencies=[Depends(verify_api_key)])
+async def teardown_lab(session_token: str, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    """Explicitly ends a lab session and triggers environment teardown."""
+    session = db.query(LabSession).filter(LabSession.session_token == session_token).first()
+    if not session:
+        # If session is already gone (e.g. reaped), we just return success
+        return {"status": "success", "detail": "Session not found or already terminated."}
+    
+    # Trigger background teardown
+    background_tasks.add_task(teardown_environment_logic, session.environment_id, session_token)
+    
+    return {"status": "success", "detail": "Teardown initiated."}
+
+@app.post("/lab/verify/{session_token}", dependencies=[Depends(verify_api_key)])
 async def verify_lab(session_token: str, db: Session = Depends(get_db)):
     session = db.query(LabSession).filter(LabSession.session_token == session_token).first()
     if not session:

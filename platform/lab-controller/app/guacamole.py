@@ -37,9 +37,9 @@ class GuacamoleClient:
         ).decode()
         return f"{self.base_url}/#/client/{token}"
 
-    async def create_connection(self, name: str, protocol: str, parameters: Dict[str, str]) -> str:
+    async def create_connection(self, name: str, protocol: str, parameters: Dict[str, str]) -> tuple[str, str]:
         """
-        Creates a connection in Guacamole and returns its web client URL.
+        Creates a connection in Guacamole and returns (identifier, web_client_url).
         """
         if not self.token:
             await self._authenticate()
@@ -59,7 +59,7 @@ class GuacamoleClient:
             if response.status_code == 200:
                 conn_id = response.json().get("identifier")
                 logger.info(f"Created Guacamole connection '{name}' with ID {conn_id}")
-                return self._client_url(conn_id)
+                return conn_id, self._client_url(conn_id)
             else:
                 logger.error(f"Failed to create Guacamole connection: {response.text}")
                 raise Exception("Guacamole connection creation failed")

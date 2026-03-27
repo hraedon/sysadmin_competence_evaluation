@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 
 const POLL_INTERVAL_MS = 3000
+const CONTROLLER_API_KEY = 'dev-key-change-me' // Must match lab-controller .env
 
 // Returns a stable per-browser user ID stored in localStorage.
 function getLocalUserId() {
@@ -52,7 +53,10 @@ export default function LabPanel({ scenario, labControllerUrl }) {
     try {
       const res = await fetch(`${labControllerUrl}/lab/provision/${scenario.id}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-API-Key': CONTROLLER_API_KEY
+        },
         body: JSON.stringify({
           user_id: getLocalUserId(),
           capabilities: scenario.presentation?.modes?.E?.capabilities ?? [],
@@ -68,7 +72,9 @@ export default function LabPanel({ scenario, labControllerUrl }) {
 
       pollRef.current = setInterval(async () => {
         try {
-          const sr = await fetch(`${labControllerUrl}/lab/session/${data.session_token}`)
+          const sr = await fetch(`${labControllerUrl}/lab/session/${data.session_token}`, {
+            headers: { 'X-API-Key': CONTROLLER_API_KEY }
+          })
           if (!sr.ok) return
           const sd = await sr.json()
           if (sd.environment_status === 'busy') {
@@ -93,6 +99,7 @@ export default function LabPanel({ scenario, labControllerUrl }) {
     try {
       const res = await fetch(`${labControllerUrl}/lab/verify/${session.session_token}`, {
         method: 'POST',
+        headers: { 'X-API-Key': CONTROLLER_API_KEY }
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data = await res.json()
@@ -105,7 +112,14 @@ export default function LabPanel({ scenario, labControllerUrl }) {
   }
 
   async function handleEndLab() {
-    // Best-effort teardown request (renew endpoint not available, controller reaps on timeout)
+    if (session?.session_token) {
+      // Fire and forget teardown request
+      fetch(`${labControllerUrl}/lab/teardown/${session.session_token}`, { 
+        method: 'POST',
+        headers: { 'X-API-Key': CONTROLLER_API_KEY }
+      })
+        .catch(err => console.error('Teardown failed:', err))
+    }
     setPhase('idle')
     setSession(null)
     setVerifyResults(null)

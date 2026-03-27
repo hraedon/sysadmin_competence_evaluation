@@ -3,6 +3,8 @@ environments:
   # guac_connection_id: Guacamole connection ID for LabServer01 (RDP, 192.168.100.15)
   - id: env-windows-01
     vms: ["LabServer01"]
+    guac_target_vm: "LabServer01"
+    guac_protocol: "rdp"
     guac_connection_id: "1"
     capabilities: ["windows-server", "windows-domain"]
     status: "available"
@@ -12,6 +14,8 @@ environments:
   # guac_connection_id points to LabServer01 (the member server the candidate works on).
   - id: env-domain-01
     vms: ["LabDC01", "LabServer01"]
+    guac_target_vm: "LabServer01"
+    guac_protocol: "rdp"
     guac_connection_id: "1"
     capabilities: ["windows-server", "windows-domain", "ad-ds"]
     status: "available"
@@ -20,6 +24,8 @@ environments:
   # guac_connection_id: Guacamole connection ID for LabLinux01 (SSH, 192.168.100.21)
   - id: env-linux-01
     vms: ["LabLinux01"]
+    guac_target_vm: "LabLinux01"
+    guac_protocol: "ssh"
     guac_connection_id: "2"
     capabilities: ["linux"]
     status: "available"

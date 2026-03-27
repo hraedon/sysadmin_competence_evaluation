@@ -43,6 +43,8 @@ def build_system_prompt(scenario: Dict[str, Any], artifact_content: Optional[str
 
     mode_note = f"This is a Commission exercise (Mode B). The candidate has been asked to produce a specification or document — not to analyse a given artifact. Evaluate the completeness and quality of what they produced against the rubric findings, which represent required elements of a correct specification." if mode == 'B' else f"This is an Audit/Literacy exercise (Mode {mode}). The candidate has been asked to analyse the provided artifact and identify findings."
 
+    artifact_block = f"ARTIFACT ({presentation_type}):\n```\n{artifact_content}\n```" if artifact_content else "(No artifact — Mode B commission exercise)"
+
     coach_json_fields = ""
     coach_instructions = ""
 
@@ -64,7 +66,7 @@ EXERCISE: {title}
 SCENARIO CONTEXT:
 {presentation_context.strip()}
 
-{f'ARTIFACT ({presentation_type}):\n```\n{artifact_content}\n```' if artifact_content else '(No artifact — Mode B commission exercise)'}
+{artifact_block}
 
 RUBRIC
 

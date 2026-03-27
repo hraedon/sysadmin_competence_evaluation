@@ -513,6 +513,7 @@ async def verify_lab(session_token: str, db: Session = Depends(get_db)):
     return results
 
 @app.post("/evaluate", dependencies=[Depends(verify_api_key)])
+@app.post("/lab/evaluate", dependencies=[Depends(verify_api_key)])
 async def evaluate_proxy(req: EvaluateRequest):
     # Determine which API key to use based on the model
     model = req.model or "claude-3-5-sonnet-20241022"

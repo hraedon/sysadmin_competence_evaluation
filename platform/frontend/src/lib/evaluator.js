@@ -18,7 +18,7 @@ export const DEFAULT_SETTINGS = {
   apiKey: '',
   model: 'qwen3-next-80b-a3b-instruct-mlx',
   evaluatorMode: 'auditor',
-  labControllerUrl: IS_PRODUCTION ? 'https://learning.hraedon.com/lab' : 'http://localhost:8000',
+  labControllerUrl: IS_PRODUCTION ? 'https://learning.hraedon.com' : 'http://localhost:8000',
 }
 
 /** Load settings from localStorage, migrating legacy keys and ensuring modern defaults. */
@@ -113,9 +113,9 @@ export async function evaluate({ scenario, artifactContent, responseText, settin
 
   // For all other providers, call the lab controller's /evaluate proxy.
   // This hides the system prompt (rubric) and API keys from the browser.
-  const labUrl = settings.labControllerUrl ?? (IS_PRODUCTION ? 'https://learning.hraedon.com/lab' : 'http://localhost:8000')
+  const labUrl = settings.labControllerUrl ?? (IS_PRODUCTION ? 'https://learning.hraedon.com' : 'http://localhost:8000')
   
-  const res = await fetch(`${labUrl}/evaluate`, {
+  const res = await fetch(`${labUrl}/lab/evaluate`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

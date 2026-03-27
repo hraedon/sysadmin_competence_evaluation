@@ -1,9 +1,9 @@
 fastapi
-uvicorn
-pyyaml
-httpx
+uvicorn[standard]
 pydantic
 pydantic-settings
-python-multipart
 sqlalchemy
+pyyaml
 apscheduler
+anthropic
+openai

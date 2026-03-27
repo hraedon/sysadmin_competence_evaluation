@@ -17,6 +17,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from .orchestrator import HyperVOrchestrator
 from .guacamole import GuacamoleClient
 from .database import init_db, get_db, session_scope, LabEnvironment, LabSession
+from .evaluator import perform_evaluation
 from pydantic_settings import BaseSettings
 
 # ---------------------------------------------------------------------------
@@ -40,6 +41,7 @@ class Settings(BaseSettings):
     hyperv_guest_username: str = "ad.labdomain.dev\\claude"
     hyperv_guest_password: str = ""
     controller_api_key: str = "dev-key-change-me"
+    anthropic_api_key: str = ""
 
     class Config:
         env_file = ".env"
@@ -90,6 +92,16 @@ class VerificationResult(BaseModel):
     finding_id: str
     status: str  # correct | workaround | incomplete
     detail: str
+
+class EvaluateRequest(BaseModel):
+    scenario: Dict[str, Any]
+    artifactContent: Optional[str] = None
+    responseText: str
+    model: Optional[str] = None
+    coachMode: bool = False
+    coachRound: int = 0
+    coachHistory: List[Dict[str, str]] = []
+    compactRubric: bool = False
 
 # ---------------------------------------------------------------------------
 # Lifecycle & Initialization
@@ -252,6 +264,7 @@ def resolve_scenario_path(scenario_id: str) -> Path:
 # ---------------------------------------------------------------------------
 
 @app.get("/health")
+@app.get("/lab/health")
 async def health_check():
     return {"status": "healthy"}
 
@@ -498,6 +511,28 @@ async def verify_lab(session_token: str, db: Session = Depends(get_db)):
         else:
             results.append(VerificationResult(finding_id=finding_id, status="incomplete", detail=f"Verification script failed: {res.error}"))
     return results
+
+@app.post("/evaluate", dependencies=[Depends(verify_api_key)])
+async def evaluate_proxy(req: EvaluateRequest):
+    # Determine which API key to use based on the model
+    model = req.model or "claude-3-5-sonnet-20241022"
+    api_key = settings.anthropic_api_key
+    
+    if not api_key:
+        raise HTTPException(status_code=500, detail="AI Provider API Key not configured on server.")
+
+    result = await perform_evaluation(
+        api_key=api_key,
+        model=model,
+        scenario=req.scenario,
+        artifact_content=req.artifactContent,
+        response_text=req.responseText,
+        coach_mode=req.coachMode,
+        coach_round=req.coachRound,
+        coach_history=req.coachHistory,
+        compact_rubric=req.compactRubric
+    )
+    return result
 
 if __name__ == "__main__":
     import uvicorn

@@ -68,6 +68,11 @@ spec:
                 secretKeyRef:
                   name: lab-controller-secret
                   key: CONTROLLER_API_KEY
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: lab-controller-secret
+                  key: anthropic_api_key
             - name: DRY_RUN
               value: "False"
             - name: SQLALCHEMY_DATABASE_URL

@@ -84,31 +84,58 @@ export function buildClient({ provider = 'local', endpoint, apiKey }) {
   return new OpenAI({ baseURL, apiKey: key, dangerouslyAllowBrowser: true })
 }
 
+// Key is injected at build time via VITE_CONTROLLER_KEY env var (k8s secret → GHA secret).
+const CONTROLLER_API_KEY = import.meta.env.VITE_CONTROLLER_KEY ?? ''
+
 /**
  * Call the configured provider and return a parsed evaluation result.
  *
- * In coach mode, coachRound and coachHistory extend the conversation:
- *   coachRound 0 = initial evaluation (coach_question added to JSON if findings missed)
- *   coachRound 1+ = follow-up (coachHistory contains prior exchanges, resolved field added)
- *
- * coachHistory is an array of { role: 'assistant'|'user', content } messages
- * representing exchanges after the initial response.
- *
- * Throws on API/network error. Returns { raw, parsed } where parsed may be
- * null if JSON extraction fails.
+ * This function handles both local evaluation (LM Studio / Ollama) and
+ * server-side proxied evaluation (Claude / GPT). Proxied evaluation is preferred
+ * as it keeps rubrics and API keys out of the browser bundle.
  */
 export async function evaluate({ scenario, artifactContent, responseText, settings, coachMode = false, coachRound = 0, coachHistory = [], isRetry = false }) {
-  const client = buildClient(settings)
+  // If provider is 'local', we still evaluate client-side for low latency / air-gapped use.
+  if (settings.provider === 'local') {
+    const client = buildClient(settings)
+    return performEvaluation({
+      client,
+      model: settings.model,
+      scenario,
+      artifactContent,
+      responseText,
+      coachMode,
+      coachRound,
+      coachHistory,
+      isRetry
+    })
+  }
+
+  // For all other providers, call the lab controller's /evaluate proxy.
+  // This hides the system prompt (rubric) and API keys from the browser.
+  const labUrl = settings.labControllerUrl ?? (IS_PRODUCTION ? 'https://learning.hraedon.com/lab' : 'http://localhost:8000')
   
-  return performEvaluation({
-    client,
-    model: settings.model,
-    scenario,
-    artifactContent,
-    responseText,
-    coachMode,
-    coachRound,
-    coachHistory,
-    isRetry
+  const res = await fetch(`${labUrl}/evaluate`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-API-Key': CONTROLLER_API_KEY
+    },
+    body: JSON.stringify({
+      scenario,
+      artifactContent,
+      responseText,
+      model: settings.model,
+      coachMode,
+      coachRound,
+      coachHistory
+    })
   })
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}))
+    throw new Error(data.detail ?? `Server evaluation failed: HTTP ${res.status}`)
+  }
+
+  return await res.json()
 }

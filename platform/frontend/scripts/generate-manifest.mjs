@@ -60,10 +60,13 @@ for (const file of yamlFiles) {
       const activePresentation = data.presentation?.modes?.[activeMode] || data.presentation?.modes?.A
       
       if (activePresentation) {
+        // Preserve the full modes block for the frontend (needed for Mode E)
+        const modes = data.presentation.modes
         data.presentation = {
           type: activePresentation.type,
           artifact_file: activePresentation.artifact_file,
-          context: activePresentation.context
+          context: activePresentation.context,
+          modes: modes // Re-attach modes so LabPanel can find its data
         }
       }
 

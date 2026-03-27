@@ -35,9 +35,15 @@ class GuacamoleClient:
         client_identifier = base64.b64encode(
             f"{connection_id}\x00c\x00{self.dataSource}".encode()
         ).decode()
-        url = f"{self.base_url}/#/client/{client_identifier}"
+        
+        url = self.base_url
+        if not url.endswith('/'):
+            url += '/'
+            
         if self.token:
             url += f"?token={self.token}"
+            
+        url += f"#/client/{client_identifier}"
         return url
 
     async def create_connection(self, name: str, protocol: str, parameters: Dict[str, str]) -> tuple[str, str]:

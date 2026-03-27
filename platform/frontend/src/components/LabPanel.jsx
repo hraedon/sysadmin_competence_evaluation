@@ -81,6 +81,7 @@ export default function LabPanel({ scenario, labControllerUrl }) {
           const sd = await sr.json()
           if (sd.environment_status === 'busy') {
             clearInterval(pollRef.current)
+            setSession(sd) // Update session with final URL/details
             setPhase('ready')
           } else if (sd.environment_status === 'faulted') {
             clearInterval(pollRef.current)

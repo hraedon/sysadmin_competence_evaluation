@@ -364,7 +364,9 @@ async def provision_lab(
         session_token
     )
 
-    guac_url = f"{settings.guacamole_url}/#/client/{guac_client_token(selected_env.guac_connection_id)}"
+    if not guac_client.token:
+        await guac_client._authenticate()
+    guac_url = guac_client._client_url(selected_env.guac_connection_id)
 
     return ProvisionResponse(
         status="provisioning",
@@ -451,6 +453,12 @@ async def get_session_status(session_token: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Session not found.")
     env = db.query(LabEnvironment).filter(LabEnvironment.id == session.environment_id).first()
     
+    if not guac_client.token:
+        try:
+            await guac_client._authenticate()
+        except:
+            pass # Continue with unauthenticated URL if API is down
+
     guacamole_url = None
     if session.guac_connection_id:
         guacamole_url = guac_client._client_url(session.guac_connection_id)

@@ -31,11 +31,14 @@ class GuacamoleClient:
                 raise Exception("Guacamole authentication failed")
 
     def _client_url(self, connection_id: str) -> str:
-        """Returns the Guacamole web client URL for a given connection ID."""
-        token = base64.b64encode(
+        """Returns the Guacamole web client URL for a given connection ID, including auth token."""
+        client_identifier = base64.b64encode(
             f"{connection_id}\x00c\x00{self.dataSource}".encode()
         ).decode()
-        return f"{self.base_url}/#/client/{token}"
+        url = f"{self.base_url}/#/client/{client_identifier}"
+        if self.token:
+            url += f"?token={self.token}"
+        return url
 
     async def create_connection(self, name: str, protocol: str, parameters: Dict[str, str]) -> tuple[str, str]:
         """

@@ -9,3 +9,4 @@ Thumbs.db
 
 # Secrets
 .env
+Anthropic_API_Key.txt

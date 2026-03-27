@@ -1,8 +1,7 @@
 import asyncio
 import logging
-import json
 import os
-from typing import List, Optional
+from typing import Optional
 from pydantic import BaseModel
 
 logging.basicConfig(level=logging.INFO)
@@ -14,101 +13,174 @@ class OrchestrationResult(BaseModel):
     error: Optional[str] = None
 
 class HyperVOrchestrator:
-    def __init__(self, dry_run: bool = True):
+    """
+    Runs Hyper-V management commands on a remote host via WinRM (PowerShell Core).
+
+    All non-dry-run operations tunnel through Invoke-Command -ComputerName to
+    reach the Hyper-V host; guest-level operations add a second hop using
+    PowerShell Direct (-VMName) running on that host.
+
+    NOTE: Credentials are embedded in the command string, which is visible in
+    process listings and logs. Acceptable for an internal lab network — revisit
+    if the controller is ever exposed to an untrusted network.
+    """
+
+    def __init__(
+        self,
+        host: str,
+        username: str,
+        password: str,
+        guest_username: str = "",
+        guest_password: str = "",
+        dry_run: bool = True,
+    ):
+        self.host = host
+        self.username = username
+        self.password = password
+        self.guest_username = guest_username
+        self.guest_password = guest_password
         self.dry_run = dry_run
 
+    def _remote_wrap(self, inner_command: str) -> str:
+        """Wraps an inner PowerShell command to execute on the Hyper-V host via WinRM."""
+        esc_user = self.username.replace("'", "''")
+        esc_pw   = self.password.replace("'", "''")
+        esc_host = self.host.replace("'", "''")
+        return (
+            f"$ErrorActionPreference = 'Stop'; "
+            f"$cred = [System.Management.Automation.PSCredential]::new("
+            f"'{esc_user}', (ConvertTo-SecureString '{esc_pw}' -AsPlainText -Force)); "
+            f"Invoke-Command -ComputerName '{esc_host}' -Credential $cred "
+            f"-ScriptBlock {{ {inner_command} }}"
+        )
+
     async def _run_ps(self, command: str) -> OrchestrationResult:
-        """Executes a PowerShell command asynchronously and returns the result."""
+        """Executes a PowerShell command via pwsh (PowerShell Core for Linux containers)."""
         if self.dry_run:
-            logger.info(f"[DRY RUN] Executing PS: {command}")
-            await asyncio.sleep(0.5) # Simulate slight overhead
+            logger.info(f"[DRY RUN] PS command ({len(command)} chars)")
+            await asyncio.sleep(0.5)
             return OrchestrationResult(success=True, output="Dry run success")
 
         try:
-            # Use -NoProfile and -NonInteractive for automation
             process = await asyncio.create_subprocess_exec(
-                "powershell.exe", "-NoProfile", "-NonInteractive", "-Command", command,
+                "pwsh", "-NoProfile", "-NonInteractive", "-Command", command,
                 stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
+                stderr=asyncio.subprocess.PIPE,
             )
-            
             stdout, stderr = await process.communicate()
-            
             if process.returncode == 0:
                 return OrchestrationResult(success=True, output=stdout.decode().strip())
             else:
                 return OrchestrationResult(
-                    success=False, 
-                    output=stdout.decode().strip(), 
-                    error=stderr.decode().strip()
+                    success=False,
+                    output=stdout.decode().strip(),
+                    error=stderr.decode().strip(),
                 )
         except Exception as e:
             return OrchestrationResult(success=False, output="", error=str(e))
 
     async def revert_to_checkpoint(self, vm_name: str, checkpoint_name: str) -> OrchestrationResult:
-        """Reverts a VM to a specific snapshot/checkpoint."""
         if self.dry_run:
-            logger.info(f"[DRY RUN] Reverting {vm_name} to {checkpoint_name}...")
+            logger.info(f"[DRY RUN] Reverting {vm_name} to '{checkpoint_name}'")
             await asyncio.sleep(2)
-        cmd = f"Restore-VMSnapshot -VMName '{vm_name}' -Name '{checkpoint_name}' -Confirm:$false"
-        return await self._run_ps(cmd)
+            return OrchestrationResult(success=True, output="Dry run success")
+        inner = f"Restore-VMSnapshot -VMName '{vm_name}' -Name '{checkpoint_name}' -Confirm:$false"
+        return await self._run_ps(self._remote_wrap(inner))
 
     async def start_vm(self, vm_name: str) -> OrchestrationResult:
-        """Starts a Hyper-V virtual machine."""
         if self.dry_run:
-            logger.info(f"[DRY RUN] Starting {vm_name}...")
+            logger.info(f"[DRY RUN] Starting {vm_name}")
             await asyncio.sleep(1)
-        cmd = f"Start-VM -Name '{vm_name}'"
-        return await self._run_ps(cmd)
+            return OrchestrationResult(success=True, output="Dry run success")
+        inner = f"Start-VM -Name '{vm_name}'"
+        return await self._run_ps(self._remote_wrap(inner))
 
     async def stop_vm(self, vm_name: str, force: bool = False) -> OrchestrationResult:
-        """Stops a Hyper-V virtual machine."""
+        if self.dry_run:
+            logger.info(f"[DRY RUN] Stopping {vm_name} (force={force})")
+            await asyncio.sleep(1)
+            return OrchestrationResult(success=True, output="Dry run success")
         suffix = " -TurnOff" if force else ""
-        cmd = f"Stop-VM -Name '{vm_name}'{suffix}"
-        return await self._run_ps(cmd)
-
-    async def run_script_in_guest(self, vm_name: str, script_path: str) -> OrchestrationResult:
-        """Runs a script inside the guest VM using PowerShell Direct (HKS)."""
-        try:
-            if not os.path.exists(script_path):
-                return OrchestrationResult(success=False, output="", error=f"Script not found: {script_path}")
-                
-            with open(script_path, 'r') as f:
-                script_content = f.read()
-            
-            # Escape single quotes for PowerShell
-            escaped_content = script_content.replace("'", "''")
-            
-            # Using -VMName uses PowerShell Direct (no network required, just guest services)
-            # cmd = f"Invoke-Command -VMName '{vm_name}' -ScriptBlock {{ {escaped_content} }}"
-            
-            # For reliability, we might want to pass the script as a block:
-            cmd = f"Invoke-Command -VMName '{vm_name}' -ScriptBlock {{ {escaped_content} }}"
-            
-            return await self._run_ps(cmd)
-        except Exception as e:
-            return OrchestrationResult(success=False, output="", error=f"Failed to execute script: {str(e)}")
-
-    async def copy_file_to_guest(self, vm_name: str, source: str, destination: str) -> OrchestrationResult:
-        """Copies a file from the host to the guest VM."""
-        cmd = f"Copy-Item -Path '{source}' -Destination '{destination}' -VMName '{vm_name}'"
-        return await self._run_ps(cmd)
+        inner = f"Stop-VM -Name '{vm_name}'{suffix}"
+        return await self._run_ps(self._remote_wrap(inner))
 
     async def get_vm_ip(self, vm_name: str) -> OrchestrationResult:
-        """Retrieves the primary IPv4 address of a VM from Hyper-V Guest Services."""
-        cmd = f"(Get-VMNetworkAdapter -VMName '{vm_name}').IPAddresses | Where-Object {{ $_ -like '*.*' }} | Select-Object -First 1"
-        return await self._run_ps(cmd)
+        if self.dry_run:
+            logger.info(f"[DRY RUN] Getting IP for {vm_name}")
+            await asyncio.sleep(0.5)
+            return OrchestrationResult(success=True, output="192.168.100.15")
+        inner = (
+            f"(Get-VMNetworkAdapter -VMName '{vm_name}').IPAddresses"
+            f" | Where-Object {{ $_ -like '*.*' }}"
+            f" | Select-Object -First 1"
+        )
+        return await self._run_ps(self._remote_wrap(inner))
 
     async def wait_for_guest_readiness(self, vm_name: str, timeout_seconds: int = 60) -> bool:
-        """Polls the VM's heartbeat and network status until it's ready."""
+        """Polls the VM for an IP address until ready or timed out."""
         start_time = asyncio.get_event_loop().time()
-        
         while asyncio.get_event_loop().time() - start_time < timeout_seconds:
             res = await self.get_vm_ip(vm_name)
             if res.success and res.output:
-                logger.info(f"VM {vm_name} is ready with IP: {res.output}")
+                logger.info(f"VM {vm_name} ready with IP: {res.output}")
                 return True
             await asyncio.sleep(2)
-        
-        logger.warning(f"Timed out waiting for VM {vm_name} to report an IP address.")
+        logger.warning(f"Timeout waiting for {vm_name} to become ready.")
         return False
+
+    def _guest_cred_ps(self) -> str:
+        """Returns a PowerShell snippet that creates $guestCred from guest credentials."""
+        esc_user = self.guest_username.replace("'", "''")
+        esc_pw   = self.guest_password.replace("'", "''")
+        return (
+            f"$guestCred = [System.Management.Automation.PSCredential]::new("
+            f"'{esc_user}', (ConvertTo-SecureString '{esc_pw}' -AsPlainText -Force)); "
+        )
+
+    async def run_script_in_guest(self, vm_name: str, script_path: str) -> OrchestrationResult:
+        """
+        Runs a local script file inside the guest VM using PowerShell Direct.
+
+        The script content is read from disk, single-quotes are escaped, and the
+        content is embedded in a ScriptBlock sent to the VM via Invoke-Command -VMName
+        (which runs on the Hyper-V host). Scripts should prefer double-quoted strings
+        to keep escaping straightforward.
+        """
+        if self.dry_run:
+            logger.info(f"[DRY RUN] Running script in {vm_name}: {script_path}")
+            await asyncio.sleep(1)
+            return OrchestrationResult(
+                success=True,
+                output='{"status":"correct","detail":"Dry run verification passed."}'
+            )
+
+        if not os.path.exists(script_path):
+            return OrchestrationResult(success=False, output="", error=f"Script not found: {script_path}")
+        try:
+            with open(script_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            escaped = content.replace("'", "''")
+            cred_snippet = self._guest_cred_ps() if self.guest_username else ""
+            inner = (
+                f"{cred_snippet}"
+                f"Invoke-Command -VMName '{vm_name}'"
+                f"{' -Credential $guestCred' if self.guest_username else ''}"
+                f" -ScriptBlock {{ {escaped} }}"
+            )
+            return await self._run_ps(self._remote_wrap(inner))
+        except Exception as e:
+            return OrchestrationResult(success=False, output="", error=str(e))
+
+    async def copy_file_to_guest(self, vm_name: str, source: str, destination: str) -> OrchestrationResult:
+        if self.dry_run:
+            logger.info(f"[DRY RUN] Copying {source} → {vm_name}:{destination}")
+            await asyncio.sleep(0.5)
+            return OrchestrationResult(success=True, output="Dry run success")
+        cred_snippet = self._guest_cred_ps() if self.guest_username else ""
+        inner = (
+            f"{cred_snippet}"
+            f"Copy-Item -Path '{source}' -Destination '{destination}'"
+            f" -VMName '{vm_name}'"
+            f"{' -Credential $guestCred' if self.guest_username else ''}"
+        )
+        return await self._run_ps(self._remote_wrap(inner))

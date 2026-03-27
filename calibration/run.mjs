@@ -45,10 +45,101 @@ const EXPECTED_LEVELS = [1, 2, 3, 4]
 const PASS_TOLERANCE = 0.5
 
 // ---------------------------------------------------------------------------
+// Model Registry
+// ---------------------------------------------------------------------------
+
+const MODELS = {
+  // Local (MLX / LM Studio)
+  'qwen3': {
+    provider: 'local',
+    id: 'qwen3-next-80b-a3b-instruct-mlx',
+    baseURL: 'http://192.168.1.28:1234/v1',
+    compactRubric: true
+  },
+  'qwen35-c': {
+    provider: 'local',
+    id: 'qwen3.5-vl-122b-a10b-mlx-crack-x',
+    baseURL: 'http://192.168.1.28:1234/v1',
+    compactRubric: true
+  },
+  'qwen35-3bit': {
+    provider: 'local',
+    id: 'qwen3.5-122b-a10b-mlx-3-vl',
+    baseURL: 'http://192.168.1.28:1234/v1',
+    compactRubric: true
+  },
+
+  // Anthropic
+  'sonnet': {
+    provider: 'anthropic',
+    id: 'claude-sonnet-4-6',
+    baseURL: 'https://api.anthropic.com/v1',
+    requiresKey: true,
+    compactRubric: false
+  },
+  'opus': {
+    provider: 'anthropic',
+    id: 'claude-opus-4-6',
+    baseURL: 'https://api.anthropic.com/v1',
+    requiresKey: true,
+    compactRubric: false
+  },
+
+  // OpenAI
+  'gpt4o': {
+    provider: 'openai',
+    id: 'gpt-4o',
+    baseURL: 'https://api.openai.com/v1',
+    requiresKey: true,
+    compactRubric: false
+  }
+}
+
+const PROVIDER_DEFAULTS = {
+  local:     { baseURL: 'http://192.168.1.28:1234/v1', model: 'qwen3-next-80b-a3b-instruct-mlx', requiresKey: false, compactRubric: true  },
+  anthropic: { baseURL: 'https://api.anthropic.com/v1', model: 'claude-sonnet-4-6',              requiresKey: true,  compactRubric: false },
+  openai:    { baseURL: 'https://api.openai.com/v1',    model: 'gpt-4o',                         requiresKey: true,  compactRubric: false },
+  custom:    { baseURL: '',                              model: '',                               requiresKey: false, compactRubric: false },
+}
+
+// ---------------------------------------------------------------------------
 // CLI args
 // ---------------------------------------------------------------------------
 
 const args = process.argv.slice(2)
+
+if (args.includes('--help') || args.includes('-h')) {
+  console.log(`
+Calibration harness for the sysadmin competency assessment evaluator.
+
+Usage:
+  node run.mjs [options]
+
+Options:
+  --model <name|alias>   Model name or alias (e.g., qwen3, qwen35, sonnet, gpt4o)
+  --provider <name>      Provider (local, anthropic, openai, custom). Default: local
+  --endpoint <url>       Override API endpoint
+  --api-key <key>        Override API key
+  --scenario <id>        Filter by scenario ID (can be used multiple times)
+  --domain <n>           Filter by domain number
+  --level <n>            Filter by expected level (1-4)
+  --list-models          List available model aliases
+  --help, -h             Show this help
+
+Aliases:
+${Object.keys(MODELS).map(k => `  ${k.padEnd(12)} -> ${MODELS[k].id}`).join('\n')}
+`)
+  process.exit(0)
+}
+
+if (args.includes('--list-models')) {
+  console.log('\nAvailable model aliases:')
+  for (const [alias, config] of Object.entries(MODELS)) {
+    console.log(`  ${alias.padEnd(12)} : ${config.id} (${config.provider})`)
+  }
+  console.log()
+  process.exit(0)
+}
 
 function getArg(flag, defaultValue = null) {
   const i = args.indexOf(flag)
@@ -66,44 +157,56 @@ function getArgs(flag) {
 const scenarioFilters = getArgs('--scenario')
 const domainFilter   = getArg('--domain') ? parseInt(getArg('--domain')) : null
 const levelFilter    = getArg('--level') ? parseInt(getArg('--level')) : null
-const providerFlag   = getArg('--provider', 'local')
+const providerFlag   = getArg('--provider')
 const endpointFlag   = getArg('--endpoint')
 const modelFlag      = getArg('--model')
 const apiKeyFlag     = getArg('--api-key')
 
 // ---------------------------------------------------------------------------
-// Provider configuration
+// Configuration Resolution
 // ---------------------------------------------------------------------------
 
-const PROVIDER_DEFAULTS = {
-  local:     { baseURL: 'http://192.168.1.28:1234/v1', model: 'qwen3-next-80b-a3b-instruct-mlx', requiresKey: false },
-  anthropic: { baseURL: 'https://api.anthropic.com/v1', model: 'claude-sonnet-4-6',              requiresKey: true  },
-  openai:    { baseURL: 'https://api.openai.com/v1',    model: 'gpt-4o',                         requiresKey: true  },
-  custom:    { baseURL: '',                              model: '',                               requiresKey: false },
-}
-
-const providerConf = PROVIDER_DEFAULTS[providerFlag] ?? PROVIDER_DEFAULTS.local
-
-// Resolve endpoint
-const baseURL = endpointFlag ?? providerConf.baseURL
-if (!baseURL) {
-  console.error(`Error: --endpoint is required for provider '${providerFlag}'.`)
-  process.exit(2)
-}
-
-// Resolve model
-const MODEL = modelFlag ?? providerConf.model
-if (!MODEL) {
-  console.error(`Error: --model is required for provider '${providerFlag}'.`)
-  process.exit(2)
-}
-
-// Resolve API key
+let MODEL = modelFlag
+let provider = providerFlag
+let baseURL = endpointFlag
 let apiKey = apiKeyFlag
-if (!apiKey && providerFlag === 'anthropic') apiKey = process.env.ANTHROPIC_API_KEY
-if (!apiKey && providerFlag === 'openai')    apiKey = process.env.OPENAI_API_KEY
-if (!apiKey && providerConf.requiresKey) {
-  console.error(`Error: provider '${providerFlag}' requires an API key. Pass --api-key or set the appropriate env var.`)
+let compactRubric = false
+let requiresKey = false
+
+// 1. Resolve via model alias if it exists
+if (MODEL && MODELS[MODEL]) {
+  const m = MODELS[MODEL]
+  MODEL = m.id
+  provider = provider ?? m.provider
+  baseURL = baseURL ?? m.baseURL
+  compactRubric = m.compactRubric
+  requiresKey = m.requiresKey
+}
+
+// 2. Resolve provider defaults
+provider = provider ?? 'local'
+const pConf = PROVIDER_DEFAULTS[provider] ?? PROVIDER_DEFAULTS.local
+
+MODEL = MODEL ?? pConf.model
+baseURL = baseURL ?? pConf.baseURL
+compactRubric = (modelFlag && MODELS[modelFlag]) ? MODELS[modelFlag].compactRubric : pConf.compactRubric
+requiresKey = requiresKey || pConf.requiresKey
+
+if (!MODEL) {
+  console.error(`Error: --model is required or could not be resolved for provider '${provider}'.`)
+  process.exit(2)
+}
+
+if (!baseURL) {
+  console.error(`Error: --endpoint is required or could not be resolved for provider '${provider}'.`)
+  process.exit(2)
+}
+
+// 3. Resolve API key
+if (!apiKey && provider === 'anthropic') apiKey = process.env.ANTHROPIC_API_KEY
+if (!apiKey && provider === 'openai')    apiKey = process.env.OPENAI_API_KEY
+if (!apiKey && requiresKey) {
+  console.error(`Error: provider '${provider}' requires an API key. Pass --api-key or set the appropriate env var.`)
   process.exit(2)
 }
 if (!apiKey) apiKey = 'lm-studio'  // placeholder for local providers
@@ -179,7 +282,7 @@ async function main() {
   }
 
   console.log(`\nCalibration harness — ${new Date().toISOString()}`)
-  console.log(`Provider: ${providerFlag}`)
+  console.log(`Provider: ${provider}`)
   console.log(`Endpoint: ${baseURL}`)
   console.log(`Model:    ${MODEL}`)
   console.log(`Scenarios: ${filteredPaths.length}\n`)
@@ -216,8 +319,6 @@ async function main() {
       }
 
       const responseText = readFileSync(responseFile, 'utf-8')
-
-      const compactRubric = providerFlag === 'local'
 
       process.stdout.write(`  L${expectedLevel}: calling evaluator... `)
       try {

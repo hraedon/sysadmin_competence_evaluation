@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "calibrate": "node run.mjs",
+    "calibrate:qwen35": "node run.mjs --model qwen35",
     "calibrate:d1": "node run.mjs --domain 1",
     "calibrate:d2": "node run.mjs --domain 2",
     "calibrate:d3": "node run.mjs --domain 3",

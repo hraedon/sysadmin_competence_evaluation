@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 import { loadArtifact } from '../lib/scenarios.js'
+import LabPanel from './LabPanel.jsx'
 
 const MODE_LABELS = { A: 'Artifact Analysis', B: 'Commission', C: 'Socratic Dialogue', D: 'Transcript Analysis', E: 'Lab Exercise' }
 
-export default function ScenarioPanel({ scenario, onSubmit, isEvaluating }) {
+export default function ScenarioPanel({ scenario, onSubmit, isEvaluating, labControllerUrl }) {
   const [artifactContent, setArtifactContent] = useState(null)
   const [artifactLoading, setArtifactLoading] = useState(false)
   const [response, setResponse] = useState('')
@@ -29,6 +30,10 @@ export default function ScenarioPanel({ scenario, onSubmit, isEvaluating }) {
         <p className="text-center">Select a scenario from the sidebar to begin.</p>
       </div>
     )
+  }
+
+  if (scenario.delivery_mode === 'E') {
+    return <LabPanel scenario={scenario} labControllerUrl={labControllerUrl} />
   }
 
   const { title, domain_name, level, delivery_mode, presentation } = scenario

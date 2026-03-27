@@ -214,6 +214,7 @@ export default function App() {
             scenario={selected}
             onSubmit={handleSubmit}
             isEvaluating={isEvaluating}
+            labControllerUrl={settings.labControllerUrl}
           />
           <EvalPanel
             result={evalResult}

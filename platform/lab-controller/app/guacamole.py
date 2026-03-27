@@ -1,5 +1,6 @@
 import httpx
 import logging
+import base64
 from typing import Optional, Dict, Any
 from pydantic import BaseModel
 
@@ -29,21 +30,28 @@ class GuacamoleClient:
                 logger.error(f"Failed to authenticate with Guacamole: {response.text}")
                 raise Exception("Guacamole authentication failed")
 
+    def _client_url(self, connection_id: str) -> str:
+        """Returns the Guacamole web client URL for a given connection ID."""
+        token = base64.b64encode(
+            f"{connection_id}\x00c\x00{self.dataSource}".encode()
+        ).decode()
+        return f"{self.base_url}/#/client/{token}"
+
     async def create_connection(self, name: str, protocol: str, parameters: Dict[str, str]) -> str:
         """
-        Creates a temporary connection in Guacamole.
-        Returns the connection ID or URL.
+        Creates a connection in Guacamole and returns its web client URL.
         """
         if not self.token:
             await self._authenticate()
 
         url = f"{self.base_url}/api/session/data/{self.dataSource}/connections?token={self.token}"
-        
+
         payload = {
             "name": name,
             "protocol": protocol,
             "parameters": parameters,
-            "parentIdentifier": "ROOT"
+            "parentIdentifier": "ROOT",
+            "attributes": {},
         }
 
         async with httpx.AsyncClient() as client:
@@ -51,8 +59,7 @@ class GuacamoleClient:
             if response.status_code == 200:
                 conn_id = response.json().get("identifier")
                 logger.info(f"Created Guacamole connection '{name}' with ID {conn_id}")
-                # Construct the client URL
-                return f"{self.base_url}/#/client/{conn_id}"
+                return self._client_url(conn_id)
             else:
                 logger.error(f"Failed to create Guacamole connection: {response.text}")
                 raise Exception("Guacamole connection creation failed")

@@ -1,0 +1,77 @@
+schema_version: 2.0
+id: d01-lab-fix-the-log-writer
+title: The Log Writer
+domain: 1
+domain_name: Scripting & Automation
+level: 2
+delivery_modes:
+  - E
+difficulty:
+  score: 2
+  reasoning: "Fix two clear bugs in a short script; correct fix is observable from the environment state."
+
+presentation:
+  modes:
+    E:
+      type: lab_environment
+      platform: hyper-v
+      checkpoint: Baseline Checkpoint
+      capabilities:
+        - windows-server
+      instructions: |
+        You have console access to **LabServer01** below.
+
+        A helpdesk ticket reports that the service monitor script always shows
+        "Running" in its status report — even during a maintenance window when
+        the service was temporarily stopped.
+
+        The script is at `C:\Scripts\Write-ServiceStatus.ps1`.
+        The report it writes is at `C:\Reports\service_status.txt`.
+
+        Fix the script so it:
+        1. Reports the **actual** Print Spooler service state (not a hardcoded string)
+        2. Includes a **timestamp** in the report
+
+        When you're done, click **Verify** to check your work.
+
+      config:
+        provisioning:
+          - target: LabServer01
+            action: run_script
+            file: provision.ps1
+        verification:
+          - target: LabServer01
+            file: verify_status_reporting.ps1
+            finding_id: correct_status_reporting
+
+rubric:
+  findings:
+    - id: correct_status_reporting
+      type: critical
+      description: |
+        The fixed script reads the actual service status from the Get-Service object
+        ($svc.Status or equivalent) rather than writing a hardcoded string. When the
+        Print Spooler is stopped, the report correctly shows a non-Running state.
+      miss_signal: |
+        Report file still shows "Running" after the Spooler service is stopped before the
+        verification run. Candidate left the hardcoded $status = "Running" line unchanged.
+    - id: timestamp_in_report
+      type: secondary
+      description: |
+        The report includes a recognizable date/time string so reports can be
+        differentiated across multiple runs.
+      miss_signal: |
+        Report file contains no date, time, or recognizable timestamp string.
+  level_indicators:
+    level_1: |
+      Cannot identify the bugs or produces a script that still writes hardcoded output.
+      Verification shows incorrect status or no report file present.
+    level_2: |
+      Fixes the hardcoded status bug. Report correctly reflects the stopped service state.
+      May or may not include a timestamp.
+    level_3: |
+      Fixes both bugs: report reflects actual service state AND includes a timestamp.
+    level_4: |
+      Fixes both bugs and improves the catch block — instead of swallowing errors or writing
+      misleading output, the script reports the actual error condition so that failures are
+      visible to whoever reads the report next.

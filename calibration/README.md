@@ -111,11 +111,19 @@ limiting or unusually long responses exceeding context.
 ## Local model calibration
 
 The calibration harness supports local models via `--provider local` (default endpoint:
-`http://192.168.1.28:1234/v1`). The established baseline is **qwen3-next-80b at 6-bit
-quantization** (qwen3-next-80b-a3b-instruct-mlx via LM Studio). At that quality level,
-expect ~94–96% pass rate — slightly below the Anthropic primary target — because the
-local model has a wider inferential radius and is more generous about crediting findings
-from implicit signals in the synthetic responses.
+`http://192.168.1.28:1234/v1`). 
+
+Established baselines:
+- **qwen3-80b**: `qwen3-next-80b-a3b-instruct-mlx` (6-bit quantization)
+- **qwen35-122b**: `qwen3.5-vl-122b-a10b-mlx-crack-x` (experimental 122B VL model)
+
+You can use these via aliases:
+```bash
+node run.mjs --model qwen3
+node run.mjs --model qwen35
+```
+
+At the 80B quality level, expect ~94–96% pass rate — slightly below the Anthropic primary target — because the local model has a wider inferential radius and is more generous about crediting findings from implicit signals in the synthetic responses.
 
 **Anything below qwen3-80b-6bit is YMMV.** Smaller models (below ~30B parameters) and
 lower quantizations tend to produce inconsistent JSON formatting, poor rubric ID matching,

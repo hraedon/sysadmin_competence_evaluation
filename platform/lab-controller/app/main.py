@@ -9,6 +9,7 @@ import logging
 import re
 import asyncio
 import json
+import base64
 from pathlib import Path
 from sqlalchemy.orm import Session
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -31,6 +32,13 @@ class Settings(BaseSettings):
     session_timeout_minutes: int = 120
     max_session_hours: int = 4
     dry_run: bool = True
+    # Hyper-V host credentials for WinRM remoting (used by HyperVOrchestrator)
+    hyperv_host: str = "mvmhyperv02.ad.hraedon.com"
+    hyperv_username: str = "svc_claude@ad.hraedon.com"
+    hyperv_password: str = ""
+    # Guest OS credentials for PowerShell Direct (lab domain admin)
+    hyperv_guest_username: str = "ad.labdomain.dev\\claude"
+    hyperv_guest_password: str = ""
 
     class Config:
         env_file = ".env"
@@ -77,8 +85,20 @@ class VerificationResult(BaseModel):
 # Lifecycle & Initialization
 # ---------------------------------------------------------------------------
 
+def guac_client_token(connection_id: str, data_source: str = "postgresql") -> str:
+    """Returns the Base64-encoded connection token for a Guacamole client URL."""
+    raw = f"{connection_id}\x00c\x00{data_source}"
+    return base64.b64encode(raw.encode()).decode()
+
 app = FastAPI(title="Sysadmin Competency Lab Controller")
-orchestrator = HyperVOrchestrator(dry_run=settings.dry_run)
+orchestrator = HyperVOrchestrator(
+    host=settings.hyperv_host,
+    username=settings.hyperv_username,
+    password=settings.hyperv_password,
+    guest_username=settings.hyperv_guest_username,
+    guest_password=settings.hyperv_guest_password,
+    dry_run=settings.dry_run,
+)
 guac_client = GuacamoleClient(
     settings.guacamole_url, 
     settings.guacamole_username, 
@@ -299,7 +319,7 @@ async def provision_lab(
         session_token
     )
 
-    guac_url = f"{settings.guacamole_url}/#/client/{selected_env.guac_connection_id}"
+    guac_url = f"{settings.guacamole_url}/#/client/{guac_client_token(selected_env.guac_connection_id)}"
 
     return ProvisionResponse(
         status="provisioning",
@@ -347,6 +367,21 @@ async def run_provisioning_flow(env_id: str, scenario_path: Path, mode_e: dict, 
             if env:
                 env.status = "faulted"
                 env.last_error = str(e)
+
+@app.get("/lab/session/{session_token}")
+async def get_session_status(session_token: str, db: Session = Depends(get_db)):
+    """Returns the current status of a lab session and its environment."""
+    session = db.query(LabSession).filter(LabSession.session_token == session_token).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found.")
+    env = db.query(LabEnvironment).filter(LabEnvironment.id == session.environment_id).first()
+    return {
+        "session_token": session_token,
+        "scenario_id": session.scenario_id,
+        "environment_id": session.environment_id,
+        "environment_status": env.status if env else "unknown",
+        "expires_at": session.expires_at,
+    }
 
 @app.post("/lab/renew/{session_token}")
 async def renew_session(session_token: str, db: Session = Depends(get_db)):

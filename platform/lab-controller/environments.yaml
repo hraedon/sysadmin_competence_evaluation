@@ -1,11 +1,25 @@
 environments:
-  - id: env-01
-    vms: ["Env01-DC01", "Env01-SRV01"]
-    guac_connection_id: "10"
-    capabilities: ["windows-domain", "ad-ds", "iis"]
+  # Single-server Windows environment — D01/D03/D11 scripting and automation scenarios.
+  # guac_connection_id: Guacamole connection ID for LabServer01 (RDP, 192.168.100.15)
+  - id: env-windows-01
+    vms: ["LabServer01"]
+    guac_connection_id: "1"
+    capabilities: ["windows-server", "windows-domain"]
     status: "available"
-  - id: env-02
-    vms: ["Env02-LX01"]
-    guac_connection_id: "11"
-    capabilities: ["linux", "ubuntu", "docker"]
+
+  # Full domain environment — for scenarios requiring AD DS, DNS, or DHCP.
+  # Candidate connects to LabServer01; LabDC01 runs domain services in the background.
+  # guac_connection_id points to LabServer01 (the member server the candidate works on).
+  - id: env-domain-01
+    vms: ["LabDC01", "LabServer01"]
+    guac_connection_id: "1"
+    capabilities: ["windows-server", "windows-domain", "ad-ds"]
+    status: "available"
+
+  # Linux environment — D12 Linux/shell scenarios.
+  # guac_connection_id: Guacamole connection ID for LabLinux01 (SSH, 192.168.100.21)
+  - id: env-linux-01
+    vms: ["LabLinux01"]
+    guac_connection_id: "2"
+    capabilities: ["linux"]
     status: "available"

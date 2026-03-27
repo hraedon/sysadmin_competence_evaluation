@@ -195,6 +195,18 @@ export default function SettingsPage({ settings, onSave, onClose }) {
             </div>
           </section>
 
+          {/* Lab Controller */}
+          <section className="border-t border-gray-700 pt-5">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-3">Lab Controller</h3>
+            <div className="mb-1">
+              <label className="block text-xs text-gray-400 mb-1">Controller URL</label>
+              <input type="text" value={draft.labControllerUrl ?? ''} onChange={e => setField('labControllerUrl', e.target.value)}
+                placeholder="http://localhost:8000"
+                className="w-full rounded-lg bg-gray-700 px-3 py-2 font-mono text-sm text-gray-100 placeholder-gray-500 outline-none ring-1 ring-gray-600 focus:ring-indigo-500" />
+              <p className="mt-1 text-xs text-gray-500">Required for Mode E (hands-on lab) scenarios.</p>
+            </div>
+          </section>
+
           {/* Data */}
           <section className="border-t border-gray-700 pt-5">
             <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-3">Profile Data</h3>

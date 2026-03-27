@@ -40,11 +40,14 @@ RUN pwsh -NoProfile -NonInteractive -Command \
 # ----- Python app -----
 WORKDIR /app
 
-COPY requirements.txt .
+# Copy scenarios from project root context
+COPY scenarios /scenarios
+
+COPY platform/lab-controller/requirements.txt .
 RUN pip3 install --no-cache-dir -r requirements.txt
 
-COPY app/ ./app/
-COPY environments.yaml .
+COPY platform/lab-controller/app/ ./app/
+COPY platform/lab-controller/environments.yaml .
 
 # SQLite DB lives in /data so it can be backed by a k8s PersistentVolume.
 # The app uses ./lab_state.db by default; override via SQLALCHEMY_DATABASE_URL

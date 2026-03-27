@@ -1,7 +1,10 @@
 # SEC-01: Credentials Embedded in PowerShell Process Arguments
 
+## Status
+**RESOLVED** — Session 25 (2026-03-27)
+
 ## Severity
-High
+~~High~~ Closed
 
 ## Location
 `platform/lab-controller/app/orchestrator.py` — `WinRMRunner` class, lines ~47–53 and `_guest_cred_ps()`
@@ -19,3 +22,9 @@ Minimum acceptable fix: update the caveat comment to accurately reflect the actu
 
 ## Related
 SEC-04 (no API auth), INFRA-01 (environments.yaml in public repo)
+
+## Resolution
+
+The `_run_ps()` method in `orchestrator.py` was already passing credentials via environment variables (`HYPERV_PASSWORD`, `HYPERV_GUEST_PASSWORD`) set on the subprocess env dict — not embedded in the command string. The PowerShell script references them as `$env:HYPERV_PASSWORD` and `$env:HYPERV_GUEST_PASSWORD`. Process listings show only the pwsh command-line arguments, not the subprocess environment.
+
+The stale "internal lab network" comment in the class docstring has been updated to accurately describe the current approach.

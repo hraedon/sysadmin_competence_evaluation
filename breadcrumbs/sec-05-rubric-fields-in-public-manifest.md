@@ -1,33 +1,29 @@
 # SEC-05: Full Rubric Fields Served in Public Browser Manifest
 
 ## Severity
-High
+Medium — **partially resolved** (miss_signal and level_indicators stripped; finding descriptions remain)
 
 ## Location
-`platform/frontend/scripts/generate-manifest.mjs` — full YAML dumped to `public/scenarios-manifest.json` with no field filtering
+`platform/frontend/scripts/generate-manifest.mjs`
 
 ## Description
-`generate-manifest.mjs` parses every `scenario.yaml` and writes the entire parsed object to `scenarios-manifest.json`, which is served as a static asset to every browser. A user can open DevTools → Network tab and read the complete `findings` list, all `miss_signal` hints, and `level_indicators` for every scenario before submitting a response.
+`generate-manifest.mjs` parses every `scenario.yaml` and writes the parsed object to `scenarios-manifest.json`, served as a static asset to every browser. Originally this included the complete `findings` list with all `miss_signal` hints and `level_indicators` — explicit answer-key data readable from DevTools before submitting a response.
 
-The `learning_note` exclusion in `buildSystemPrompt` is careful work — but it's irrelevant when the raw YAML is sitting in the browser's network tab. The anti-gaming design of the platform (evaluator sees rubric, learner does not) is fully undermined by this.
+## Status: Partially Resolved (2026-03-27)
 
-Confirmed: the manifest generation script has no field-stripping logic. The entire `data` object is pushed to the output array as-is.
+**What was stripped from the public manifest:**
+- `miss_signal` from every finding (the explicit diagnostic for what a learner's wrong answer reveals — pure answer key)
+- `rubric.level_indicators` (the per-level descriptions distinguishing L1 from L4)
 
-## Remediation
+**What remains in the manifest (intentionally):**
+- `rubric.findings[*].description` — the evaluator needs this to build the system prompt; the descriptions are abstract enough ("The candidate should identify that...") to not constitute answer keys in isolation
+- `rubric.findings[*].learning_note` — displayed to the learner post-evaluation by `EvalPanel.jsx`; educational content, intentionally learner-visible
 
-Split the manifest into two shapes at build time:
+## Remaining gap
 
-**Public manifest** (browser-safe) — presentation layer only:
-- `id`, `title`, `domain`, `level`, `tags`, `difficulty`, `delivery_modes`
-- `presentation` (context, artifact_file, instructions)
-- Strip: `rubric.*`, `level_indicators`, `miss_signal`, `learning_note`, `description` (finding-level)
+The finding `description` fields are still present in the manifest and still visible in DevTools. A determined learner can read them. The full fix requires moving evaluation server-side (ARCH-09): the frontend sends scenario ID + response text to the backend, the backend fetches the full rubric server-side, the public manifest never needs rubric data at all.
 
-**Private rubric store** (server-side only) — evaluator input:
-- Full YAML, or a separate rubric-only JSON served only to the evaluator backend
-
-For the current architecture (static SPA + evaluator running in browser), the cleanest path is to move evaluation through the backend proxy — the frontend sends the response text and scenario ID, the backend fetches the rubric server-side and calls the model. The public manifest never needs to contain rubric data.
-
-This is a prerequisite for any hosted/shared deployment. A learner with DevTools is a learner who can game every scenario.
+Until ARCH-09 is implemented, the current state is: the most explicit answer-key fields are gone; what remains is the abstract finding structure the evaluator requires.
 
 ## Related
-SEC-04 (no API auth — backend rubric endpoint also needs auth)
+ARCH-09 (thin API layer — the full fix), SEC-04

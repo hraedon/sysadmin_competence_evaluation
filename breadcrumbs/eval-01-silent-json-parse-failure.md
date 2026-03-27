@@ -1,7 +1,10 @@
 # EVAL-01: Null JSON Parse Result Is Silent to the User
 
+## Status
+**RESOLVED** — Session 25 (2026-03-27)
+
 ## Severity
-Medium
+~~Medium~~ Closed
 
 ## Location
 `platform/frontend/src/App.jsx` — `handleSubmit()` / `handleCoachReply()`, lines ~96 and ~116–117
@@ -34,3 +37,7 @@ This is a one-line fix with a meaningful user-facing message.
 
 ## Related
 EVAL-02 (almost_caught unused)
+
+## Resolution
+
+Added `if (result.parsed === null)` check in both `handleSubmit` and `handleFollowUp` in `App.jsx`. When `parsed` is null, `setEvalError` is called with `result.error` or a fallback message, and the function returns early. The user now sees an error banner rather than a spinner that resolves to nothing.

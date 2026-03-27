@@ -27,4 +27,4 @@ For the current 3-round cap, the practical impact is limited — this is not an 
 1. **Summarize after round 1**: Replace the round 1 assistant question + user reply pair with a one-sentence summary before passing history to round 2+.
 2. **Pass only the delta**: The evaluator already knows the full scenario context from the system prompt. Coach rounds only need the accumulated Q&A delta, not the original response repeated.
 
-Address if context overflow errors appear in practice, or before raising the round cap above 3.
+**Important:** The failure mode on local models is not a thrown error — it is silently degraded output quality. When context overflow occurs, local models truncate internally or produce incoherent partial responses. This will not appear in error logs and will not be visible to the user as an error. The practical monitoring signal is inconsistent or shallow coach responses on heavy-artifact scenarios, not error rates. Address before raising the round cap above 3, or when heavy-artifact scenarios (multi-hundred-line scripts, log files) become common in coach usage.

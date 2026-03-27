@@ -1,7 +1,10 @@
 # ARCH-07: Verification Script Injection via String Interpolation
 
+## Status
+**RESOLVED** — Session 25 (2026-03-27)
+
 ## Severity
-Medium
+~~Medium~~ Closed
 
 ## Location
 `platform/lab-controller/app/orchestrator.py` — `run_script_in_guest` method, lines ~160–175
@@ -19,3 +22,7 @@ Refactor `run_script_in_guest` to use the `copy_file_to_guest` method first to p
 
 ## Related
 SEC-01 (credentials in args), ARCH-03 (provisioning timeout)
+
+## Resolution
+
+`run_script_in_guest` in `orchestrator.py` was already refactored to use the file-copy approach described in the remediation: it calls `copy_file_to_guest` to place the script at `C:\Windows\Temp\{filename}` inside the VM, then executes `Invoke-Command -VMName ... -ScriptBlock {{ & '{guest_path}' }}`. No script content is interpolated into the command string.

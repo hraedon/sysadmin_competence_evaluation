@@ -20,9 +20,9 @@ class HyperVOrchestrator:
     reach the Hyper-V host; guest-level operations add a second hop using
     PowerShell Direct (-VMName) running on that host.
 
-    NOTE: Credentials are embedded in the command string, which is visible in
-    process listings and logs. Acceptable for an internal lab network — revisit
-    if the controller is ever exposed to an untrusted network.
+    Credentials are passed to the pwsh subprocess via environment variables
+    (HYPERV_PASSWORD, HYPERV_GUEST_PASSWORD), not embedded in the command
+    string. They are referenced inside the PowerShell script via $env:VAR.
     """
 
     def __init__(

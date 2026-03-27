@@ -82,6 +82,25 @@ for (const file of yamlFiles) {
       }
     }
 
+    // Strip answer-key fields before writing to the public manifest.
+    // miss_signal and level_indicators tell a reader exactly what distinguishes each
+    // level — leaving them in the manifest lets any learner with DevTools read the
+    // rubric before submitting. learning_note and finding descriptions stay because
+    // the evaluator needs descriptions and the frontend displays learning_notes
+    // post-evaluation.
+    if (data.rubric) {
+      delete data.rubric.level_indicators
+      for (const finding of data.rubric.findings ?? []) {
+        delete finding.miss_signal
+      }
+      for (const finding of data.rubric.critical_findings ?? []) {
+        delete finding.miss_signal
+      }
+      for (const finding of data.rubric.secondary_findings ?? []) {
+        delete finding.miss_signal
+      }
+    }
+
     // Store the path relative to SCENARIOS_DIR so the frontend can build fetch URLs
     data._scenarios_path = 'scenarios/' + relative(SCENARIOS_DIR, file).replace(/\\/g, '/').replace('scenario.yaml', '').replace(/\/$/, '')
     scenarios.push(data)

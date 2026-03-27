@@ -6,21 +6,29 @@ Tracked gaps and remediation tasks identified through architectural review.
 
 | ID | File | Severity | Summary |
 |----|------|----------|---------|
-| SEC-01 | [sec-01-credentials-in-process-args.md](sec-01-credentials-in-process-args.md) | High | WinRM/guest credentials visible in process args; internal-only caveat is stale |
+| ~~SEC-01~~ | [sec-01-credentials-in-process-args.md](sec-01-credentials-in-process-args.md) | ~~High~~ **Closed** | Credentials now passed via env vars, not process args. Resolved Session 25. |
 | SEC-02 | [sec-02-guacamole-predictable-token.md](sec-02-guacamole-predictable-token.md) | High | Guacamole URL reconstructable from static connection_id; no per-session token |
 | SEC-03 | [sec-03-api-key-in-browser.md](sec-03-api-key-in-browser.md) | Medium | Anthropic/OpenAI key in localStorage + dangerouslyAllowBrowser; proxy path exists |
-| SEC-04 | [sec-04-no-api-authentication.md](sec-04-no-api-authentication.md) | High | Lab controller has no authentication on any endpoint; public ingress |
+| ~~SEC-04~~ | [sec-04-no-api-authentication.md](sec-04-no-api-authentication.md) | ~~High~~ **Closed** | All endpoints now gated by verify_api_key dependency. Resolved Session 25. |
+| SEC-05 | [sec-05-rubric-fields-in-public-manifest.md](sec-05-rubric-fields-in-public-manifest.md) | Medium — **partially resolved** | miss_signal and level_indicators stripped from manifest; finding descriptions remain until ARCH-09 |
+| SEC-06 | [sec-06-labpanel-hardcoded-api-key.md](sec-06-labpanel-hardcoded-api-key.md) | Medium — **partially resolved** | Key moved to VITE_CONTROLLER_KEY env var (S25); still in bundle until ARCH-09 |
 | ARCH-01 | [arch-01-provisioning-race-condition.md](arch-01-provisioning-race-condition.md) | Low/Medium | Read-then-update without SELECT FOR UPDATE; safe at replicas=1, breaks if scaled |
 | ARCH-02 | [arch-02-session-flush-on-restart.md](arch-02-session-flush-on-restart.md) | Medium | Hard delete of all sessions on startup orphans partially-provisioned VMs |
 | ARCH-03 | [arch-03-provisioning-no-watchdog.md](arch-03-provisioning-no-watchdog.md) | Medium | run_provisioning_flow has no outer timeout; hung scripts lock environments forever |
-| EVAL-01 | [eval-01-silent-json-parse-failure.md](eval-01-silent-json-parse-failure.md) | Medium | Null parsed result from evaluator produces no error message to user |
-| EVAL-02 | [eval-02-almost-caught-unused.md](eval-02-almost-caught-unused.md) | Low | almost_caught captured but not used in scoring, coaching, or profile display |
-| INFRA-01 | [infra-01-environments-yaml-in-public-repo.md](infra-01-environments-yaml-in-public-repo.md) | Medium | VM hostnames and Guacamole connection IDs in public repo |
-| SEC-05 | [sec-05-rubric-fields-in-public-manifest.md](sec-05-rubric-fields-in-public-manifest.md) | High | Full rubric/miss_signal/level_indicators served to every browser in manifest |
 | ARCH-04 | [arch-04-sqlite-in-container.md](arch-04-sqlite-in-container.md) | Medium | SQLite hardcoded in lab controller; state lost on restart, scaling impossible |
-| ARCH-05 | [arch-05-no-test-suite.md](arch-05-no-test-suite.md) | Low/Medium | No automated tests; path traversal guard and prompt field exclusion uncovered |
+| ARCH-05 | [arch-05-no-test-suite.md](arch-05-no-test-suite.md) | Low — **partially resolved** | sanitize_scenario_id + buildSystemPrompt tests added (S25); profile.js still uncovered |
 | ARCH-06 | [arch-06-no-rate-limiting.md](arch-06-no-rate-limiting.md) | Low/Medium | No rate limiting on lab provision endpoint; pool exhaustion via unauthenticated flood |
-| EVAL-03 | [eval-03-profile-localStorage-only.md](eval-03-profile-localStorage-only.md) | Low/Medium | Profile in localStorage only; no portability, export, or verifiability |
-| EVAL-04 | [eval-04-coach-history-token-growth.md](eval-04-coach-history-token-growth.md) | Low | Coach history accumulates full context per round; bounded at 3 but heavy for long artifacts |
-| ARCH-07 | [arch-07-verification-script-injection.md](arch-07-verification-script-injection.md) | Medium | Verification script injection via string interpolation in orchestrator |
+| ~~ARCH-07~~ | [arch-07-verification-script-injection.md](arch-07-verification-script-injection.md) | ~~Medium~~ **Closed** | run_script_in_guest already uses file-copy approach, not string interpolation. Resolved Session 25. |
 | ARCH-08 | [arch-08-no-explicit-teardown.md](arch-08-no-explicit-teardown.md) | Low/Medium | No explicit teardown endpoint leads to unnecessary environment lock-in |
+| ARCH-09 | [arch-09-no-backend-convergence.md](arch-09-no-backend-convergence.md) | High — architectural | "No backend" constraint underlies SEC-03, SEC-05, EVAL-03, ARCH-06; thin API layer closes all |
+| ~~ARCH-10~~ | [arch-10-no-react-error-boundary.md](arch-10-no-react-error-boundary.md) | ~~Low/Medium~~ **Closed** | ErrorBoundary added in main.jsx + App.jsx wrapping ScenarioPanel/EvalPanel. Resolved Session 25. |
+| ARCH-11 | [arch-11-cicd-commits-to-main.md](arch-11-cicd-commits-to-main.md) | Low | GHA workflow commits image tag directly to main; breaks if branch protection is added |
+| ~~EVAL-01~~ | [eval-01-silent-json-parse-failure.md](eval-01-silent-json-parse-failure.md) | ~~Medium~~ **Closed** | Null parse result now surfaces error message in App.jsx handleSubmit + handleFollowUp. Resolved Session 25. |
+| EVAL-02 | [eval-02-almost-caught-unused.md](eval-02-almost-caught-unused.md) | Low | almost_caught captured but not used in scoring, coaching, or profile display |
+| EVAL-03 | [eval-03-profile-localStorage-only.md](eval-03-profile-localStorage-only.md) | Low/Medium | Profile in localStorage only; no portability, export, or verifiability |
+| EVAL-04 | [eval-04-coach-history-token-growth.md](eval-04-coach-history-token-growth.md) | Low | Coach context heavy for long artifacts; failure mode is silent quality degradation, not error |
+| EVAL-05 | [eval-05-calibration-synthetic-only.md](eval-05-calibration-synthetic-only.md) | Medium | Calibration tests clean synthetic responses only; robustness against real messy responses unvalidated |
+| EVAL-06 | [eval-06-d14-evaluator-variance.md](eval-06-d14-evaluator-variance.md) | Medium | D14 subtle level distinctions have high expected LLM evaluator variance; no human baseline |
+| INFRA-01 | [infra-01-environments-yaml-in-public-repo.md](infra-01-environments-yaml-in-public-repo.md) | Medium | VM hostnames and Guacamole connection IDs in public repo |
+| CONTENT-01 | [content-01-domain-coverage-gaps.md](content-01-domain-coverage-gaps.md) | Medium | D06/D08/D10/D12 have 1 scenario each; single-scenario domains yield meaningless profile readings |
+| CONTENT-02 | [content-02-recall-disguised-as-reasoning.md](content-02-recall-disguised-as-reasoning.md) | Low/Medium | Some L4 findings test specific terminology (delta CRL), not reasoning; violates framework principle |

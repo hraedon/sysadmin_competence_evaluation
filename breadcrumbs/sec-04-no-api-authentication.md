@@ -1,7 +1,10 @@
 # SEC-04: Lab Controller API Has No Authentication
 
+## Status
+**RESOLVED** — Session 25 (2026-03-27)
+
 ## Severity
-High
+~~High~~ Closed
 
 ## Location
 `platform/lab-controller/app/main.py` — all endpoints, particularly `POST /lab/provision/{scenario_id}` and `GET /lab/status`
@@ -19,3 +22,11 @@ For multi-user deployments, integrate with the platform's existing user identity
 
 ## Related
 SEC-01, SEC-02, INFRA-01
+
+## Resolution
+
+All sensitive endpoints in `main.py` now include `dependencies=[Depends(verify_api_key)]`. The `verify_api_key` FastAPI dependency reads `X-API-Key` from the request header and compares it to `settings.controller_api_key` (loaded from the `.env` file / k8s Secret). A mismatch returns HTTP 403.
+
+The `/health` endpoint remains unauthenticated by design (k8s liveness probe).
+
+The frontend-side companion issue (SEC-06, hardcoded key in LabPanel.jsx) was addressed separately — key moved to `VITE_CONTROLLER_KEY` build-time env var.

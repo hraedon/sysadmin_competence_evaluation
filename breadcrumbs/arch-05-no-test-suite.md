@@ -29,3 +29,13 @@ The calibration harness can remain as the AI quality gate. Code-level tests cove
 
 ## Related
 SEC-05 (buildSystemPrompt field leakage would be caught by tests)
+
+## Partial Resolution — Session 25 (2026-03-27)
+
+Two test files added:
+
+- `platform/lab-controller/tests/test_security.py` — pytest suite for `sanitize_scenario_id` (valid IDs, traversal payloads, encoding bypasses, special characters) and `resolve_scenario_path` (containment check). Run: `pytest platform/lab-controller/tests/test_security.py`
+
+- `core/evaluator.test.js` — Node built-in test runner (`node --test`) suite for `buildSystemPrompt` field inclusion/exclusion: `learning_note` never appears, `miss_signal` appears in standard mode and is absent in `compactRubric=true`, `level_indicators` always present, coach mode JSON schema fields. Covers V1 and V2 schema scenarios.
+
+Remaining coverage gaps: `profile.js` domain aggregation and `recommendNext`, JSON parse fallback in `evaluate()`, atomic environment selection in `main.py`.

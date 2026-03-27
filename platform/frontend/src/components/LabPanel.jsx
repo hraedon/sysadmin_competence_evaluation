@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 
 const POLL_INTERVAL_MS = 3000
-const CONTROLLER_API_KEY = 'dev-key-change-me' // Must match lab-controller .env
+// Key is injected at build time via VITE_CONTROLLER_KEY env var (k8s secret → GHA secret).
+// Falls back to empty string so a missing key fails with 403 rather than succeeding with a known default.
+const CONTROLLER_API_KEY = import.meta.env.VITE_CONTROLLER_KEY ?? ''
 
 // Returns a stable per-browser user ID stored in localStorage.
 function getLocalUserId() {

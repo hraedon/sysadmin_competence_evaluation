@@ -8,6 +8,7 @@ import EvalPanel from './components/EvalPanel.jsx'
 import SettingsPage from './components/SettingsPage.jsx'
 import OnboardingView from './components/OnboardingView.jsx'
 import ProfileView from './components/ProfileView.jsx'
+import ErrorBoundary from './components/ErrorBoundary.jsx'
 
 export default function App() {
   const [scenarios, setScenarios] = useState([])       // flat manifest
@@ -93,6 +94,11 @@ export default function App() {
       const result = await evaluate({ scenario: selected, artifactContent, responseText, settings, coachMode, coachRound: 0 })
       setEvalResult(result)
 
+      if (result.parsed === null) {
+        setEvalError(result.error ?? 'Evaluation failed — the model returned an unreadable response. Try again.')
+        return
+      }
+
       if (result.parsed?.level) {
         const updated = saveResult({
           scenario: selected,
@@ -137,6 +143,11 @@ export default function App() {
         coachHistory: newHistory,
       })
       setEvalResult(result)
+
+      if (result.parsed === null) {
+        setEvalError(result.error ?? 'Evaluation failed — the model returned an unreadable response. Try again.')
+        return
+      }
 
       if (result.parsed?.resolved === true) {
         setCoachPhase('resolved')
@@ -210,21 +221,25 @@ export default function App() {
         </div>
       ) : (
         <>
-          <ScenarioPanel
-            scenario={selected}
-            onSubmit={handleSubmit}
-            isEvaluating={isEvaluating}
-            labControllerUrl={settings.labControllerUrl}
-          />
-          <EvalPanel
-            result={evalResult}
-            isEvaluating={isEvaluating}
-            error={evalError}
-            coachPhase={coachPhase}
-            coachRound={coachRound}
-            scenario={selected}
-            onFollowUp={handleFollowUp}
-          />
+          <ErrorBoundary label="The scenario panel encountered an error.">
+            <ScenarioPanel
+              scenario={selected}
+              onSubmit={handleSubmit}
+              isEvaluating={isEvaluating}
+              labControllerUrl={settings.labControllerUrl}
+            />
+          </ErrorBoundary>
+          <ErrorBoundary label="The evaluation panel encountered an error.">
+            <EvalPanel
+              result={evalResult}
+              isEvaluating={isEvaluating}
+              error={evalError}
+              coachPhase={coachPhase}
+              coachRound={coachRound}
+              scenario={selected}
+              onFollowUp={handleFollowUp}
+            />
+          </ErrorBoundary>
         </>
       )}
     </div>

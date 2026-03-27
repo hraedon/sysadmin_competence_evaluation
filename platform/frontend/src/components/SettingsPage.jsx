@@ -2,10 +2,10 @@ import { useState } from 'react'
 import { buildClient } from '../lib/evaluator.js'
 
 const PROVIDERS = [
-  { id: 'local',     label: 'Local (LM Studio / Ollama)', hasEndpoint: true,  hasKey: true  },
-  { id: 'anthropic', label: 'Anthropic',                  hasEndpoint: false, hasKey: true  },
-  { id: 'openai',    label: 'OpenAI',                     hasEndpoint: false, hasKey: true  },
-  { id: 'custom',    label: 'Custom',                     hasEndpoint: true,  hasKey: true  },
+  { id: 'local',     label: 'Local (LM Studio / Ollama)', hasEndpoint: true,  hasKey: true,  isProxied: false },
+  { id: 'anthropic', label: 'Anthropic (Server Proxy)',   hasEndpoint: false, hasKey: false, isProxied: true  },
+  { id: 'openai',    label: 'OpenAI (Server Proxy)',      hasEndpoint: false, hasKey: false, isProxied: true  },
+  { id: 'custom',    label: 'Custom / Other',             hasEndpoint: true,  hasKey: true,  isProxied: false },
 ]
 
 const MODEL_DEFAULTS = {
@@ -82,7 +82,7 @@ export default function SettingsPage({ settings, onSave, onClose }) {
   }
 
   const canSave = draft.model.trim() &&
-    (draft.provider === 'local' || draft.apiKey.trim() ||
+    (draft.provider === 'local' || provider.isProxied || draft.apiKey.trim() ||
      (draft.provider === 'custom' && !draft.apiKey.trim()))
 
   return (
@@ -137,6 +137,16 @@ export default function SettingsPage({ settings, onSave, onClose }) {
                   className="w-full rounded-lg bg-gray-700 px-3 py-2 font-mono text-sm text-gray-100 placeholder-gray-500 outline-none ring-1 ring-gray-600 focus:ring-indigo-500" />
                 <p className="mt-1 text-xs text-gray-500">
                   {draft.provider === 'local' ? 'Sent as Bearer token if using the Nginx proxy PSK.' : 'Stored in browser localStorage only. Never sent to this platform\'s servers.'}
+                </p>
+              </div>
+            )}
+
+            {provider.isProxied && (
+              <div className="mb-3 rounded-lg border border-indigo-900/50 bg-indigo-950/30 p-3">
+                <p className="text-xs text-indigo-300 leading-relaxed">
+                  <strong>Proxied Evaluation:</strong> Requests for this provider are routed through the 
+                  Lab Controller. The server's API keys and rubrics are used, protecting 
+                  them from exposure in the browser.
                 </p>
               </div>
             )}

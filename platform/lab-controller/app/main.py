@@ -228,12 +228,11 @@ async def teardown_environment_logic(env_id: str, session_token: str):
                 if not res.success:
                     success = False
                     env.last_error = f"Teardown failed on {vm}: {res.error}"
-                    break
+                    # Don't break; try to revert others to be safe
             
             if success:
                 env.status = "available"
                 env.last_error = None
-                db.query(LabSession).filter(LabSession.session_token == session_token).delete()
             else:
                 env.status = "faulted"
                 
@@ -241,6 +240,10 @@ async def teardown_environment_logic(env_id: str, session_token: str):
             logger.error(f"Teardown exception for {env_id}: {str(e)}")
             env.status = "faulted"
             env.last_error = str(e)
+        finally:
+            # ALWAYS delete the session record so the environment isn't permanently locked
+            db.query(LabSession).filter(LabSession.session_token == session_token).delete()
+            db.commit()
 
 # ---------------------------------------------------------------------------
 # Utilities

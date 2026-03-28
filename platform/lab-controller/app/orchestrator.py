@@ -123,7 +123,7 @@ class HyperVOrchestrator:
         )
         return await self._run_ps(self._remote_wrap(inner))
 
-    async def wait_for_guest_readiness(self, vm_name: str, timeout_seconds: int = 60) -> bool:
+    async def wait_for_guest_readiness(self, vm_name: str, timeout_seconds: int = 300) -> bool:
         """Polls the VM for an IP address until ready or timed out."""
         start_time = asyncio.get_event_loop().time()
         while asyncio.get_event_loop().time() - start_time < timeout_seconds:

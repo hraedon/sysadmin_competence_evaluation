@@ -58,6 +58,17 @@ The lab environment uses Hyper-V for virtualization and Apache Guacamole for bro
 
 ---
 
+## Administrative Controls
+
+### Admin Panel Requirements
+To ensure environment stability and cost control, the platform requires an administrative interface with the following capabilities:
+- **Session Oversight**: View all active lab sessions, including user ID, scenario, and time remaining.
+- **Environment Status**: Monitor the health and state (available, provisioning, busy, faulted) of all configured Hyper-V environments.
+- **Force Termination**: Ability to manually "End Lab" for any session, triggering the immediate teardown and revert flow.
+- **Log Access**: Quick access to lab-controller logs for troubleshooting provisioning or verification failures.
+
+---
+
 ## AI Evaluation Architecture
 
 Evaluations are performed by a shared core module (`core/evaluator.js`).

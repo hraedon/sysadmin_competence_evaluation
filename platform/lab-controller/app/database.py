@@ -6,7 +6,9 @@ import datetime
 import uuid
 from contextlib import contextmanager
 
-SQLALCHEMY_DATABASE_URL = "sqlite:///./lab_state.db"
+import os
+
+SQLALCHEMY_DATABASE_URL = os.getenv("SQLALCHEMY_DATABASE_URL", "sqlite:///./lab_state.db")
 Base = declarative_base()
 
 class LabEnvironment(Base):

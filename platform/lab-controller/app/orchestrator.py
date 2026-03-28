@@ -139,6 +139,21 @@ class HyperVOrchestrator:
         )
         return await self._run_ps(self._remote_wrap(inner))
 
+    async def get_vm_state(self, vm_name: str) -> OrchestrationResult:
+        """Returns the current power state of a VM as reported by Hyper-V.
+
+        Possible values: Running, Off, Saved, Paused, Starting, Stopping, Saving,
+        Pausing, Resuming, Reset, CheckpointApplying, Unknown.
+
+        Used by the reconciler to detect orphan VMs (Running while environment
+        shows 'available').  Does not enter the guest — queries the Hyper-V host only.
+        """
+        if self.dry_run:
+            logger.info(f"[DRY RUN] Getting state for {vm_name}")
+            return OrchestrationResult(success=True, output="Off")
+        inner = f"(Get-VM -Name '{vm_name}').State.ToString()"
+        return await self._run_ps(self._remote_wrap(inner))
+
     async def wait_for_guest_readiness(self, vm_name: str, timeout_seconds: int = 300, on_connectivity_phase=None) -> bool:
         """Polls the VM for an IP address, then confirms with a connectivity test.
 

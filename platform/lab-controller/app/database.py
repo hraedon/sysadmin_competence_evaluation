@@ -28,6 +28,9 @@ class LabEnvironment(Base):
     provision_step_updated_at = Column(DateTime, nullable=True)
     last_error = Column(String, nullable=True)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+    # Reconciler fields: track when faults occurred and how many auto-recovery attempts have run
+    faulted_at = Column(DateTime, nullable=True)       # timestamp of most recent fault entry
+    fault_retry_count = Column(Integer, default=0)     # number of auto-recovery attempts since last manual reset
 
 class LabSession(Base):
     __tablename__ = "sessions"
@@ -67,6 +70,8 @@ def _migrate_add_columns():
         ("environments", "provision_step", "TEXT"),
         ("environments", "provision_step_updated_at", "TIMESTAMP"),
         ("sessions", "suspect", "BOOLEAN DEFAULT 0"),
+        ("environments", "faulted_at", "TIMESTAMP"),
+        ("environments", "fault_retry_count", "INTEGER DEFAULT 0"),
     ]
     with engine.connect() as conn:
         for table, column, col_type in migrations:

@@ -42,6 +42,14 @@ class Settings(BaseSettings):
     hyperv_guest_password: str = ""
     controller_api_key: str = "dev-key-change-me"
     anthropic_api_key: str = ""
+    # Reconciler settings
+    reconcile_interval_minutes: int = 5         # how often the reconciler runs
+    fault_auto_retry_delay_minutes: int = 10    # min time between fault and first auto-retry
+    fault_max_auto_retries: int = 2             # give up after this many failed auto-recoveries
+    # NOTE: teardown hardcodes "Baseline" but scenario YAML can specify a different checkpoint
+    # name (e.g., "Baseline Checkpoint"). This setting is the fallback used by teardown and the
+    # reconciler. Set it to match the actual snapshot name on your Hyper-V VMs.
+    baseline_checkpoint_name: str = "Baseline"
 
     class Config:
         env_file = ".env"
@@ -127,9 +135,10 @@ async def startup_event():
     init_db()
     await load_environments()
     
-    # Start the reaper
+    # Start background jobs
     scheduler = BackgroundScheduler()
     scheduler.add_job(reap_expired_sessions_wrapper, 'interval', minutes=1)
+    scheduler.add_job(reconcile_environments_wrapper, 'interval', minutes=settings.reconcile_interval_minutes)
     scheduler.start()
     app.state.scheduler = scheduler
 
@@ -197,6 +206,10 @@ def reap_expired_sessions_wrapper():
     """
     asyncio.run(reap_expired_sessions())
 
+def reconcile_environments_wrapper():
+    """Sync wrapper for async reconciler (same pattern as reaper wrapper)."""
+    asyncio.run(reconcile_environments())
+
 async def reap_expired_sessions():
     """Background task to clean up expired lab environments."""
     now = datetime.datetime.utcnow()
@@ -209,6 +222,122 @@ async def reap_expired_sessions():
     for env_id, token in expired_pairs:
         logger.info(f"Reaping expired session {token} for env {env_id}")
         await teardown_environment_logic(env_id, token)
+
+async def _attempt_auto_recovery(env_id: str, vm_list: list):
+    """Revert each VM in the environment to the Baseline checkpoint.
+
+    On success: resets environment to 'available' and clears all fault state.
+    On failure: increments fault_retry_count and resets faulted_at so the
+                reconciler won't retry again until the delay has elapsed.
+    """
+    checkpoint = settings.baseline_checkpoint_name
+    success = True
+    last_error = None
+    for vm in vm_list:
+        res = await orchestrator.revert_to_checkpoint(vm, checkpoint)
+        if not res.success:
+            success = False
+            last_error = f"Auto-recovery revert failed for '{vm}': {res.error}"
+            # Attempt all VMs even if one fails
+
+    if success:
+        with session_scope() as db:
+            env = db.query(LabEnvironment).filter(LabEnvironment.id == env_id).first()
+            if env:
+                env.status = "available"
+                env.last_error = None
+                env.provision_step = None
+                env.faulted_at = None
+                env.fault_retry_count = 0
+        logger.info(f"Reconciler: auto-recovered env '{env_id}' — returned to 'available'")
+    else:
+        with session_scope() as db:
+            env = db.query(LabEnvironment).filter(LabEnvironment.id == env_id).first()
+            if env:
+                env.fault_retry_count = (env.fault_retry_count or 0) + 1
+                env.faulted_at = datetime.datetime.utcnow()  # reset timer for next retry window
+                env.last_error = last_error
+        logger.warning(f"Reconciler: auto-recovery failed for '{env_id}': {last_error}")
+
+
+async def reconcile_environments():
+    """Periodic reconciler: detect and repair out-of-compliance lab environments.
+
+    Runs every RECONCILE_INTERVAL_MINUTES (default: 5).  Two jobs:
+
+    Phase 1 — Fault auto-retry:
+        Find faulted environments where faulted_at is old enough AND
+        fault_retry_count < fault_max_auto_retries.  Attempt to revert
+        each VM to the Baseline checkpoint and reset the environment to
+        'available'.  Stops retrying after fault_max_auto_retries failures;
+        at that point operator intervention (admin reset) is required.
+
+    Phase 2 — Orphan VM detection (skipped in dry_run):
+        Query the Hyper-V host for the actual VM power state of every
+        'available' environment.  If any VM is Running/Saved/Paused but
+        no session owns it, revert to Baseline.  This catches VMs that
+        were left running by a crash mid-provisioning before a session
+        record was created.
+
+    Does NOT touch: busy / provisioning / teardown environments.
+    """
+    now = datetime.datetime.utcnow()
+    retry_cutoff = now - datetime.timedelta(minutes=settings.fault_auto_retry_delay_minutes)
+
+    # --- Phase 1: retry eligible faulted environments ---
+    with session_scope() as db:
+        faulted_envs = db.query(LabEnvironment).filter(
+            LabEnvironment.status == "faulted",
+            LabEnvironment.fault_retry_count < settings.fault_max_auto_retries,
+        ).all()
+        # Only pick up envs whose faulted_at is old enough (or not set yet)
+        eligible = [
+            (e.id, list(e.vms))
+            for e in faulted_envs
+            if e.faulted_at is None or e.faulted_at <= retry_cutoff
+        ]
+
+    for env_id, vm_list in eligible:
+        logger.info(f"Reconciler: attempting auto-recovery for faulted env '{env_id}'")
+        await _attempt_auto_recovery(env_id, vm_list)
+
+    # --- Phase 2: orphan VM detection (requires WinRM — skip in dry_run) ---
+    if settings.dry_run:
+        return
+
+    with session_scope() as db:
+        available_envs = db.query(LabEnvironment).filter(
+            LabEnvironment.status == "available"
+        ).all()
+        available_list = [(e.id, list(e.vms)) for e in available_envs]
+
+    for env_id, vm_list in available_list:
+        for vm in vm_list:
+            state_res = await orchestrator.get_vm_state(vm)
+            if not state_res.success:
+                logger.warning(
+                    f"Reconciler: could not query state of VM '{vm}' "
+                    f"in env '{env_id}': {state_res.error}"
+                )
+                continue
+            vm_state = state_res.output.strip().lower()
+            if vm_state != "off":
+                logger.warning(
+                    f"Reconciler: orphan VM '{vm}' in env '{env_id}' is '{vm_state}' "
+                    f"but environment shows 'available'. Reverting to Baseline."
+                )
+                revert_res = await orchestrator.revert_to_checkpoint(
+                    vm, settings.baseline_checkpoint_name
+                )
+                if not revert_res.success:
+                    logger.error(
+                        f"Reconciler: failed to revert orphan VM '{vm}': {revert_res.error}"
+                    )
+                    _update_env_status(
+                        env_id, "faulted",
+                        last_error=f"Orphan VM revert failed for '{vm}': {revert_res.error}"
+                    )
+
 
 async def teardown_environment_logic(env_id: str, session_token: str):
     """Reverts VMs and marks environment as available. Deletes dynamic Guacamole connections.
@@ -240,7 +369,7 @@ async def teardown_environment_logic(env_id: str, session_token: str):
 
     # Revert VMs (no DB lock held)
     try:
-        checkpoint = "Baseline"
+        checkpoint = settings.baseline_checkpoint_name
         success = True
         last_error = None
         for vm in vm_list:
@@ -297,8 +426,23 @@ def resolve_scenario_path(scenario_id: str) -> Path:
 
 @app.get("/health")
 @app.get("/lab/health")
-async def health_check():
-    return {"status": "healthy"}
+async def health_check(db: Session = Depends(get_db)):
+    envs = db.query(LabEnvironment).all()
+    faulted = [e.id for e in envs if e.status == "faulted"]
+    available = sum(1 for e in envs if e.status == "available")
+    # Include per-fault retry info so operators can see if auto-recovery is spinning
+    faulted_detail = [
+        {"id": e.id, "last_error": e.last_error,
+         "fault_retry_count": e.fault_retry_count or 0,
+         "faulted_at": e.faulted_at.isoformat() if e.faulted_at else None}
+        for e in envs if e.status == "faulted"
+    ]
+    return {
+        "status": "degraded" if faulted else "healthy",
+        "environments_total": len(envs),
+        "environments_available": available,
+        "environments_faulted": faulted_detail,
+    }
 
 @app.get("/lab/status", dependencies=[Depends(verify_api_key)])
 async def get_status(db: Session = Depends(get_db)):
@@ -347,7 +491,25 @@ async def provision_lab(
             break
             
     if not selected_env:
-        raise HTTPException(status_code=503, detail="No capable lab environments currently available.")
+        all_envs = db.query(LabEnvironment).all()
+        if not all_envs:
+            detail = "No lab environments configured. Verify environments.yaml was loaded at startup."
+        elif not available_envs:
+            faulted_ids = [e.id for e in all_envs if e.status == "faulted"]
+            active_ids = [e.id for e in all_envs if e.status in ("busy", "provisioning", "teardown")]
+            parts = []
+            if faulted_ids:
+                parts.append(f"{len(faulted_ids)} faulted {faulted_ids} — reset via POST /lab/admin/reset-all-faulted")
+            if active_ids:
+                parts.append(f"{len(active_ids)} active {active_ids}")
+            detail = "No available environments. " + "; ".join(parts)
+        else:
+            caps_available = [sorted(e.capabilities or []) for e in available_envs]
+            detail = (
+                f"No available environment supports capabilities {sorted(required_capabilities)}. "
+                f"Available environments offer: {caps_available}"
+            )
+        raise HTTPException(status_code=503, detail=detail)
 
     # 2. Atomic Mutex
     affected = db.query(LabEnvironment).filter(
@@ -409,7 +571,13 @@ def _update_provision_step(env_id: str, step: str):
             env.provision_step_updated_at = datetime.datetime.utcnow()
 
 def _update_env_status(env_id: str, status: str, provision_step=None, last_error=None):
-    """Update environment status using a short-lived DB session."""
+    """Update environment status using a short-lived DB session.
+
+    Side effects:
+    - When status transitions TO 'faulted': stamps faulted_at (if not already set)
+      and preserves existing fault_retry_count so the reconciler can track attempts.
+    - When status transitions TO 'available': clears faulted_at and fault_retry_count.
+    """
     with session_scope() as db:
         env = db.query(LabEnvironment).filter(LabEnvironment.id == env_id).first()
         if env:
@@ -417,6 +585,52 @@ def _update_env_status(env_id: str, status: str, provision_step=None, last_error
             env.provision_step = provision_step
             env.provision_step_updated_at = None
             env.last_error = last_error
+            if status == "faulted":
+                if not env.faulted_at:
+                    env.faulted_at = datetime.datetime.utcnow()
+                # fault_retry_count is left unchanged — reconciler manages it
+            elif status == "available":
+                env.faulted_at = None
+                env.fault_retry_count = 0
+
+def _reset_environment(env_id: str) -> str:
+    """Reset a non-active environment to 'available' and clear its fault state.
+
+    Returns the previous status string.
+    Raises HTTPException(404) if not found.
+    Raises HTTPException(409) if the environment is actively provisioning or in use —
+    resetting an active environment would orphan the running VM.
+    """
+    with session_scope() as db:
+        env = db.query(LabEnvironment).filter(LabEnvironment.id == env_id).first()
+        if not env:
+            raise HTTPException(status_code=404, detail=f"Environment '{env_id}' not found.")
+        if env.status in ("provisioning", "busy", "teardown"):
+            raise HTTPException(
+                status_code=409,
+                detail=f"Cannot reset '{env_id}': currently '{env.status}'. "
+                       f"Only faulted or available environments may be reset."
+            )
+        previous = env.status
+        env.status = "available"
+        env.last_error = None
+        env.provision_step = None
+        env.faulted_at = None
+        env.fault_retry_count = 0
+    return previous
+
+def _reset_all_faulted() -> List[str]:
+    """Reset every faulted environment to 'available'. Returns the list of reset env IDs."""
+    with session_scope() as db:
+        faulted = db.query(LabEnvironment).filter(LabEnvironment.status == "faulted").all()
+        reset_ids = [e.id for e in faulted]
+        for env in faulted:
+            env.status = "available"
+            env.last_error = None
+            env.provision_step = None
+            env.faulted_at = None
+            env.fault_retry_count = 0
+    return reset_ids
 
 async def run_provisioning_with_watchdog(env_id: str, scenario_path: Path, mode_e: dict, session_token: str):
     """Outer watchdog that ensures provisioning cannot run indefinitely."""
@@ -562,6 +776,25 @@ async def teardown_lab(session_token: str, background_tasks: BackgroundTasks, db
     background_tasks.add_task(teardown_environment_logic, session.environment_id, session_token)
     
     return {"status": "success", "detail": "Teardown initiated."}
+
+@app.post("/lab/admin/reset/{env_id}", dependencies=[Depends(verify_api_key)])
+async def admin_reset_environment(env_id: str):
+    """Reset a faulted or stuck environment back to 'available'. Admin use only.
+
+    Safe to call on 'faulted' or 'available' environments. Rejected with 409
+    if the environment is actively provisioning or in use (which would orphan
+    the running VM — use teardown instead).
+    """
+    previous = _reset_environment(env_id)
+    logger.info(f"Admin reset: env '{env_id}' from '{previous}' to 'available'")
+    return {"id": env_id, "previous_status": previous, "status": "available"}
+
+@app.post("/lab/admin/reset-all-faulted", dependencies=[Depends(verify_api_key)])
+async def admin_reset_all_faulted():
+    """Reset all faulted environments to 'available' in a single call. Admin use only."""
+    reset_ids = _reset_all_faulted()
+    logger.info(f"Admin reset-all-faulted: reset {len(reset_ids)} environment(s): {reset_ids}")
+    return {"reset": reset_ids, "count": len(reset_ids)}
 
 @app.post("/lab/verify/{session_token}", dependencies=[Depends(verify_api_key)])
 async def verify_lab(session_token: str, db: Session = Depends(get_db)):

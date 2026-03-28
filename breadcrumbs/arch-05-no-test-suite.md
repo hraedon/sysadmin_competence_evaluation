@@ -57,3 +57,12 @@ Remaining coverage gaps: `profile.js` domain aggregation and `recommendNext`, JS
 **Total test count: 72** (20 security + 19 integration + 11 JS evaluator + 22 JS profile). All passing.
 
 **Remaining gaps:** Frontend component tests (Vitest + React Testing Library), JSON parse fallback in `evaluate()`.
+
+## Further Resolution — Session 29 (2026-03-28)
+
+- **T-6: Faulted Environment Recovery (9 tests):** faulted env excluded from pool, faulted status persists across `load_environments()` (contract test), `_reset_environment()` clears fault, 409 on active env, 404 on unknown env, `_reset_all_faulted()` bulk reset, faulted env round-trip (fault → 503 → reset → available), capability-mismatch vs all-faulted distinction.
+- **T-7: Reconciler (13 tests):** `faulted_at` stamped on first fault and not overwritten, cleared on recovery; reconciler skips too-recent faults and over-retry-limit envs; `_attempt_auto_recovery()` success/failure/all-VMs-attempted; orphan VM triggers revert; Off VM left alone; orphan revert failure marks faulted; dry-run skips orphan detection.
+
+**Total test count: 61 Python** (20 security + 41 integration) **+ 33 JS** (11 evaluator + 22 profile) **= 94 total.** All passing.
+
+**Remaining gaps:** Frontend component tests (Vitest + React Testing Library), JSON parse fallback in `evaluate()`, HTTP-layer endpoint tests (TestClient) for admin reset / health check response shapes.

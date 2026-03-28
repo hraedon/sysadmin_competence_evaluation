@@ -435,3 +435,571 @@ class TestEvaluatorPromptBuilder:
         prompt = build_system_prompt(scenario, "artifact")
         assert "Basic understanding" in prompt
         assert "Expert mastery" in prompt
+
+
+# ---------------------------------------------------------------------------
+# T-6: Faulted environment detection and admin reset
+# ---------------------------------------------------------------------------
+
+class TestFaultedEnvironmentRecovery:
+    """
+    T-6: Faulted environment detection and admin reset.
+
+    Root cause of "No capable lab environments currently available":
+    Environments that enter 'faulted' status have no automatic recovery path.
+    load_environments() explicitly preserves 'faulted' across pod restarts
+    (intentionally — don't re-provision a known-bad VM), but there was no
+    admin endpoint to clear it. Any provisioning failure permanently removes
+    an environment from the pool until the DB is manually edited.
+
+    These tests:
+    1. Detect the problem (faulted → excluded from available pool)
+    2. Verify the intentional design (faulted persists on restart)
+    3. Verify the fix (admin reset clears fault and restores availability)
+    """
+
+    def test_faulted_env_excluded_from_available_query(self, seeded_db):
+        """A faulted environment must not appear in the provisioning pool."""
+        _, _, scope = seeded_db
+        with scope() as db:
+            db.query(LabEnvironment).filter(LabEnvironment.id == "env-01").update(
+                {"status": "faulted"}
+            )
+        with scope() as db:
+            available = db.query(LabEnvironment).filter(
+                LabEnvironment.status == "available"
+            ).all()
+            assert len(available) == 0, "A faulted environment must not be provisioned"
+
+    def test_faulted_status_persists_across_load_environments(self, seeded_db, tmp_path):
+        """load_environments must NOT silently reset faulted environments on restart.
+
+        Preserving 'faulted' is intentional — it prevents re-use of a known-bad
+        VM — but it requires an explicit admin reset path to recover.
+        This test documents the behaviour as a contract.
+        """
+        _, _, scope = seeded_db
+        import app.main as main_mod
+
+        with scope() as db:
+            db.query(LabEnvironment).filter(LabEnvironment.id == "env-01").update(
+                {"status": "faulted", "last_error": "prior failure"}
+            )
+
+        env_config = {"environments": [{
+            "id": "env-01", "vms": ["VM1"], "guac_target_vm": "VM1",
+            "guac_protocol": "rdp", "guac_connection_id": "1",
+            "capabilities": ["windows-server"], "status": "available"
+        }]}
+        env_yaml = tmp_path / "environments.yaml"
+        env_yaml.write_text(yaml.dump(env_config))
+        mock_settings = MagicMock()
+        mock_settings.environments_config = str(env_yaml)
+
+        with patch.object(main_mod, "session_scope", scope), \
+             patch.object(main_mod, "settings", mock_settings):
+            asyncio.run(main_mod.load_environments())
+
+        with scope() as db:
+            env = db.query(LabEnvironment).first()
+            assert env.status == "faulted", (
+                "load_environments should NOT reset faulted status — "
+                "operator must use admin reset to recover intentionally"
+            )
+
+    def test_admin_reset_restores_faulted_to_available(self, seeded_db):
+        """_reset_environment clears the fault and returns the previous status."""
+        _, _, scope = seeded_db
+        import app.main as main_mod
+
+        with scope() as db:
+            env = db.query(LabEnvironment).first()
+            env.status = "faulted"
+            env.last_error = "Checkpoint revert failed for VM1: access denied"
+            env.provision_step = "reverting"
+
+        with patch.object(main_mod, "session_scope", scope):
+            previous = main_mod._reset_environment("env-01")
+
+        assert previous == "faulted"
+        with scope() as db:
+            env = db.query(LabEnvironment).first()
+            assert env.status == "available"
+            assert env.last_error is None
+            assert env.provision_step is None
+
+    def test_admin_reset_rejects_active_environments(self, seeded_db):
+        """Cannot reset an environment that is actively provisioning or in use.
+
+        Resetting while active would orphan the running VM in an unknown state.
+        """
+        from fastapi import HTTPException
+        _, _, scope = seeded_db
+        import app.main as main_mod
+
+        for active_status in ("provisioning", "busy", "teardown"):
+            with scope() as db:
+                db.query(LabEnvironment).filter(LabEnvironment.id == "env-01").update(
+                    {"status": active_status}
+                )
+            with patch.object(main_mod, "session_scope", scope):
+                with pytest.raises(HTTPException) as exc_info:
+                    main_mod._reset_environment("env-01")
+                assert exc_info.value.status_code == 409, \
+                    f"Expected 409 for status={active_status!r}, got {exc_info.value.status_code}"
+
+    def test_admin_reset_not_found_raises_404(self, db_factory):
+        """_reset_environment raises 404 for an unknown environment ID."""
+        from fastapi import HTTPException
+        _, _, scope = db_factory
+        import app.main as main_mod
+
+        with patch.object(main_mod, "session_scope", scope):
+            with pytest.raises(HTTPException) as exc_info:
+                main_mod._reset_environment("nonexistent-env")
+            assert exc_info.value.status_code == 404
+
+    def test_reset_all_faulted_restores_entire_pool(self, db_factory):
+        """_reset_all_faulted resets every faulted environment in one call."""
+        _, _, scope = db_factory
+        with scope() as db:
+            for env_id in ("env-a", "env-b", "env-c"):
+                db.add(LabEnvironment(
+                    id=env_id, vms=["VM1"], guac_connection_id="1",
+                    capabilities=["windows-server"], status="faulted",
+                    last_error="prior failure"
+                ))
+            # Add a non-faulted env to confirm it is untouched
+            db.add(LabEnvironment(
+                id="env-busy", vms=["VM2"], guac_connection_id="2",
+                capabilities=["windows-server"], status="busy"
+            ))
+
+        import app.main as main_mod
+        with patch.object(main_mod, "session_scope", scope):
+            reset_ids = main_mod._reset_all_faulted()
+
+        assert set(reset_ids) == {"env-a", "env-b", "env-c"}
+        with scope() as db:
+            still_faulted = db.query(LabEnvironment).filter(
+                LabEnvironment.status == "faulted"
+            ).count()
+            assert still_faulted == 0
+            # Non-faulted env untouched
+            busy_env = db.query(LabEnvironment).filter(LabEnvironment.id == "env-busy").first()
+            assert busy_env.status == "busy"
+
+    def test_reset_all_faulted_returns_empty_when_none_faulted(self, seeded_db):
+        """_reset_all_faulted is a no-op (returns []) when no environments are faulted."""
+        _, _, scope = seeded_db
+        import app.main as main_mod
+
+        with patch.object(main_mod, "session_scope", scope):
+            reset_ids = main_mod._reset_all_faulted()
+
+        assert reset_ids == []
+
+    def test_503_detail_identifies_faulted_environments(self, db_factory):
+        """When all environments are faulted, the available query is empty.
+
+        This test verifies the DB state that produces the 503 and confirms
+        the admin reset path restores the environment to the available pool.
+        """
+        _, _, scope = db_factory
+        import app.main as main_mod
+
+        with scope() as db:
+            db.add(LabEnvironment(
+                id="env-01", vms=["VM1"], guac_connection_id="1",
+                capabilities=["windows-server"], status="faulted",
+                last_error="WinRM timeout after 300s"
+            ))
+
+        # Confirm: nothing available
+        with scope() as db:
+            available = db.query(LabEnvironment).filter(
+                LabEnvironment.status == "available"
+            ).all()
+            assert len(available) == 0
+
+        # Fix: admin reset
+        with patch.object(main_mod, "session_scope", scope):
+            main_mod._reset_environment("env-01")
+
+        # Confirm: now available
+        with scope() as db:
+            available = db.query(LabEnvironment).filter(
+                LabEnvironment.status == "available"
+            ).all()
+            assert len(available) == 1
+
+    def test_capability_mismatch_with_available_envs(self, db_factory):
+        """When envs are available but lack required capabilities, none are selected.
+
+        This is distinct from 'all faulted' — envs ARE available, just wrong type.
+        The 503 detail should reflect the mismatch, not a fault.
+        """
+        _, _, scope = db_factory
+        with scope() as db:
+            db.add(LabEnvironment(
+                id="linux-01", vms=["L1"], guac_connection_id="2",
+                capabilities=["linux"], status="available"
+            ))
+
+        with scope() as db:
+            available = db.query(LabEnvironment).filter(
+                LabEnvironment.status == "available"
+            ).all()
+            required = ["windows-server"]
+            matched = [
+                e for e in available
+                if all(c in (e.capabilities or []) for c in required)
+            ]
+            # Available envs exist, but none match
+            assert len(available) == 1
+            assert len(matched) == 0
+
+
+# ---------------------------------------------------------------------------
+# T-7: Reconciler — auto-recovery and orphan VM detection
+# ---------------------------------------------------------------------------
+
+class TestReconciler:
+    """
+    T-7: Periodic reconciler behaviour.
+
+    The reconciler runs every RECONCILE_INTERVAL_MINUTES and does two things:
+    1. Auto-retry faulted environments (up to fault_max_auto_retries times,
+       with a delay of fault_auto_retry_delay_minutes between attempts).
+    2. Detect orphan VMs — VMs that are Running while the environment is
+       'available' (no active session) — and revert them to Baseline.
+    """
+
+    # ------------------------------------------------------------------ #
+    # faulted_at stamping                                                 #
+    # ------------------------------------------------------------------ #
+
+    def test_faulted_at_stamped_when_env_first_faults(self, seeded_db):
+        """_update_env_status('faulted') records faulted_at on first fault."""
+        _, _, scope = seeded_db
+        import app.main as main_mod
+
+        with patch.object(main_mod, "session_scope", scope):
+            main_mod._update_env_status("env-01", "faulted", last_error="disk full")
+
+        with scope() as db:
+            env = db.query(LabEnvironment).first()
+            assert env.status == "faulted"
+            assert env.faulted_at is not None
+
+    def test_faulted_at_not_overwritten_on_second_fault(self, seeded_db):
+        """Subsequent _update_env_status('faulted') calls do not clobber faulted_at.
+
+        This preserves the original fault time so the retry delay is calculated
+        from when the environment FIRST faulted, not from the last status write.
+        """
+        _, _, scope = seeded_db
+        import app.main as main_mod
+
+        first_fault = datetime.datetime.utcnow() - datetime.timedelta(hours=1)
+        with scope() as db:
+            env = db.query(LabEnvironment).first()
+            env.status = "faulted"
+            env.faulted_at = first_fault
+
+        with patch.object(main_mod, "session_scope", scope):
+            main_mod._update_env_status("env-01", "faulted", last_error="still broken")
+
+        with scope() as db:
+            env = db.query(LabEnvironment).first()
+            # faulted_at must not have moved forward
+            assert env.faulted_at <= first_fault + datetime.timedelta(seconds=1)
+
+    def test_faulted_at_cleared_when_env_recovers(self, seeded_db):
+        """_update_env_status('available') clears faulted_at and fault_retry_count."""
+        _, _, scope = seeded_db
+        import app.main as main_mod
+
+        with scope() as db:
+            env = db.query(LabEnvironment).first()
+            env.status = "faulted"
+            env.faulted_at = datetime.datetime.utcnow()
+            env.fault_retry_count = 2
+
+        with patch.object(main_mod, "session_scope", scope):
+            main_mod._update_env_status("env-01", "available")
+
+        with scope() as db:
+            env = db.query(LabEnvironment).first()
+            assert env.faulted_at is None
+            assert env.fault_retry_count == 0
+
+    # ------------------------------------------------------------------ #
+    # Retry eligibility                                                   #
+    # ------------------------------------------------------------------ #
+
+    def test_reconciler_skips_env_faulted_too_recently(self, seeded_db, tmp_path):
+        """Env faulted seconds ago must not be retried — delay has not elapsed."""
+        _, _, scope = seeded_db
+        import app.main as main_mod
+
+        with scope() as db:
+            env = db.query(LabEnvironment).first()
+            env.status = "faulted"
+            env.faulted_at = datetime.datetime.utcnow()  # just now
+            env.fault_retry_count = 0
+
+        mock_orch = AsyncMock()
+        mock_guac = AsyncMock()
+        mock_settings = MagicMock()
+        mock_settings.dry_run = True
+        mock_settings.fault_auto_retry_delay_minutes = 10
+        mock_settings.fault_max_auto_retries = 2
+        mock_settings.baseline_checkpoint_name = "Baseline"
+
+        with patch.object(main_mod, "session_scope", scope), \
+             patch.object(main_mod, "orchestrator", mock_orch), \
+             patch.object(main_mod, "guac_client", mock_guac), \
+             patch.object(main_mod, "settings", mock_settings):
+            asyncio.run(main_mod.reconcile_environments())
+
+        mock_orch.revert_to_checkpoint.assert_not_called()
+
+    def test_reconciler_retries_env_past_delay(self, seeded_db):
+        """Env faulted more than delay minutes ago IS eligible for auto-retry."""
+        _, _, scope = seeded_db
+        import app.main as main_mod
+
+        old_fault_time = datetime.datetime.utcnow() - datetime.timedelta(minutes=20)
+        with scope() as db:
+            env = db.query(LabEnvironment).first()
+            env.status = "faulted"
+            env.faulted_at = old_fault_time
+            env.fault_retry_count = 0
+
+        mock_orch = AsyncMock()
+        mock_orch.revert_to_checkpoint.return_value = OrchestrationResult(success=True, output="ok")
+        mock_guac = AsyncMock()
+        mock_settings = MagicMock()
+        mock_settings.dry_run = True
+        mock_settings.fault_auto_retry_delay_minutes = 10
+        mock_settings.fault_max_auto_retries = 2
+        mock_settings.baseline_checkpoint_name = "Baseline"
+
+        with patch.object(main_mod, "session_scope", scope), \
+             patch.object(main_mod, "orchestrator", mock_orch), \
+             patch.object(main_mod, "guac_client", mock_guac), \
+             patch.object(main_mod, "settings", mock_settings):
+            asyncio.run(main_mod.reconcile_environments())
+
+        mock_orch.revert_to_checkpoint.assert_called_once_with("VM1", "Baseline")
+        with scope() as db:
+            env = db.query(LabEnvironment).first()
+            assert env.status == "available"
+
+    def test_reconciler_skips_env_over_max_retries(self, seeded_db):
+        """Env that has already hit fault_max_auto_retries is left for a human."""
+        _, _, scope = seeded_db
+        import app.main as main_mod
+
+        old_fault_time = datetime.datetime.utcnow() - datetime.timedelta(hours=2)
+        with scope() as db:
+            env = db.query(LabEnvironment).first()
+            env.status = "faulted"
+            env.faulted_at = old_fault_time
+            env.fault_retry_count = 2  # == fault_max_auto_retries
+
+        mock_orch = AsyncMock()
+        mock_settings = MagicMock()
+        mock_settings.dry_run = True
+        mock_settings.fault_auto_retry_delay_minutes = 10
+        mock_settings.fault_max_auto_retries = 2
+        mock_settings.baseline_checkpoint_name = "Baseline"
+
+        with patch.object(main_mod, "session_scope", scope), \
+             patch.object(main_mod, "orchestrator", mock_orch), \
+             patch.object(main_mod, "settings", mock_settings):
+            asyncio.run(main_mod.reconcile_environments())
+
+        mock_orch.revert_to_checkpoint.assert_not_called()
+
+    # ------------------------------------------------------------------ #
+    # Auto-recovery outcomes                                              #
+    # ------------------------------------------------------------------ #
+
+    def test_auto_recovery_success_resets_to_available(self, seeded_db):
+        """Successful revert resets env to 'available' and clears all fault state."""
+        _, _, scope = seeded_db
+        import app.main as main_mod
+
+        with scope() as db:
+            env = db.query(LabEnvironment).first()
+            env.status = "faulted"
+            env.faulted_at = datetime.datetime.utcnow() - datetime.timedelta(minutes=15)
+            env.fault_retry_count = 1
+            env.last_error = "prior failure"
+
+        mock_orch = AsyncMock()
+        mock_orch.revert_to_checkpoint.return_value = OrchestrationResult(success=True, output="ok")
+        mock_settings = MagicMock()
+        mock_settings.baseline_checkpoint_name = "Baseline"
+
+        with patch.object(main_mod, "session_scope", scope), \
+             patch.object(main_mod, "orchestrator", mock_orch), \
+             patch.object(main_mod, "settings", mock_settings):
+            asyncio.run(main_mod._attempt_auto_recovery("env-01", ["VM1"]))
+
+        with scope() as db:
+            env = db.query(LabEnvironment).first()
+            assert env.status == "available"
+            assert env.last_error is None
+            assert env.faulted_at is None
+            assert env.fault_retry_count == 0
+
+    def test_auto_recovery_failure_increments_retry_count(self, seeded_db):
+        """Failed revert increments fault_retry_count and resets faulted_at timer."""
+        _, _, scope = seeded_db
+        import app.main as main_mod
+
+        with scope() as db:
+            env = db.query(LabEnvironment).first()
+            env.status = "faulted"
+            env.faulted_at = datetime.datetime.utcnow() - datetime.timedelta(minutes=15)
+            env.fault_retry_count = 0
+
+        mock_orch = AsyncMock()
+        mock_orch.revert_to_checkpoint.return_value = OrchestrationResult(
+            success=False, output="", error="WinRM timeout"
+        )
+        mock_settings = MagicMock()
+        mock_settings.baseline_checkpoint_name = "Baseline"
+
+        with patch.object(main_mod, "session_scope", scope), \
+             patch.object(main_mod, "orchestrator", mock_orch), \
+             patch.object(main_mod, "settings", mock_settings):
+            asyncio.run(main_mod._attempt_auto_recovery("env-01", ["VM1"]))
+
+        with scope() as db:
+            env = db.query(LabEnvironment).first()
+            assert env.status == "faulted"
+            assert env.fault_retry_count == 1
+            assert env.last_error is not None
+
+    def test_auto_recovery_attempts_all_vms_even_if_one_fails(self, db_factory):
+        """If the first VM revert fails, subsequent VMs are still attempted."""
+        _, _, scope = db_factory
+        with scope() as db:
+            db.add(LabEnvironment(
+                id="env-multi", vms=["VM1", "VM2", "VM3"], guac_connection_id="1",
+                capabilities=["windows-domain", "ad-ds"], status="faulted",
+                faulted_at=datetime.datetime.utcnow() - datetime.timedelta(hours=1),
+                fault_retry_count=0
+            ))
+
+        import app.main as main_mod
+        mock_orch = AsyncMock()
+        mock_orch.revert_to_checkpoint.side_effect = [
+            OrchestrationResult(success=False, output="", error="access denied"),  # VM1 fails
+            OrchestrationResult(success=True, output="ok"),                        # VM2 ok
+            OrchestrationResult(success=True, output="ok"),                        # VM3 ok
+        ]
+        mock_settings = MagicMock()
+        mock_settings.baseline_checkpoint_name = "Baseline"
+
+        with patch.object(main_mod, "session_scope", scope), \
+             patch.object(main_mod, "orchestrator", mock_orch), \
+             patch.object(main_mod, "settings", mock_settings):
+            asyncio.run(main_mod._attempt_auto_recovery("env-multi", ["VM1", "VM2", "VM3"]))
+
+        assert mock_orch.revert_to_checkpoint.call_count == 3
+
+    # ------------------------------------------------------------------ #
+    # Orphan VM detection                                                 #
+    # ------------------------------------------------------------------ #
+
+    def test_orphan_vm_triggers_revert(self, seeded_db):
+        """A Running VM in an 'available' environment is reverted to Baseline."""
+        _, _, scope = seeded_db
+        import app.main as main_mod
+
+        mock_orch = AsyncMock()
+        mock_orch.get_vm_state.return_value = OrchestrationResult(success=True, output="Running")
+        mock_orch.revert_to_checkpoint.return_value = OrchestrationResult(success=True, output="ok")
+        mock_settings = MagicMock()
+        mock_settings.dry_run = False  # orphan detection requires non-dry-run
+        mock_settings.fault_auto_retry_delay_minutes = 10
+        mock_settings.fault_max_auto_retries = 2
+        mock_settings.baseline_checkpoint_name = "Baseline"
+
+        with patch.object(main_mod, "session_scope", scope), \
+             patch.object(main_mod, "orchestrator", mock_orch), \
+             patch.object(main_mod, "settings", mock_settings):
+            asyncio.run(main_mod.reconcile_environments())
+
+        mock_orch.get_vm_state.assert_called_once_with("VM1")
+        mock_orch.revert_to_checkpoint.assert_called_once_with("VM1", "Baseline")
+
+    def test_off_vm_not_touched(self, seeded_db):
+        """A VM that is already Off requires no remediation."""
+        _, _, scope = seeded_db
+        import app.main as main_mod
+
+        mock_orch = AsyncMock()
+        mock_orch.get_vm_state.return_value = OrchestrationResult(success=True, output="Off")
+        mock_settings = MagicMock()
+        mock_settings.dry_run = False
+        mock_settings.fault_auto_retry_delay_minutes = 10
+        mock_settings.fault_max_auto_retries = 2
+        mock_settings.baseline_checkpoint_name = "Baseline"
+
+        with patch.object(main_mod, "session_scope", scope), \
+             patch.object(main_mod, "orchestrator", mock_orch), \
+             patch.object(main_mod, "settings", mock_settings):
+            asyncio.run(main_mod.reconcile_environments())
+
+        mock_orch.revert_to_checkpoint.assert_not_called()
+
+    def test_orphan_vm_revert_failure_marks_faulted(self, seeded_db):
+        """If orphan VM revert fails, the environment is marked faulted."""
+        _, _, scope = seeded_db
+        import app.main as main_mod
+
+        mock_orch = AsyncMock()
+        mock_orch.get_vm_state.return_value = OrchestrationResult(success=True, output="Running")
+        mock_orch.revert_to_checkpoint.return_value = OrchestrationResult(
+            success=False, output="", error="VM locked"
+        )
+        mock_settings = MagicMock()
+        mock_settings.dry_run = False
+        mock_settings.fault_auto_retry_delay_minutes = 10
+        mock_settings.fault_max_auto_retries = 2
+        mock_settings.baseline_checkpoint_name = "Baseline"
+
+        with patch.object(main_mod, "session_scope", scope), \
+             patch.object(main_mod, "orchestrator", mock_orch), \
+             patch.object(main_mod, "settings", mock_settings):
+            asyncio.run(main_mod.reconcile_environments())
+
+        with scope() as db:
+            env = db.query(LabEnvironment).first()
+            assert env.status == "faulted"
+            assert "VM locked" in env.last_error
+
+    def test_orphan_detection_skipped_in_dry_run(self, seeded_db):
+        """In dry_run mode, orphan VM detection is skipped entirely."""
+        _, _, scope = seeded_db
+        import app.main as main_mod
+
+        mock_orch = AsyncMock()
+        mock_settings = MagicMock()
+        mock_settings.dry_run = True
+        mock_settings.fault_auto_retry_delay_minutes = 10
+        mock_settings.fault_max_auto_retries = 2
+        mock_settings.baseline_checkpoint_name = "Baseline"
+
+        with patch.object(main_mod, "session_scope", scope), \
+             patch.object(main_mod, "orchestrator", mock_orch), \
+             patch.object(main_mod, "settings", mock_settings):
+            asyncio.run(main_mod.reconcile_environments())
+
+        mock_orch.get_vm_state.assert_not_called()

@@ -124,16 +124,52 @@ class HyperVOrchestrator:
         )
         return await self._run_ps(self._remote_wrap(inner))
 
-    async def wait_for_guest_readiness(self, vm_name: str, timeout_seconds: int = 300) -> bool:
-        """Polls the VM for an IP address until ready or timed out."""
+    async def test_guest_connectivity(self, vm_name: str) -> OrchestrationResult:
+        """Tests that the guest OS is responsive via PowerShell Direct."""
+        if self.dry_run:
+            logger.info(f"[DRY RUN] Testing connectivity for {vm_name}")
+            await asyncio.sleep(0.5)
+            return OrchestrationResult(success=True, output="OK")
+        cred_snippet = self._guest_cred_ps() if self.guest_username else ""
+        inner = (
+            f"{cred_snippet}"
+            f"Invoke-Command -VMName '{vm_name}'"
+            f"{' -Credential $guestCred' if self.guest_username else ''}"
+            f" -ScriptBlock {{ 'OK' }}"
+        )
+        return await self._run_ps(self._remote_wrap(inner))
+
+    async def wait_for_guest_readiness(self, vm_name: str, timeout_seconds: int = 300, on_connectivity_phase=None) -> bool:
+        """Polls the VM for an IP address, then confirms with a connectivity test.
+
+        Args:
+            on_connectivity_phase: optional async callback invoked when transitioning
+                from IP-wait to connectivity-test phase.
+        """
         start_time = asyncio.get_event_loop().time()
+        # Phase 1: wait for IP address (fast check)
         while asyncio.get_event_loop().time() - start_time < timeout_seconds:
             res = await self.get_vm_ip(vm_name)
             if res.success and res.output:
-                logger.info(f"VM {vm_name} ready with IP: {res.output}")
-                return True
+                logger.info(f"VM {vm_name} has IP: {res.output}")
+                break
             await asyncio.sleep(2)
-        logger.warning(f"Timeout waiting for {vm_name} to become ready.")
+        else:
+            logger.warning(f"Timeout waiting for {vm_name} IP address.")
+            return False
+
+        # Phase 2: confirm guest OS is responsive
+        if on_connectivity_phase:
+            await on_connectivity_phase()
+        remaining = timeout_seconds - (asyncio.get_event_loop().time() - start_time)
+        conn_start = asyncio.get_event_loop().time()
+        while asyncio.get_event_loop().time() - conn_start < remaining:
+            conn_res = await self.test_guest_connectivity(vm_name)
+            if conn_res.success:
+                logger.info(f"VM {vm_name} guest OS confirmed responsive.")
+                return True
+            await asyncio.sleep(3)
+        logger.warning(f"Timeout waiting for {vm_name} guest connectivity.")
         return False
 
     def _guest_cred_ps(self) -> str:

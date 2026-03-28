@@ -115,13 +115,41 @@ function FullEval({ parsed, scenario, showLearningNotes = false }) {
   )
 }
 
-export default function EvalPanel({ result, isEvaluating, error, coachPhase, coachRound, scenario, onFollowUp }) {
+export default function EvalPanel({ result, isEvaluating, error, coachPhase, coachRound, scenario, onFollowUp, isLabMode = false }) {
   const [followUpText, setFollowUpText] = useState('')
+  const [collapsed, setCollapsed] = useState(true)
 
   // Clear follow-up input when coaching phase changes
   useEffect(() => {
     setFollowUpText('')
   }, [coachPhase])
+
+  // Auto-expand when results arrive in lab mode
+  useEffect(() => {
+    if (isLabMode && result) setCollapsed(false)
+  }, [isLabMode, result])
+
+  // Reset collapsed state when switching away from lab mode
+  useEffect(() => {
+    if (!isLabMode) setCollapsed(false)
+  }, [isLabMode])
+
+  // Collapsed strip for lab mode
+  if (isLabMode && collapsed && !isEvaluating && !error) {
+    return (
+      <div className="w-10 shrink-0 flex flex-col items-center border-l border-gray-800 bg-gray-900/50">
+        <button
+          onClick={() => setCollapsed(false)}
+          className="mt-3 p-1.5 rounded hover:bg-gray-800 text-gray-500 hover:text-gray-300 transition-colors"
+          title="Expand evaluation panel"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
+      </div>
+    )
+  }
 
   // ── Loading ──────────────────────────────────────────────────────────────
   if (isEvaluating) {
@@ -150,8 +178,21 @@ export default function EvalPanel({ result, isEvaluating, error, coachPhase, coa
   // ── Empty state ──────────────────────────────────────────────────────────
   if (!result) {
     return (
-      <div className="flex w-80 shrink-0 items-center justify-center border-l border-gray-800 bg-gray-900/50">
-        <p className="text-sm text-gray-600">Evaluation will appear here.</p>
+      <div className="flex w-80 shrink-0 flex-col border-l border-gray-800 bg-gray-900/50">
+        {isLabMode && (
+          <button
+            onClick={() => setCollapsed(true)}
+            className="self-start m-2 p-1.5 rounded hover:bg-gray-800 text-gray-500 hover:text-gray-300 transition-colors"
+            title="Collapse panel"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+        )}
+        <div className="flex flex-1 items-center justify-center">
+          <p className="text-sm text-gray-600">Evaluation will appear here.</p>
+        </div>
       </div>
     )
   }

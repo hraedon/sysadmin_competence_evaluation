@@ -1,12 +1,15 @@
-from sqlalchemy import Column, Integer, String, DateTime, JSON, ForeignKey, Boolean
+from sqlalchemy import Column, Integer, String, DateTime, JSON, ForeignKey, Boolean, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy import create_engine
 import datetime
 import uuid
+import logging
 from contextlib import contextmanager
 
 import os
+
+logger = logging.getLogger(__name__)
 
 SQLALCHEMY_DATABASE_URL = os.getenv("SQLALCHEMY_DATABASE_URL", "sqlite:///./lab_state.db")
 Base = declarative_base()
@@ -21,6 +24,8 @@ class LabEnvironment(Base):
     guac_protocol = Column(String, nullable=True)  # rdp or ssh
     capabilities = Column(JSON)  # ["windows-domain", "ad-ds"]
     status = Column(String, default="available")  # available, provisioning, busy, teardown, faulted
+    provision_step = Column(String, nullable=True)  # reverting, starting, waiting_ip, testing_connectivity, creating_guac, running_scripts
+    provision_step_updated_at = Column(DateTime, nullable=True)
     last_error = Column(String, nullable=True)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
 
@@ -42,6 +47,23 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 def init_db():
     Base.metadata.create_all(bind=engine)
+    # Migration guard: create_all won't add columns to existing tables
+    _migrate_add_columns()
+
+def _migrate_add_columns():
+    """Add columns that may be missing from an existing database."""
+    migrations = [
+        ("environments", "provision_step", "TEXT"),
+        ("environments", "provision_step_updated_at", "TIMESTAMP"),
+    ]
+    with engine.connect() as conn:
+        for table, column, col_type in migrations:
+            try:
+                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}"))
+                conn.commit()
+                logger.info(f"Migration: added {table}.{column}")
+            except Exception:
+                conn.rollback()  # column already exists
 
 def get_db():
     db = SessionLocal()

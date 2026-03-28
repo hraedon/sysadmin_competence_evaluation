@@ -2,9 +2,12 @@ import { useState, useEffect } from 'react'
 import { loadManifest, groupByDomain } from './lib/scenarios.js'
 import { evaluate, loadSettings, saveSettings } from './lib/evaluator.js'
 import { loadProfile, saveResult, isOnboardingDismissed, dismissOnboarding } from './lib/profile.js'
+import { useLabSession } from './hooks/useLabSession.js'
 import ScenarioSidebar from './components/ScenarioSidebar.jsx'
 import ScenarioPanel from './components/ScenarioPanel.jsx'
 import EvalPanel from './components/EvalPanel.jsx'
+import LabInfoPanel from './components/LabInfoPanel.jsx'
+import LabConsole from './components/LabConsole.jsx'
 import SettingsPage from './components/SettingsPage.jsx'
 import OnboardingView from './components/OnboardingView.jsx'
 import ProfileView from './components/ProfileView.jsx'
@@ -35,6 +38,9 @@ export default function App() {
   const [coachHistory, setCoachHistory] = useState([])
   const [storedArtifact, setStoredArtifact] = useState(null)
   const [storedResponse, setStoredResponse] = useState(null)
+
+  const isLabMode = selected?.delivery_mode === 'E'
+  const labSession = useLabSession(selected, settings.labControllerUrl, { enabled: isLabMode })
 
   useEffect(() => {
     loadManifest()
@@ -221,14 +227,21 @@ export default function App() {
         </div>
       ) : (
         <>
-          <ErrorBoundary label="The scenario panel encountered an error.">
-            <ScenarioPanel
-              scenario={selected}
-              onSubmit={handleSubmit}
-              isEvaluating={isEvaluating}
-              labControllerUrl={settings.labControllerUrl}
-            />
-          </ErrorBoundary>
+          {isLabMode ? (
+            <ErrorBoundary label="The lab panel encountered an error.">
+              <LabInfoPanel scenario={selected} {...labSession} />
+              <LabConsole session={labSession.session} phase={labSession.phase} />
+            </ErrorBoundary>
+          ) : (
+            <ErrorBoundary label="The scenario panel encountered an error.">
+              <ScenarioPanel
+                scenario={selected}
+                onSubmit={handleSubmit}
+                isEvaluating={isEvaluating}
+                labControllerUrl={settings.labControllerUrl}
+              />
+            </ErrorBoundary>
+          )}
           <ErrorBoundary label="The evaluation panel encountered an error.">
             <EvalPanel
               result={evalResult}
@@ -238,6 +251,7 @@ export default function App() {
               coachRound={coachRound}
               scenario={selected}
               onFollowUp={handleFollowUp}
+              isLabMode={isLabMode}
             />
           </ErrorBoundary>
         </>

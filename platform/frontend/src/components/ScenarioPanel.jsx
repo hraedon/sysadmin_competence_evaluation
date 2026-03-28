@@ -1,11 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 import { loadArtifact } from '../lib/scenarios.js'
-import LabPanel from './LabPanel.jsx'
 
 const MODE_LABELS = { A: 'Artifact Analysis', B: 'Commission', C: 'Socratic Dialogue', D: 'Transcript Analysis', E: 'Lab Exercise' }
 
-export default function ScenarioPanel({ scenario, onSubmit, isEvaluating, labControllerUrl }) {
+export default function ScenarioPanel({ scenario, onSubmit, isEvaluating }) {
   const [artifactContent, setArtifactContent] = useState(null)
   const [artifactLoading, setArtifactLoading] = useState(false)
   const [response, setResponse] = useState('')
@@ -32,9 +31,8 @@ export default function ScenarioPanel({ scenario, onSubmit, isEvaluating, labCon
     )
   }
 
-  if (scenario.delivery_mode === 'E') {
-    return <LabPanel scenario={scenario} labControllerUrl={labControllerUrl} />
-  }
+  // Mode E is handled by LabInfoPanel + LabConsole in App.jsx
+  if (scenario.delivery_mode === 'E') return null
 
   const { title, domain_name, level, delivery_mode, presentation } = scenario
   const canSubmit = response.trim().length > 20 && !isEvaluating

@@ -1,20 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
-
-const POLL_INTERVAL_MS = 3000
-// Key is injected at build time via VITE_CONTROLLER_KEY env var (k8s secret → GHA secret).
-// Falls back to empty string so a missing key fails with 403 rather than succeeding with a known default.
-const CONTROLLER_API_KEY = import.meta.env.VITE_CONTROLLER_KEY ?? ''
-
-// Returns a stable per-browser user ID stored in localStorage.
-function getLocalUserId() {
-  const key = 'sysadmin_lab_user_id'
-  let id = localStorage.getItem(key)
-  if (!id) {
-    id = crypto.randomUUID()
-    localStorage.setItem(key, id)
-  }
-  return id
-}
+import { useLabSession, PROVISION_STEPS } from '../hooks/useLabSession.js'
 
 const STATUS_BADGE = {
   correct:    { label: 'Correct',    cls: 'bg-green-900/50 text-green-300 ring-green-700' },
@@ -23,112 +7,9 @@ const STATUS_BADGE = {
 }
 
 export default function LabPanel({ scenario, labControllerUrl }) {
-  // phase: idle | provisioning | polling | ready | verifying | verified | error
-  const [phase, setPhase]             = useState('idle')
-  const [session, setSession]         = useState(null)
-  const [verifyResults, setVerifyResults] = useState(null)
-  const [error, setError]             = useState(null)
-  const pollRef = useRef(null)
-
-  // Reset on scenario change
-  useEffect(() => {
-    setPhase('idle')
-    setSession(null)
-    setVerifyResults(null)
-    setError(null)
-    if (pollRef.current) clearInterval(pollRef.current)
-  }, [scenario?.id])
-
-  // Clean up poll on unmount
-  useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current) }, [])
-
-  async function handleStartLab() {
-    if (!labControllerUrl) {
-      setError('Lab controller URL is not configured. Set it in Settings.')
-      setPhase('error')
-      return
-    }
-    setPhase('provisioning')
-    setError(null)
-    setVerifyResults(null)
-
-    try {
-      const res = await fetch(`${labControllerUrl}/lab/provision/${scenario.id}`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'X-API-Key': CONTROLLER_API_KEY
-        },
-        body: JSON.stringify({
-          user_id: getLocalUserId(),
-          capabilities: scenario.presentation?.modes?.E?.capabilities ?? [],
-        }),
-      })
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        throw new Error(data.detail ?? `HTTP ${res.status}`)
-      }
-      const data = await res.json()
-      setSession(data)
-      setPhase('polling')
-
-      pollRef.current = setInterval(async () => {
-        try {
-          const sr = await fetch(`${labControllerUrl}/lab/session/${data.session_token}`, {
-            headers: { 'X-API-Key': CONTROLLER_API_KEY }
-          })
-          if (!sr.ok) return
-          const sd = await sr.json()
-          if (sd.environment_status === 'busy') {
-            clearInterval(pollRef.current)
-            setSession(sd) // Update session with final URL/details
-            setPhase('ready')
-          } else if (sd.environment_status === 'faulted') {
-            clearInterval(pollRef.current)
-            setError('Environment provisioning failed. Check the lab controller logs.')
-            setPhase('error')
-          }
-        } catch { /* transient fetch error — keep polling */ }
-      }, POLL_INTERVAL_MS)
-    } catch (err) {
-      setError(err.message)
-      setPhase('error')
-    }
-  }
-
-  async function handleVerify() {
-    setPhase('verifying')
-    setError(null)
-    try {
-      const res = await fetch(`${labControllerUrl}/lab/verify/${session.session_token}`, {
-        method: 'POST',
-        headers: { 'X-API-Key': CONTROLLER_API_KEY }
-      })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const data = await res.json()
-      setVerifyResults(data)
-      setPhase('verified')
-    } catch (err) {
-      setError(err.message)
-      setPhase('ready')  // allow retry
-    }
-  }
-
-  async function handleEndLab() {
-    if (session?.session_token) {
-      // Fire and forget teardown request
-      fetch(`${labControllerUrl}/lab/teardown/${session.session_token}`, { 
-        method: 'POST',
-        headers: { 'X-API-Key': CONTROLLER_API_KEY }
-      })
-        .catch(err => console.error('Teardown failed:', err))
-    }
-    setPhase('idle')
-    setSession(null)
-    setVerifyResults(null)
-    setError(null)
-    if (pollRef.current) clearInterval(pollRef.current)
-  }
+  const lab = useLabSession(scenario, labControllerUrl)
+  const { phase, session, verifyResults, error, provisionStep, elapsed,
+          handleStartLab, handleVerify, handleEndLab } = lab
 
   const modeE = scenario?.presentation?.modes?.E
   const instructions = modeE?.instructions ?? ''
@@ -175,18 +56,33 @@ export default function LabPanel({ scenario, labControllerUrl }) {
         {/* Error — restart option */}
         {phase === 'error' && (
           <button
-            onClick={() => setPhase('idle')}
+            onClick={handleEndLab}
             className="rounded-lg border border-gray-600 px-4 py-2 text-sm text-gray-300 hover:border-gray-400 hover:text-gray-100 transition-colors"
           >
             Try again
           </button>
         )}
 
-        {/* Provisioning / polling */}
+        {/* Provisioning / polling — progress bar + elapsed timer */}
         {(phase === 'provisioning' || phase === 'polling') && (
-          <div className="flex items-center gap-3 text-sm text-gray-400">
-            <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-indigo-400 border-t-transparent" />
-            {phase === 'provisioning' ? 'Requesting environment…' : 'Waiting for environment to become ready…'}
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-3 text-sm text-gray-400">
+                <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-indigo-400 border-t-transparent" />
+                {provisionStep
+                  ? (PROVISION_STEPS.find(s => s.key === provisionStep)?.label ?? provisionStep)
+                  : 'Requesting environment…'}
+              </div>
+              <div className="h-2 rounded-full bg-gray-700 overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-indigo-500 transition-all duration-500 ease-out"
+                  style={{ width: `${PROVISION_STEPS.find(s => s.key === provisionStep)?.pct ?? 5}%` }}
+                />
+              </div>
+            </div>
+            <p className="text-xs text-gray-500">
+              Elapsed: {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, '0')} · Typically takes 1–2 minutes
+            </p>
           </div>
         )}
 

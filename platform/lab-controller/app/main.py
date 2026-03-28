@@ -380,54 +380,64 @@ async def provision_lab(
         instructions=mode_e.get('instructions', '')
     )
 
+def _update_provision_step(db, env, step: str):
+    """Update the current provisioning step on an environment record."""
+    env.provision_step = step
+    env.provision_step_updated_at = datetime.datetime.utcnow()
+    db.commit()
+
 async def run_provisioning_flow(env_id: str, scenario_path: Path, mode_e: dict, session_token: str):
     try:
         checkpoint = mode_e.get('checkpoint', 'Baseline')
         config = mode_e.get('config', {})
         provisioning_actions = config.get('provisioning', []) if config else []
-        
+
         with session_scope() as db:
             env = db.query(LabEnvironment).filter(LabEnvironment.id == env_id).first()
             if not env: return
             vm_targets = env.vms
 
+            _update_provision_step(db, env, "reverting")
             for vm in vm_targets:
                 await orchestrator.revert_to_checkpoint(vm, checkpoint)
-                await orchestrator.start_vm(vm)
-            
+
+            _update_provision_step(db, env, "starting")
             for vm in vm_targets:
-                await orchestrator.wait_for_guest_readiness(vm)
+                await orchestrator.start_vm(vm)
+
+            _update_provision_step(db, env, "waiting_ip")
+            async def _on_connectivity():
+                _update_provision_step(db, env, "testing_connectivity")
+            for vm in vm_targets:
+                await orchestrator.wait_for_guest_readiness(vm, on_connectivity_phase=_on_connectivity)
 
             # Create dynamic Guacamole connection
+            _update_provision_step(db, env, "creating_guac")
             if env.guac_target_vm and env.guac_protocol:
                 ip_res = await orchestrator.get_vm_ip(env.guac_target_vm)
                 if ip_res.success and ip_res.output:
-                    # Connection parameters
-                    # For RDP: use Labuser; for SSH: use labuser (per .env / session 21 addendum)
-                    # NOTE: credentials should ideally come from a secure store
                     params = {
                         "hostname": ip_res.output,
                         "username": "labuser",
-                        "password": settings.hyperv_guest_password # reuse guest password for lab login
+                        "password": settings.hyperv_guest_password
                     }
                     if env.guac_protocol == "rdp":
                         params["ignore-cert"] = "true"
                         params["security"] = "any"
 
-                    # Create connection in Guacamole
                     conn_name = f"Session-{session_token[:8]}"
                     guac_id, guac_url = await guac_client.create_connection(
-                        name=conn_name, 
-                        protocol=env.guac_protocol, 
+                        name=conn_name,
+                        protocol=env.guac_protocol,
                         parameters=params
                     )
-                    
-                    # Store connection identifier in session
+
                     with session_scope() as inner_db:
                         sess = inner_db.query(LabSession).filter(LabSession.session_token == session_token).first()
                         if sess:
                             sess.guac_connection_id = guac_id
 
+            _update_provision_step(db, env, "running_scripts")
             for action in provisioning_actions:
                 target = action.get('target')
                 act_type = action.get('action')
@@ -438,11 +448,13 @@ async def run_provisioning_flow(env_id: str, scenario_path: Path, mode_e: dict, 
                 elif act_type == "copy_file":
                     src = scenario_path.parent / action.get('source')
                     res = await orchestrator.copy_file_to_guest(target, str(src), action.get('destination'))
-                
+
                 if res and not res.success:
                     logger.error(f"Action {act_type} failed on {target}: {res.error}")
                     raise Exception(f"Provisioning action failed: {res.error}")
 
+            env.provision_step = None
+            env.provision_step_updated_at = None
             env.status = "busy"
             env.last_error = None
     except Exception as e:
@@ -451,6 +463,7 @@ async def run_provisioning_flow(env_id: str, scenario_path: Path, mode_e: dict, 
             env = db.query(LabEnvironment).filter(LabEnvironment.id == env_id).first()
             if env:
                 env.status = "faulted"
+                env.provision_step = None
                 env.last_error = str(e)
 
 @app.get("/lab/session/{session_token}", dependencies=[Depends(verify_api_key)])
@@ -479,6 +492,8 @@ async def get_session_status(session_token: str, db: Session = Depends(get_db)):
         "scenario_id": session.scenario_id,
         "environment_id": session.environment_id,
         "environment_status": env.status if env else "unknown",
+        "provision_step": env.provision_step if env else None,
+        "provision_step_updated_at": env.provision_step_updated_at.isoformat() if env and env.provision_step_updated_at else None,
         "expires_at": session.expires_at,
         "guacamole_url": guacamole_url
     }

@@ -45,6 +45,16 @@ class LabSession(Base):
 engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+# Enable WAL mode for concurrent read/write access.
+# Without this, the long-running provisioning flow holds exclusive locks
+# that block the session-status polling endpoint from reading.
+from sqlalchemy import event
+@event.listens_for(engine, "connect")
+def _set_sqlite_wal(dbapi_connection, connection_record):
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA journal_mode=WAL")
+    cursor.close()
+
 def init_db():
     Base.metadata.create_all(bind=engine)
     # Migration guard: create_all won't add columns to existing tables

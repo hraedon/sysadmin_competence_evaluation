@@ -380,11 +380,27 @@ async def provision_lab(
         instructions=mode_e.get('instructions', '')
     )
 
-def _update_provision_step(db, env, step: str):
-    """Update the current provisioning step on an environment record."""
-    env.provision_step = step
-    env.provision_step_updated_at = datetime.datetime.utcnow()
-    db.commit()
+def _update_provision_step(env_id: str, step: str):
+    """Update the current provisioning step using a short-lived DB session.
+
+    Each call opens and commits its own session so the change is immediately
+    visible to concurrent readers (the session-polling endpoint).
+    """
+    with session_scope() as db:
+        env = db.query(LabEnvironment).filter(LabEnvironment.id == env_id).first()
+        if env:
+            env.provision_step = step
+            env.provision_step_updated_at = datetime.datetime.utcnow()
+
+def _update_env_status(env_id: str, status: str, provision_step=None, last_error=None):
+    """Update environment status using a short-lived DB session."""
+    with session_scope() as db:
+        env = db.query(LabEnvironment).filter(LabEnvironment.id == env_id).first()
+        if env:
+            env.status = status
+            env.provision_step = provision_step
+            env.provision_step_updated_at = None
+            env.last_error = last_error
 
 async def run_provisioning_flow(env_id: str, scenario_path: Path, mode_e: dict, session_token: str):
     try:
@@ -392,79 +408,80 @@ async def run_provisioning_flow(env_id: str, scenario_path: Path, mode_e: dict, 
         config = mode_e.get('config', {})
         provisioning_actions = config.get('provisioning', []) if config else []
 
+        # Read environment config once (short-lived session)
         with session_scope() as db:
             env = db.query(LabEnvironment).filter(LabEnvironment.id == env_id).first()
             if not env: return
-            vm_targets = env.vms
+            vm_targets = list(env.vms)  # copy — session closes after this block
+            guac_target_vm = env.guac_target_vm
+            guac_protocol = env.guac_protocol
 
-            _update_provision_step(db, env, "reverting")
-            for vm in vm_targets:
-                await orchestrator.revert_to_checkpoint(vm, checkpoint)
+        _update_provision_step(env_id, "reverting")
+        for vm in vm_targets:
+            result = await orchestrator.revert_to_checkpoint(vm, checkpoint)
+            if not result.success:
+                raise Exception(f"Checkpoint revert failed for {vm}: {result.error}")
 
-            _update_provision_step(db, env, "starting")
-            for vm in vm_targets:
-                await orchestrator.start_vm(vm)
+        _update_provision_step(env_id, "starting")
+        for vm in vm_targets:
+            result = await orchestrator.start_vm(vm)
+            if not result.success:
+                raise Exception(f"VM start failed for {vm}: {result.error}")
 
-            _update_provision_step(db, env, "waiting_ip")
-            async def _on_connectivity():
-                _update_provision_step(db, env, "testing_connectivity")
-            for vm in vm_targets:
-                await orchestrator.wait_for_guest_readiness(vm, on_connectivity_phase=_on_connectivity)
+        _update_provision_step(env_id, "waiting_ip")
+        async def _on_connectivity():
+            _update_provision_step(env_id, "testing_connectivity")
+        for vm in vm_targets:
+            ready = await orchestrator.wait_for_guest_readiness(vm, on_connectivity_phase=_on_connectivity)
+            if not ready:
+                raise Exception(f"Timeout waiting for {vm} to become ready (IP + connectivity)")
 
-            # Create dynamic Guacamole connection
-            _update_provision_step(db, env, "creating_guac")
-            if env.guac_target_vm and env.guac_protocol:
-                ip_res = await orchestrator.get_vm_ip(env.guac_target_vm)
-                if ip_res.success and ip_res.output:
-                    params = {
-                        "hostname": ip_res.output,
-                        "username": "labuser",
-                        "password": settings.hyperv_guest_password
-                    }
-                    if env.guac_protocol == "rdp":
-                        params["ignore-cert"] = "true"
-                        params["security"] = "any"
+        # Create dynamic Guacamole connection
+        _update_provision_step(env_id, "creating_guac")
+        if guac_target_vm and guac_protocol:
+            ip_res = await orchestrator.get_vm_ip(guac_target_vm)
+            if ip_res.success and ip_res.output:
+                params = {
+                    "hostname": ip_res.output,
+                    "username": "labuser",
+                    "password": settings.hyperv_guest_password
+                }
+                if guac_protocol == "rdp":
+                    params["ignore-cert"] = "true"
+                    params["security"] = "any"
 
-                    conn_name = f"Session-{session_token[:8]}"
-                    guac_id, guac_url = await guac_client.create_connection(
-                        name=conn_name,
-                        protocol=env.guac_protocol,
-                        parameters=params
-                    )
+                conn_name = f"Session-{session_token[:8]}"
+                guac_id, guac_url = await guac_client.create_connection(
+                    name=conn_name,
+                    protocol=guac_protocol,
+                    parameters=params
+                )
 
-                    with session_scope() as inner_db:
-                        sess = inner_db.query(LabSession).filter(LabSession.session_token == session_token).first()
-                        if sess:
-                            sess.guac_connection_id = guac_id
+                with session_scope() as db:
+                    sess = db.query(LabSession).filter(LabSession.session_token == session_token).first()
+                    if sess:
+                        sess.guac_connection_id = guac_id
 
-            _update_provision_step(db, env, "running_scripts")
-            for action in provisioning_actions:
-                target = action.get('target')
-                act_type = action.get('action')
-                res = None
-                if act_type == "run_script":
-                    script_path = scenario_path.parent / action.get('file')
-                    res = await orchestrator.run_script_in_guest(target, str(script_path))
-                elif act_type == "copy_file":
-                    src = scenario_path.parent / action.get('source')
-                    res = await orchestrator.copy_file_to_guest(target, str(src), action.get('destination'))
+        _update_provision_step(env_id, "running_scripts")
+        for action in provisioning_actions:
+            target = action.get('target')
+            act_type = action.get('action')
+            res = None
+            if act_type == "run_script":
+                script_path = scenario_path.parent / action.get('file')
+                res = await orchestrator.run_script_in_guest(target, str(script_path))
+            elif act_type == "copy_file":
+                src = scenario_path.parent / action.get('source')
+                res = await orchestrator.copy_file_to_guest(target, str(src), action.get('destination'))
 
-                if res and not res.success:
-                    logger.error(f"Action {act_type} failed on {target}: {res.error}")
-                    raise Exception(f"Provisioning action failed: {res.error}")
+            if res and not res.success:
+                logger.error(f"Action {act_type} failed on {target}: {res.error}")
+                raise Exception(f"Provisioning action failed: {res.error}")
 
-            env.provision_step = None
-            env.provision_step_updated_at = None
-            env.status = "busy"
-            env.last_error = None
+        _update_env_status(env_id, "busy")
     except Exception as e:
         logger.error(f"Provisioning failed for {env_id}: {str(e)}")
-        with session_scope() as db:
-            env = db.query(LabEnvironment).filter(LabEnvironment.id == env_id).first()
-            if env:
-                env.status = "faulted"
-                env.provision_step = None
-                env.last_error = str(e)
+        _update_env_status(env_id, "faulted", last_error=str(e))
 
 @app.get("/lab/session/{session_token}", dependencies=[Depends(verify_api_key)])
 async def get_session_status(session_token: str, db: Session = Depends(get_db)):

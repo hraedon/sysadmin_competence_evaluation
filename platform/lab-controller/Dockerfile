@@ -25,6 +25,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3.11-venv \
     python3-pip \
     curl \
+    libkrb5-dev \
+    gss-ntlmssp \
     && rm -rf /var/lib/apt/lists/*
 
 # Use python3.11 as default python3

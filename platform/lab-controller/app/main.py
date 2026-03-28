@@ -431,12 +431,17 @@ async def run_provisioning_flow(env_id: str, scenario_path: Path, mode_e: dict, 
             for action in provisioning_actions:
                 target = action.get('target')
                 act_type = action.get('action')
+                res = None
                 if act_type == "run_script":
                     script_path = scenario_path.parent / action.get('file')
-                    await orchestrator.run_script_in_guest(target, str(script_path))
+                    res = await orchestrator.run_script_in_guest(target, str(script_path))
                 elif act_type == "copy_file":
                     src = scenario_path.parent / action.get('source')
-                    await orchestrator.copy_file_to_guest(target, str(src), action.get('destination'))
+                    res = await orchestrator.copy_file_to_guest(target, str(src), action.get('destination'))
+                
+                if res and not res.success:
+                    logger.error(f"Action {act_type} failed on {target}: {res.error}")
+                    raise Exception(f"Provisioning action failed: {res.error}")
 
             env.status = "busy"
             env.last_error = None

@@ -49,9 +49,10 @@ class HyperVOrchestrator:
         # Pass the Guest OS password via -ArgumentList so it's available inside the remote ScriptBlock.
         return (
             f"$ErrorActionPreference = 'Stop'; "
+            f"$escPw = $env:HYPERV_PASSWORD.Replace(\"'\", \"''\"); "
             f"$cred = [System.Management.Automation.PSCredential]::new("
             f"'{esc_user}', (ConvertTo-SecureString $env:HYPERV_PASSWORD -AsPlainText -Force)); "
-            f"Invoke-Command -ComputerName '{esc_host}' -Credential $cred "
+            f"Invoke-Command -ComputerName '{esc_host}' -Credential $cred -Authentication Negotiate "
             f"-ScriptBlock {{ param($GUEST_PW) {inner_command} }} "
             f"-ArgumentList $env:HYPERV_GUEST_PASSWORD"
         )

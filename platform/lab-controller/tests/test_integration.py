@@ -261,7 +261,7 @@ class TestTeardownAndReaper:
              patch.object(main_mod, "guac_client", mock_guac):
             asyncio.run(main_mod.teardown_environment_logic("env-01", "tok-1"))
 
-        mock_orch.revert_to_checkpoint.assert_called_once_with("VM1", "Baseline")
+        mock_orch.revert_to_checkpoint.assert_called_once_with("VM1", "Baseline Checkpoint")
         with scope() as db:
             assert db.query(LabSession).count() == 0
 

@@ -1,7 +1,15 @@
-# ARCH-13: Baseline Checkpoint Name Inconsistency — Operational Footgun
+# ~~ARCH-13~~: Baseline Checkpoint Name Inconsistency — **Closed**
 
 ## Severity
-High (before enabling non-dry-run) / Low (in dry-run)
+~~High (before enabling non-dry-run)~~ **Closed — 2026-03-28**
+
+## Resolution
+Queried the Hyper-V host directly. All three VMs (LabServer01, LabDC01, LabLinux01) have a
+snapshot named `"Baseline Checkpoint"`. The `settings.baseline_checkpoint_name` default updated
+from `"Baseline"` to `"Baseline Checkpoint"`. The teardown assertion in
+`test_teardown_reverts_and_marks_available` updated to match. All 61 Python tests pass.
+
+Committed in the same session (see commit following `a8569c6`).
 
 ## Location
 - `platform/lab-controller/app/main.py` — `Settings.baseline_checkpoint_name` (default `"Baseline"`)

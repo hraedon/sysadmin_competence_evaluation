@@ -46,10 +46,9 @@ class Settings(BaseSettings):
     reconcile_interval_minutes: int = 5         # how often the reconciler runs
     fault_auto_retry_delay_minutes: int = 10    # min time between fault and first auto-retry
     fault_max_auto_retries: int = 2             # give up after this many failed auto-recoveries
-    # NOTE: teardown hardcodes "Baseline" but scenario YAML can specify a different checkpoint
-    # name (e.g., "Baseline Checkpoint"). This setting is the fallback used by teardown and the
-    # reconciler. Set it to match the actual snapshot name on your Hyper-V VMs.
-    baseline_checkpoint_name: str = "Baseline"
+    # Verified 2026-03-28: all Hyper-V VMs (LabServer01, LabDC01, LabLinux01) use
+    # "Baseline Checkpoint" as the snapshot name. This must match exactly.
+    baseline_checkpoint_name: str = "Baseline Checkpoint"
 
     class Config:
         env_file = ".env"

@@ -30,7 +30,7 @@ Tracked gaps and remediation tasks identified through architectural review.
 | EVAL-05 | [eval-05-calibration-synthetic-only.md](eval-05-calibration-synthetic-only.md) | Medium | Calibration tests clean synthetic responses only; robustness against real messy responses unvalidated |
 | EVAL-06 | [eval-06-d14-evaluator-variance.md](eval-06-d14-evaluator-variance.md) | Medium | D14 subtle level distinctions have high expected LLM evaluator variance; no human baseline |
 | ARCH-12 | [arch-12-guacamole-stale-token.md](arch-12-guacamole-stale-token.md) | Medium | GuacamoleClient caches auth token; stale after Guacamole restart, no 401 retry |
-| ARCH-13 | [arch-13-checkpoint-name-mismatch.md](arch-13-checkpoint-name-mismatch.md) | **High (before live)** | `settings.baseline_checkpoint_name` defaults to `"Baseline"`; scenario YAML says `"Baseline Checkpoint"` — must match actual Hyper-V snapshot name |
+| ~~ARCH-13~~ | [arch-13-checkpoint-name-mismatch.md](arch-13-checkpoint-name-mismatch.md) | ~~High~~ **Closed** | Verified on Hyper-V: all VMs use `"Baseline Checkpoint"`. Default corrected. |
 | ARCH-14 | [arch-14-reconciler-no-alerting.md](arch-14-reconciler-no-alerting.md) | Low/Medium | Reconciler stops silently at max retries with no push notification to operator |
 | ARCH-15 | [arch-15-vestigial-guac-connection-id.md](arch-15-vestigial-guac-connection-id.md) | Low | `LabEnvironment.guac_connection_id` is never read post-SEC-02; dead field, minor confusion |
 | INFRA-01 | [infra-01-environments-yaml-in-public-repo.md](infra-01-environments-yaml-in-public-repo.md) | Medium | VM hostnames and Guacamole connection IDs in public repo |

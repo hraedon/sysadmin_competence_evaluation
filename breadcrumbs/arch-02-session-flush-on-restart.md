@@ -25,3 +25,12 @@ This ensures the reaper — which already knows how to call `teardown_environmen
 
 ## Related
 ARCH-01, ARCH-03
+
+## Resolution — Session 28 (2026-03-27)
+
+- `load_environments()` no longer calls `db.query(LabSession).delete()`.
+- Instead, all surviving sessions are marked `suspect=True` with `expires_at` forced to `utcnow()`.
+- Added `suspect` column (Boolean, default False) to `LabSession` model with migration guard (`ALTER TABLE sessions ADD COLUMN suspect BOOLEAN DEFAULT 0`).
+- The reaper's existing expired-session collection naturally picks up suspect sessions on its next tick (since their expiry was forced), triggering graceful teardown via the standard `teardown_environment_logic` path.
+- This reuses the well-tested teardown code path (VM revert + Guacamole cleanup + session deletion) rather than adding a separate recovery mechanism.
+- Test coverage: `test_suspect_sessions_marked_on_startup` in `tests/test_integration.py` verifies the session is marked suspect (not deleted) with forced expiry.

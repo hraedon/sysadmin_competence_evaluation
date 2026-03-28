@@ -1,7 +1,7 @@
 # ARCH-03: run_provisioning_flow Has No Outer Timeout
 
 ## Severity
-Medium
+~~Medium~~ **Closed** — resolved Session 27
 
 ## Location
 `platform/lab-controller/app/main.py` — `run_provisioning_flow()` (line ~333), called via `asyncio.get_event_loop().run_in_executor()`
@@ -24,3 +24,7 @@ except asyncio.TimeoutError:
 
 ## Related
 ARCH-01, ARCH-02
+
+## Resolution — Session 27
+
+`run_provisioning_with_watchdog()` wraps the entire provisioning flow in `asyncio.wait_for()` with a configurable timeout (`settings.provisioning_timeout_seconds`, default 600s / 10 minutes). On timeout, the environment status is set to `"faulted"` with a descriptive error message via `_update_env_status()`. The background task in the provision endpoint now calls `run_provisioning_with_watchdog` instead of `run_provisioning_flow` directly.

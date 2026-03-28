@@ -23,3 +23,12 @@ Replace the static `guac_client_token()` approach with a call to `create_connect
 
 ## Related
 INFRA-01 (environments.yaml in public repo), SEC-04 (no API auth)
+
+## Resolution — Session 28 (2026-03-27)
+
+- Removed `guac_client_token()` function entirely from `main.py`.
+- `ProvisionResponse.guacamole_url` made optional (defaults to `None`). The provision endpoint no longer returns a Guacamole URL — the frontend gets the URL via polling (`GET /lab/session/{token}`) after the ephemeral connection is created during provisioning.
+- Removed the static fallback in `get_session_status` that constructed a URL from `env.guac_connection_id`. Only ephemeral per-session connection IDs are served now.
+- `create_connection()` is called during `run_provisioning_flow` and the resulting `guac_connection_id` is stored on the `LabSession` record. `delete_connection()` is called during `teardown_environment_logic`.
+- Frontend (`useLabSession.js`) already handled this correctly — it replaces session state with the polling response on transition to `ready` phase.
+- Removed unused `base64` import from `main.py`.

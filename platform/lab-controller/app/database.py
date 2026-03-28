@@ -37,6 +37,7 @@ class LabSession(Base):
     user_id = Column(String)
     scenario_id = Column(String)
     guac_connection_id = Column(String, nullable=True)
+    suspect = Column(Boolean, default=False)  # ARCH-02: marked on restart, reaper handles teardown
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     expires_at = Column(DateTime)
     max_expires_at = Column(DateTime)  # Hard cap (e.g., 4h)
@@ -65,6 +66,7 @@ def _migrate_add_columns():
     migrations = [
         ("environments", "provision_step", "TEXT"),
         ("environments", "provision_step_updated_at", "TIMESTAMP"),
+        ("sessions", "suspect", "BOOLEAN DEFAULT 0"),
     ]
     with engine.connect() as conn:
         for table, column, col_type in migrations:

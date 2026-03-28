@@ -148,6 +148,11 @@ export default function ProfileView({ profile, allScenarios, onClose, onSelect }
                                 <span className={`font-bold ${LEVEL_TEXT_COLORS[r.level] ?? 'text-gray-400'}`}>
                                   L{r.level}
                                 </span>
+                                {r.almost_caught?.length > 0 && (
+                                  <span className="text-amber-500" title={`${r.almost_caught.length} near miss${r.almost_caught.length > 1 ? 'es' : ''}`}>
+                                    ◐{r.almost_caught.length}
+                                  </span>
+                                )}
                                 <span className="text-gray-600">{daysAgo(r.timestamp)}</span>
                               </div>
                             </div>

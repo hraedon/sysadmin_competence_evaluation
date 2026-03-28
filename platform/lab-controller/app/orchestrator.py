@@ -146,9 +146,9 @@ class HyperVOrchestrator:
             on_connectivity_phase: optional async callback invoked when transitioning
                 from IP-wait to connectivity-test phase.
         """
-        start_time = asyncio.get_event_loop().time()
+        start_time = asyncio.get_running_loop().time()
         # Phase 1: wait for IP address (fast check)
-        while asyncio.get_event_loop().time() - start_time < timeout_seconds:
+        while asyncio.get_running_loop().time() - start_time < timeout_seconds:
             res = await self.get_vm_ip(vm_name)
             if res.success and res.output:
                 logger.info(f"VM {vm_name} has IP: {res.output}")
@@ -161,9 +161,9 @@ class HyperVOrchestrator:
         # Phase 2: confirm guest OS is responsive
         if on_connectivity_phase:
             await on_connectivity_phase()
-        remaining = timeout_seconds - (asyncio.get_event_loop().time() - start_time)
-        conn_start = asyncio.get_event_loop().time()
-        while asyncio.get_event_loop().time() - conn_start < remaining:
+        remaining = timeout_seconds - (asyncio.get_running_loop().time() - start_time)
+        conn_start = asyncio.get_running_loop().time()
+        while asyncio.get_running_loop().time() - conn_start < remaining:
             conn_res = await self.test_guest_connectivity(vm_name)
             if conn_res.success:
                 logger.info(f"VM {vm_name} guest OS confirmed responsive.")

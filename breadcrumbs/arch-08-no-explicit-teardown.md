@@ -26,3 +26,7 @@ The environment remains in a `busy` state until the reaper identifies it as expi
 
 ## Related
 ARCH-02 (session flush), ARCH-03 (provisioning timeout)
+
+## Resolution — Sessions 21/26
+
+`POST /lab/teardown/{session_token}` endpoint exists in `main.py`. It triggers `teardown_environment_logic` as a background task (VM revert, Guacamole connection cleanup, session deletion). `useLabSession.js` calls this endpoint from `handleEndLab`. The standalone `LabPanel.jsx` also calls it. Both paths release the environment immediately rather than waiting for reaper timeout.

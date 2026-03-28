@@ -23,3 +23,13 @@ The data is already there — this is a UI and scoring logic gap, not a data col
 
 ## Related
 EVAL-01
+
+## Resolution — Session 27
+
+`almost_caught` is now consumed end-to-end:
+
+- **Profile storage:** `saveResult()` in `profile.js` persists `almost_caught` array alongside `level`, `confidence`, and `gap`. Defaults to `[]` when omitted.
+- **Results display:** `EvalPanel.jsx` renders near-misses with amber `◐` styling, visually distinct from fully caught (green `●`) and missed (red `○`) findings.
+- **Profile view:** `ProfileView.jsx` shows a `◐{count}` badge in amber when a result has near-misses, with a tooltip ("N near miss(es)").
+- **Data flow:** `App.jsx` passes `result.parsed.almost_caught` through to `saveResult`.
+- **Test coverage:** `profile.test.js` includes tests for `almost_caught` persistence and default-to-empty-array behavior.

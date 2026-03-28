@@ -39,3 +39,21 @@ Two test files added:
 - `core/evaluator.test.js` — Node built-in test runner (`node --test`) suite for `buildSystemPrompt` field inclusion/exclusion: `learning_note` never appears, `miss_signal` appears in standard mode and is absent in `compactRubric=true`, `level_indicators` always present, coach mode JSON schema fields. Covers V1 and V2 schema scenarios.
 
 Remaining coverage gaps: `profile.js` domain aggregation and `recommendNext`, JSON parse fallback in `evaluate()`, atomic environment selection in `main.py`.
+
+## Further Resolution — Session 27 (2026-03-28)
+
+- `platform/frontend/src/lib/profile.test.js` — Node built-in test runner suite (22 tests). Covers: `loadProfile` empty/corrupt state, `saveResult` creation/replacement/round-trip, `almost_caught` persistence, `domainLevel` median logic (odd/even/outlier), `recommendNext` sequencing, `staleScenariosForReview` threshold, `clearProfile`, onboarding state.
+
+## Further Resolution — Session 28 (2026-03-27)
+
+- `platform/lab-controller/tests/test_integration.py` — pytest suite (19 tests). Covers:
+  - **Database (5):** Model fields, suspect flag (ARCH-02), session_scope commit/rollback.
+  - **Helpers (2):** `_update_provision_step`, `_update_env_status`.
+  - **Provisioning (3):** Atomic mutex claim/reject, capability matching.
+  - **Teardown/Reaper (5):** Revert + mark available, session deletion on failure, Guacamole connection cleanup, ARCH-02 suspect session marking, reaper expired collection.
+  - **Evaluator (4):** Python-side `build_system_prompt` field exclusion (learning_note, miss_signal, compact mode, level_indicators).
+- Added `app/__init__.py` to make the app directory a proper Python package (needed for `mock.patch` resolution).
+
+**Total test count: 72** (20 security + 19 integration + 11 JS evaluator + 22 JS profile). All passing.
+
+**Remaining gaps:** Frontend component tests (Vitest + React Testing Library), JSON parse fallback in `evaluate()`.

@@ -34,3 +34,14 @@ Option 3 is honest but weakens the "reasoning not recall" claim. Options 1 and 2
 
 ## Related
 EVAL-06 (D14 evaluator variance — similar tension between terminology recognition and reasoning assessment)
+
+## Resolution — Session 27
+
+Four L4 level indicators were reworded to test reasoning over terminology recall:
+
+1. **d02-ticket-flags** — L4 discriminator now tests understanding of the mechanism rather than requiring the specific term.
+2. **d04-revocation** — L4 indicator made term-agnostic: tests whether the learner identifies the need for incremental revocation updates rather than requiring "delta CRL" by name.
+3. **d02-upn-routing** — L4 indicator reworded to assess conceptual understanding of the routing mechanism.
+4. **d02-sql-spn** — L4 indicator reworded to test reasoning about the service principal name pattern.
+
+This follows Option 1 from the remediation plan: make discriminators term-agnostic so correct conceptual reasoning scores at L4 regardless of vocabulary.

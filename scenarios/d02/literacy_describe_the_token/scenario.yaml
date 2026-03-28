@@ -48,4 +48,4 @@ rubric:
     level_3: |
       Correctly identifies the security implication: 'pre-authent' missing on  service tickets is an anomaly that could indicate a weakened security  posture (e.g. account configuration) or a diagnostic path for the  reported 'intermittent issues'. Articulates the TGT-based renewal  mechanism clearly.
     level_4: |
-      All of the above, plus can specifically name the 'Do not require Kerberos  preauthentication' AD user attribute as the likely root cause and  explains why it's a risk (AS-REP roasting) even if the TGT itself  shows pre-auth was used for the initial login.
+      All of the above, plus explains the security implication of inconsistent  pre-auth enforcement: if the KDC is not requiring pre-authentication for  service ticket requests, an attacker could request tickets for the account  without proving they know the password (an offline credential attack that  does not require domain controller authentication). Identifies this as a  likely account-level configuration issue and recommends auditing the user  object's authentication settings, even though the TGT itself shows  pre-auth was used for the initial login.

@@ -7,6 +7,9 @@ platform/frontend/public/scenarios-manifest.json
 .DS_Store
 Thumbs.db
 
+# Python
+__pycache__/
+
 # Secrets
 .env
 Anthropic_API_Key.txt

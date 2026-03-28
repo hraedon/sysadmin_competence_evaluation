@@ -9,7 +9,6 @@ import logging
 import re
 import asyncio
 import json
-import base64
 from pathlib import Path
 from sqlalchemy.orm import Session
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -32,6 +31,7 @@ class Settings(BaseSettings):
     environments_config: str = "environments.yaml"
     session_timeout_minutes: int = 120
     max_session_hours: int = 4
+    provisioning_timeout_seconds: int = 600  # 10 min outer watchdog for entire provisioning flow
     dry_run: bool = True
     # Hyper-V host credentials for WinRM remoting (used by HyperVOrchestrator)
     hyperv_host: str = "mvmhyperv02.ad.hraedon.com"
@@ -84,7 +84,7 @@ class ProvisionResponse(BaseModel):
     status: str
     session_token: str
     environment_id: str
-    guacamole_url: str
+    guacamole_url: Optional[str] = None  # SEC-02: populated by polling endpoint after ephemeral connection is created
     expires_at: datetime.datetime
     instructions: str
 
@@ -106,11 +106,6 @@ class EvaluateRequest(BaseModel):
 # ---------------------------------------------------------------------------
 # Lifecycle & Initialization
 # ---------------------------------------------------------------------------
-
-def guac_client_token(connection_id: str, data_source: str = "postgresql") -> str:
-    """Returns the Base64-encoded connection token for a Guacamole client URL."""
-    raw = f"{connection_id}\x00c\x00{data_source}"
-    return base64.b64encode(raw.encode()).decode()
 
 app = FastAPI(title="Sysadmin Competency Lab Controller")
 orchestrator = HyperVOrchestrator(
@@ -139,24 +134,34 @@ async def startup_event():
     app.state.scheduler = scheduler
 
 async def load_environments():
-    """Seed or update the database with environments from config."""
+    """Seed or update the database with environments from config.
+
+    ARCH-02: Instead of deleting all sessions on restart (which orphans
+    partially-provisioned VMs), we mark surviving sessions as 'suspect'.
+    The reaper will attempt graceful teardown on suspect sessions before
+    deleting them, so the associated environments can return to 'available'.
+    """
     if not os.path.exists(settings.environments_config):
         logger.warning(f"Environments config {settings.environments_config} not found.")
         return
 
     with open(settings.environments_config, 'r') as f:
         config = yaml.safe_load(f)
-    
+
     with session_scope() as db:
-        # Before seeding, if we are rebooting, we should reset any 
-        # non-terminal state to its default from the YAML.
-        # This prevents environments being stuck in 'provisioning' forever after a crash.
-        db.query(LabSession).delete() # Flush sessions on restart as Hyper-V state is unknown
+        # Mark all existing sessions as suspect so the reaper can attempt
+        # graceful teardown rather than just losing track of them.
+        orphaned = db.query(LabSession).all()
+        for sess in orphaned:
+            sess.suspect = True
+            # Force expiry so the reaper picks them up on its next tick
+            sess.expires_at = datetime.datetime.utcnow()
+            logger.info(f"Marked session {sess.session_token} as suspect (restart recovery)")
 
         for env_data in config.get('environments', []):
             existing = db.query(LabEnvironment).filter(LabEnvironment.id == env_data['id']).first()
             target_status = env_data.get('status', "available")
-            
+
             if not existing:
                 env = LabEnvironment(
                     id=env_data['id'],
@@ -184,66 +189,80 @@ async def load_environments():
 # ---------------------------------------------------------------------------
 
 def reap_expired_sessions_wrapper():
-    """Sync wrapper for async reaper."""
-    try:
-        loop = asyncio.get_event_loop()
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-    loop.run_until_complete(reap_expired_sessions())
+    """Sync wrapper for async reaper.
+
+    Uses asyncio.run() instead of the deprecated get_event_loop() pattern.
+    Each invocation gets a fresh event loop, which is correct since
+    BackgroundScheduler calls this from a thread-pool thread.
+    """
+    asyncio.run(reap_expired_sessions())
 
 async def reap_expired_sessions():
     """Background task to clean up expired lab environments."""
     now = datetime.datetime.utcnow()
-    
+
+    # Collect expired sessions in a short-lived DB session, then teardown outside the lock
     with session_scope() as db:
         expired = db.query(LabSession).filter(LabSession.expires_at < now).all()
-        for session in expired:
-            logger.info(f"Reaping expired session {session.session_token} for env {session.environment_id}")
-            await teardown_environment_logic(session.environment_id, session.session_token)
+        expired_pairs = [(s.environment_id, s.session_token) for s in expired]
+
+    for env_id, token in expired_pairs:
+        logger.info(f"Reaping expired session {token} for env {env_id}")
+        await teardown_environment_logic(env_id, token)
 
 async def teardown_environment_logic(env_id: str, session_token: str):
-    """Reverts VMs and marks environment as available. Deletes dynamic Guacamole connections."""
+    """Reverts VMs and marks environment as available. Deletes dynamic Guacamole connections.
+
+    Uses short-lived DB sessions per step to avoid holding SQLite locks across
+    async operations (same pattern as run_provisioning_flow).
+    """
+    # Read what we need and mark as teardown (short-lived session)
     with session_scope() as db:
         env = db.query(LabEnvironment).filter(LabEnvironment.id == env_id).first()
-        session = db.query(LabSession).filter(LabSession.session_token == session_token).first()
         if not env:
             return
-
+        vm_list = list(env.vms)  # copy before session closes
         env.status = "teardown"
-        db.commit()
 
-        # Delete dynamic Guacamole connection if it exists
+    # Read Guacamole connection ID from session (separate short-lived session)
+    guac_conn_id = None
+    with session_scope() as db:
+        session = db.query(LabSession).filter(LabSession.session_token == session_token).first()
         if session and session.guac_connection_id:
-            try:
-                await guac_client.delete_connection(session.guac_connection_id)
-            except Exception as e:
-                logger.error(f"Failed to delete Guacamole connection {session.guac_connection_id}: {str(e)}")
+            guac_conn_id = session.guac_connection_id
 
+    # Delete dynamic Guacamole connection (no DB lock held)
+    if guac_conn_id:
         try:
-            checkpoint = "Baseline" 
-            success = True
-            for vm in env.vms:
-                res = await orchestrator.revert_to_checkpoint(vm, checkpoint)
-                if not res.success:
-                    success = False
-                    env.last_error = f"Teardown failed on {vm}: {res.error}"
-                    # Don't break; try to revert others to be safe
-            
-            if success:
-                env.status = "available"
-                env.last_error = None
-            else:
-                env.status = "faulted"
-                
+            await guac_client.delete_connection(guac_conn_id)
         except Exception as e:
-            logger.error(f"Teardown exception for {env_id}: {str(e)}")
-            env.status = "faulted"
-            env.last_error = str(e)
-        finally:
-            # ALWAYS delete the session record so the environment isn't permanently locked
+            logger.error(f"Failed to delete Guacamole connection {guac_conn_id}: {str(e)}")
+
+    # Revert VMs (no DB lock held)
+    try:
+        checkpoint = "Baseline"
+        success = True
+        last_error = None
+        for vm in vm_list:
+            res = await orchestrator.revert_to_checkpoint(vm, checkpoint)
+            if not res.success:
+                success = False
+                last_error = f"Teardown failed on {vm}: {res.error}"
+                # Don't break; try to revert others to be safe
+
+        # Update final status (short-lived session)
+        _update_env_status(
+            env_id,
+            "available" if success else "faulted",
+            last_error=last_error
+        )
+    except Exception as e:
+        logger.error(f"Teardown exception for {env_id}: {str(e)}")
+        _update_env_status(env_id, "faulted", last_error=str(e))
+    finally:
+        # ALWAYS delete the session record so the environment isn't permanently locked
+        with session_scope() as db:
             db.query(LabSession).filter(LabSession.session_token == session_token).delete()
-            db.commit()
 
 # ---------------------------------------------------------------------------
 # Utilities
@@ -358,24 +377,21 @@ async def provision_lab(
     db.add(new_session)
     db.commit()
 
-    # 4. Background Provisioning
+    # 4. Background Provisioning (with watchdog timeout)
     background_tasks.add_task(
-        run_provisioning_flow, 
-        selected_env.id, 
-        scenario_path, 
-        mode_e, 
+        run_provisioning_with_watchdog,
+        selected_env.id,
+        scenario_path,
+        mode_e,
         session_token
     )
 
-    if not guac_client.token:
-        await guac_client._authenticate()
-    guac_url = guac_client._client_url(selected_env.guac_connection_id)
-
+    # SEC-02: Don't return a Guacamole URL here. The ephemeral connection
+    # is created during provisioning and served via GET /lab/session/{token}.
     return ProvisionResponse(
         status="provisioning",
         session_token=session_token,
         environment_id=selected_env.id,
-        guacamole_url=guac_url,
         expires_at=expires_at,
         instructions=mode_e.get('instructions', '')
     )
@@ -401,6 +417,17 @@ def _update_env_status(env_id: str, status: str, provision_step=None, last_error
             env.provision_step = provision_step
             env.provision_step_updated_at = None
             env.last_error = last_error
+
+async def run_provisioning_with_watchdog(env_id: str, scenario_path: Path, mode_e: dict, session_token: str):
+    """Outer watchdog that ensures provisioning cannot run indefinitely."""
+    try:
+        await asyncio.wait_for(
+            run_provisioning_flow(env_id, scenario_path, mode_e, session_token),
+            timeout=settings.provisioning_timeout_seconds
+        )
+    except asyncio.TimeoutError:
+        logger.error(f"Provisioning watchdog timeout ({settings.provisioning_timeout_seconds}s) for {env_id}")
+        _update_env_status(env_id, "faulted", last_error=f"Provisioning timed out after {settings.provisioning_timeout_seconds}s")
 
 async def run_provisioning_flow(env_id: str, scenario_path: Path, mode_e: dict, session_token: str):
     try:
@@ -497,12 +524,10 @@ async def get_session_status(session_token: str, db: Session = Depends(get_db)):
         except:
             pass # Continue with unauthenticated URL if API is down
 
+    # SEC-02: Only use ephemeral per-session connection IDs, never static ones.
     guacamole_url = None
     if session.guac_connection_id:
         guacamole_url = guac_client._client_url(session.guac_connection_id)
-    elif env and env.guac_connection_id:
-        # Fallback to static ID if dynamic one isn't ready/used
-        guacamole_url = guac_client._client_url(env.guac_connection_id)
 
     return {
         "session_token": session_token,

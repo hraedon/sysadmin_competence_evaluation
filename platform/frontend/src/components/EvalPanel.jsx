@@ -16,7 +16,7 @@ function getLearningNote(scenario, findingId) {
 /** Full evaluation view — used in auditor mode and after coach session ends. */
 function FullEval({ parsed, scenario, showLearningNotes = false }) {
   const [expandedNotes, setExpandedNotes] = useState({})
-  const { level, confidence, caught = [], missed = [], unlisted = [], severity_calibration, gap, narrative } = parsed
+  const { level, confidence, caught = [], missed = [], almost_caught = [], unlisted = [], severity_calibration, gap, narrative } = parsed
   const levelColor = LEVEL_COLORS[level] ?? 'bg-gray-700 text-gray-300'
   const levelLabel = LEVEL_LABELS[level] ?? ''
 
@@ -54,7 +54,7 @@ function FullEval({ parsed, scenario, showLearningNotes = false }) {
         )}
 
         {/* Findings */}
-        {(caught.length > 0 || missed.length > 0) && (
+        {(caught.length > 0 || almost_caught.length > 0 || missed.length > 0) && (
           <div>
             <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">Findings</p>
             <div className="space-y-1.5">
@@ -62,6 +62,13 @@ function FullEval({ parsed, scenario, showLearningNotes = false }) {
                 <div key={id} className="flex items-center gap-2 text-xs">
                   <span className="text-green-500">✓</span>
                   <span className="font-mono text-gray-400">{id}</span>
+                </div>
+              ))}
+              {almost_caught.map(id => (
+                <div key={id} className="flex items-center gap-2 text-xs">
+                  <span className="text-amber-500">◐</span>
+                  <span className="font-mono text-amber-400/70">{id}</span>
+                  <span className="text-amber-600 text-[10px]">near miss</span>
                 </div>
               ))}
               {missed.map(id => {

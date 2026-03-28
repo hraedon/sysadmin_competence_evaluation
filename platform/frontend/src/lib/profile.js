@@ -28,7 +28,7 @@ export function loadProfile() {
   }
 }
 
-export function saveResult({ scenario, level, confidence, gap }) {
+export function saveResult({ scenario, level, confidence, gap, almost_caught }) {
   const profile = loadProfile()
   const d = scenario.domain
   if (!profile.domains[d]) {
@@ -42,6 +42,7 @@ export function saveResult({ scenario, level, confidence, gap }) {
     level,
     confidence,
     gap: gap ?? null,
+    almost_caught: almost_caught ?? [],
     timestamp: new Date().toISOString(),
   })
   profile.updated = new Date().toISOString()

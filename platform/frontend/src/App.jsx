@@ -111,6 +111,7 @@ export default function App() {
           level: result.parsed.level,
           confidence: result.parsed.confidence,
           gap: result.parsed.gap ?? null,
+          almost_caught: result.parsed.almost_caught ?? [],
         })
         setProfile(updated)
       }

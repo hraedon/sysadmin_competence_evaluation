@@ -36,3 +36,9 @@ Tracked gaps and remediation tasks identified through architectural review.
 | INFRA-01 | [infra-01-environments-yaml-in-public-repo.md](infra-01-environments-yaml-in-public-repo.md) | Medium | VM hostnames and Guacamole connection IDs in public repo |
 | CONTENT-01 | [content-01-domain-coverage-gaps.md](content-01-domain-coverage-gaps.md) | Medium — **improving** | D06 still 1 scenario; D08→2, D10→2, D12→3 (56 total). D06 remains the most undercovered domain. |
 | ~~CONTENT-02~~ | [content-02-recall-disguised-as-reasoning.md](content-02-recall-disguised-as-reasoning.md) | ~~Low/Medium~~ **Closed** | 4 L4 indicators reworded to test reasoning over terminology (d02-ticket-flags, d04-revocation, d02-upn-routing, d02-sql-spn). Resolved Session 27. |
+| SEC-07 | [sec-07-guacamole-admin-token-leak.md](sec-07-guacamole-admin-token-leak.md) | High | Global Guacamole admin token leaked to browser client via URL |
+| ARCH-16 | [arch-16-brittle-verification-parsing.md](arch-16-brittle-verification-parsing.md) | Medium | Lab verification fails if script output contains non-JSON noise |
+| ARCH-17 | [arch-17-disconnected-lab-ai-evaluation.md](arch-17-disconnected-lab-ai-evaluation.md) | Medium | AI evaluator unaware of automated lab verification results |
+| ARCH-18 | [arch-18-sequential-calibration.md](arch-18-sequential-calibration.md) | Low/Medium | Calibration harness runs sequentially; slow feedback loop (~1 hour) |
+| EVAL-07 | [eval-07-missing-hit-signal.md](eval-07-missing-hit-signal.md) | Low/Medium | Rubric lacks "hit signals" to confirm positive evidence in messy responses |
+| INFRA-02 | [infra-02-hardcoded-infra-host.md](infra-02-hardcoded-infra-host.md) | Low | Hardcoded Hyper-V host FQDN in lab controller settings |

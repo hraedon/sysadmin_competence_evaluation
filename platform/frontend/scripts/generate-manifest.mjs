@@ -85,13 +85,23 @@ for (const file of yamlFiles) {
       }
     }
 
-    // Strip answer-key fields before writing to the public manifest.
-    // miss_signal and level_indicators tell a reader exactly what distinguishes each
-    // level — leaving them in the manifest lets any learner with DevTools read the
-    // rubric before submitting. learning_note and finding descriptions stay because
-    // the evaluator needs descriptions and the frontend displays learning_notes
-    // post-evaluation.
-    if (data.rubric) {
+    // Strip rubric data from the public manifest.
+    //
+    // VITE_EVALUATION_MODE controls how much is stripped:
+    //   "server" (default): Strip the entire rubric block. Evaluation is server-side
+    //       (POST /api/evaluate) so the browser never needs rubric data. This closes
+    //       SEC-05 fully — no finding descriptions, miss_signal, or level_indicators
+    //       reach the browser. Learning notes are returned by the server after eval.
+    //   "local": Strip only answer-key fields (miss_signal, level_indicators) but keep
+    //       finding descriptions. Needed for air-gapped/LM Studio deployments where
+    //       evaluation runs client-side via core/evaluator.js.
+    const evalMode = process.env.VITE_EVALUATION_MODE ?? 'server'
+
+    if (evalMode === 'server') {
+      // Full strip: remove entire rubric — server handles everything
+      delete data.rubric
+    } else if (data.rubric) {
+      // Local mode: strip only answer-key fields, keep descriptions for client-side eval
       delete data.rubric.level_indicators
       for (const finding of data.rubric.findings ?? []) {
         delete finding.miss_signal

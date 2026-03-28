@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { loadManifest, groupByDomain } from './lib/scenarios.js'
 import { evaluate, loadSettings, saveSettings } from './lib/evaluator.js'
-import { loadProfile, saveResult, isOnboardingDismissed, dismissOnboarding } from './lib/profile.js'
+import { loadProfile, saveResult, migrateLocalProfile, isOnboardingDismissed, dismissOnboarding } from './lib/profile.js'
+import { isAuthenticated, getUser, logout } from './lib/auth.js'
 import { useLabSession } from './hooks/useLabSession.js'
 import ScenarioSidebar from './components/ScenarioSidebar.jsx'
 import ScenarioPanel from './components/ScenarioPanel.jsx'
@@ -9,6 +10,7 @@ import EvalPanel from './components/EvalPanel.jsx'
 import LabInfoPanel from './components/LabInfoPanel.jsx'
 import LabConsole from './components/LabConsole.jsx'
 import SettingsPage from './components/SettingsPage.jsx'
+import LoginView from './components/LoginView.jsx'
 import OnboardingView from './components/OnboardingView.jsx'
 import ProfileView from './components/ProfileView.jsx'
 import ErrorBoundary from './components/ErrorBoundary.jsx'
@@ -24,6 +26,8 @@ export default function App() {
   const [settings, setSettings] = useState(() => loadSettings())
   const [showSettings, setShowSettings] = useState(false)
   const [showProfile, setShowProfile] = useState(false)
+  const [showLogin, setShowLogin] = useState(false)
+  const [user, setUser] = useState(() => getUser())
   const [loadError, setLoadError] = useState(null)
 
   // Onboarding: show on first visit (no profile results and not previously dismissed)
@@ -56,6 +60,23 @@ export default function App() {
     const needsKey = (settings.provider === 'anthropic' || settings.provider === 'openai') && !settings.apiKey
     if (needsKey) setShowSettings(true)
   }, [])
+
+  // Show login prompt on first visit if not already authenticated
+  useEffect(() => {
+    if (!isAuthenticated() && !user) setShowLogin(true)
+  }, [])
+
+  async function handleLogin(loggedInUser) {
+    setUser(loggedInUser)
+    setShowLogin(false)
+    // Migrate localStorage profile to server on first login
+    await migrateLocalProfile()
+  }
+
+  function handleLogout() {
+    logout()
+    setUser(null)
+  }
 
   function resetCoachState() {
     setCoachPhase(null)
@@ -186,6 +207,12 @@ export default function App() {
     <div className="flex h-screen overflow-hidden">
 
       {/* Full-screen overlays — rendered above everything */}
+      {showLogin && (
+        <LoginView
+          onLogin={handleLogin}
+          onSkip={() => setShowLogin(false)}
+        />
+      )}
       {showOnboarding && (
         <OnboardingView
           allScenarios={scenarios}
@@ -217,6 +244,9 @@ export default function App() {
         onSettings={() => setShowSettings(true)}
         onProfile={() => setShowProfile(true)}
         onOnboarding={() => setShowOnboarding(true)}
+        user={user}
+        onLogin={() => setShowLogin(true)}
+        onLogout={handleLogout}
       />
 
       {loadError ? (

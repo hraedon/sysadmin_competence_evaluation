@@ -15,9 +15,16 @@
  * Note: gap was added in Phase B++. Existing results without it degrade cleanly (gap is null).
  */
 
+import { isAuthenticated, getAuthHeaders } from './auth.js'
+
 const KEY = 'sysadmin_assessment_profile'
 const ONBOARDING_KEY = 'sysadmin_onboarding_dismissed'
 const REVIEW_THRESHOLD_DAYS = 14
+
+function getBaseUrl() {
+  const IS_PRODUCTION = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1'
+  return IS_PRODUCTION ? '' : 'http://localhost:8000'
+}
 
 export function loadProfile() {
   try {
@@ -29,6 +36,7 @@ export function loadProfile() {
 }
 
 export function saveResult({ scenario, level, confidence, gap, almost_caught }) {
+  // Always save to localStorage (offline fallback)
   const profile = loadProfile()
   const d = scenario.domain
   if (!profile.domains[d]) {
@@ -47,7 +55,45 @@ export function saveResult({ scenario, level, confidence, gap, almost_caught }) 
   })
   profile.updated = new Date().toISOString()
   localStorage.setItem(KEY, JSON.stringify(profile))
+
+  // If authenticated, also save to server
+  if (isAuthenticated()) {
+    fetch(`${getBaseUrl()}/api/profile/result`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify({
+        scenario_id: scenario.id,
+        domain: scenario.domain,
+        domain_name: scenario.domain_name,
+        level,
+        confidence,
+        gap: gap ?? null,
+        almost_caught: almost_caught ?? [],
+      })
+    }).catch(() => { /* server save failed, localStorage has the data */ })
+  }
+
   return profile
+}
+
+/**
+ * One-time migration: imports the localStorage profile to the server.
+ * Called on first login. Uses "most recent per scenario" merge strategy.
+ */
+export async function migrateLocalProfile() {
+  if (!isAuthenticated()) return
+  const local = loadProfile()
+  if (!local.updated || Object.keys(local.domains).length === 0) return
+
+  try {
+    await fetch(`${getBaseUrl()}/api/profile/import`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify({ profile: local })
+    })
+  } catch {
+    // Migration failed silently — localStorage still has the data
+  }
 }
 
 /**

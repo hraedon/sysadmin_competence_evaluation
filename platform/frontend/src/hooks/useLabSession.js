@@ -1,7 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { isAuthenticated, getAuthHeaders } from '../lib/auth.js'
 
 const POLL_INTERVAL_MS = 3000
-const CONTROLLER_API_KEY = import.meta.env.VITE_CONTROLLER_KEY ?? ''
+
+/** Build auth headers for lab controller requests. */
+function labHeaders() {
+  return getAuthHeaders()
+}
 
 function getLocalUserId() {
   const key = 'sysadmin_lab_user_id'
@@ -79,7 +84,7 @@ export function useLabSession(scenario, labControllerUrl, { enabled = true } = {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-API-Key': CONTROLLER_API_KEY
+          ...labHeaders()
         },
         body: JSON.stringify({
           user_id: getLocalUserId(),
@@ -97,7 +102,7 @@ export function useLabSession(scenario, labControllerUrl, { enabled = true } = {
       pollRef.current = setInterval(async () => {
         try {
           const sr = await fetch(`${labControllerUrl}/lab/session/${data.session_token}`, {
-            headers: { 'X-API-Key': CONTROLLER_API_KEY }
+            headers: labHeaders()
           })
           if (!sr.ok) return
           const sd = await sr.json()
@@ -128,7 +133,7 @@ export function useLabSession(scenario, labControllerUrl, { enabled = true } = {
     try {
       const res = await fetch(`${labControllerUrl}/lab/verify/${session.session_token}`, {
         method: 'POST',
-        headers: { 'X-API-Key': CONTROLLER_API_KEY }
+        headers: labHeaders()
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data = await res.json()
@@ -145,7 +150,7 @@ export function useLabSession(scenario, labControllerUrl, { enabled = true } = {
     if (session?.session_token) {
       fetch(`${labControllerUrl}/lab/teardown/${session.session_token}`, {
         method: 'POST',
-        headers: { 'X-API-Key': CONTROLLER_API_KEY }
+        headers: labHeaders()
       }).catch(err => console.error('Teardown failed:', err))
     }
     resetAll()

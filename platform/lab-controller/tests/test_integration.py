@@ -29,7 +29,7 @@ from sqlalchemy.orm import sessionmaker
 # Ensure the lab-controller package is importable
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from app.database import Base, LabEnvironment, LabSession
+from app.database import Base, LabEnvironment, LabSession, LabHeartbeat
 from app.orchestrator import OrchestrationResult
 
 
@@ -107,8 +107,8 @@ class TestDatabase:
             db.add(LabSession(
                 session_token="tok-1", environment_id="env-01",
                 user_id="u1", scenario_id="d01-test", suspect=False,
-                expires_at=datetime.datetime.utcnow() + datetime.timedelta(hours=1),
-                max_expires_at=datetime.datetime.utcnow() + datetime.timedelta(hours=4),
+                expires_at=datetime.datetime.now(datetime.UTC) + datetime.timedelta(hours=1),
+                max_expires_at=datetime.datetime.now(datetime.UTC) + datetime.timedelta(hours=4),
             ))
         with scope() as db:
             s = db.query(LabSession).first()
@@ -148,14 +148,14 @@ class TestHelpers:
         _, _, scope = seeded_db
 
         # Import the module object so we can patch attributes on it
-        import app.main as main_mod
+        import app.services.lab_service as main_mod
 
         # Set env to provisioning first
         with scope() as db:
             db.query(LabEnvironment).first().status = "provisioning"
 
         with patch.object(main_mod, "session_scope", scope):
-            main_mod._update_provision_step("env-01", "reverting")
+            main_mod.update_provision_step("env-01", "reverting")
 
         with scope() as db:
             env = db.query(LabEnvironment).first()
@@ -164,7 +164,7 @@ class TestHelpers:
 
     def test_update_env_status(self, seeded_db):
         _, _, scope = seeded_db
-        import app.main as main_mod
+        import app.services.lab_service as main_mod
 
         with scope() as db:
             env = db.query(LabEnvironment).first()
@@ -172,7 +172,7 @@ class TestHelpers:
             env.provision_step = "reverting"
 
         with patch.object(main_mod, "session_scope", scope):
-            main_mod._update_env_status("env-01", "faulted", last_error="VM exploded")
+            main_mod.update_env_status("env-01", "faulted", last_error="VM exploded")
 
         with scope() as db:
             env = db.query(LabEnvironment).first()
@@ -239,7 +239,7 @@ class TestTeardownAndReaper:
 
     def test_teardown_reverts_and_marks_available(self, seeded_db):
         _, _, scope = seeded_db
-        import app.main as main_mod
+        import app.services.lab_service as main_mod
 
         # Set up busy env with a session
         with scope() as db:
@@ -248,8 +248,8 @@ class TestTeardownAndReaper:
             db.add(LabSession(
                 session_token="tok-1", environment_id="env-01",
                 user_id="u1", scenario_id="d01-test",
-                expires_at=datetime.datetime.utcnow() - datetime.timedelta(hours=1),
-                max_expires_at=datetime.datetime.utcnow(),
+                expires_at=datetime.datetime.now(datetime.UTC) - datetime.timedelta(hours=1),
+                max_expires_at=datetime.datetime.now(datetime.UTC),
             ))
 
         mock_orch = AsyncMock()
@@ -267,7 +267,7 @@ class TestTeardownAndReaper:
 
     def test_teardown_deletes_session_even_on_revert_failure(self, seeded_db):
         _, _, scope = seeded_db
-        import app.main as main_mod
+        import app.services.lab_service as main_mod
 
         with scope() as db:
             env = db.query(LabEnvironment).first()
@@ -275,8 +275,8 @@ class TestTeardownAndReaper:
             db.add(LabSession(
                 session_token="tok-2", environment_id="env-01",
                 user_id="u1", scenario_id="d01-test",
-                expires_at=datetime.datetime.utcnow(),
-                max_expires_at=datetime.datetime.utcnow(),
+                expires_at=datetime.datetime.now(datetime.UTC),
+                max_expires_at=datetime.datetime.now(datetime.UTC),
             ))
 
         mock_orch = AsyncMock()
@@ -296,7 +296,7 @@ class TestTeardownAndReaper:
     def test_teardown_deletes_guac_connection(self, seeded_db):
         """Teardown should delete the dynamic Guacamole connection."""
         _, _, scope = seeded_db
-        import app.main as main_mod
+        import app.services.lab_service as main_mod
 
         with scope() as db:
             env = db.query(LabEnvironment).first()
@@ -305,8 +305,8 @@ class TestTeardownAndReaper:
                 session_token="tok-3", environment_id="env-01",
                 user_id="u1", scenario_id="d01-test",
                 guac_connection_id="dynamic-99",
-                expires_at=datetime.datetime.utcnow(),
-                max_expires_at=datetime.datetime.utcnow(),
+                expires_at=datetime.datetime.now(datetime.UTC),
+                max_expires_at=datetime.datetime.now(datetime.UTC),
             ))
 
         mock_orch = AsyncMock()
@@ -323,9 +323,9 @@ class TestTeardownAndReaper:
     def test_suspect_sessions_marked_on_startup(self, seeded_db, tmp_path):
         """ARCH-02: load_environments marks existing sessions as suspect, not deleted."""
         _, _, scope = seeded_db
-        import app.main as main_mod
+        import app.services.lab_service as main_mod
 
-        future = datetime.datetime.utcnow() + datetime.timedelta(hours=2)
+        future = datetime.datetime.now(datetime.UTC) + datetime.timedelta(hours=2)
         with scope() as db:
             env = db.query(LabEnvironment).first()
             env.status = "busy"
@@ -357,13 +357,13 @@ class TestTeardownAndReaper:
             sess = db.query(LabSession).first()
             assert sess is not None, "Session should NOT be deleted (ARCH-02)"
             assert sess.suspect is True
-            assert sess.expires_at <= datetime.datetime.utcnow()
+            assert sess.expires_at <= datetime.datetime.now(datetime.UTC)
 
     def test_reaper_collects_expired_sessions(self, seeded_db):
         _, _, scope = seeded_db
-        import app.main as main_mod
+        import app.services.lab_service as main_mod
 
-        past = datetime.datetime.utcnow() - datetime.timedelta(minutes=5)
+        past = datetime.datetime.now(datetime.UTC) - datetime.timedelta(minutes=5)
         with scope() as db:
             env = db.query(LabEnvironment).first()
             env.status = "busy"
@@ -384,6 +384,32 @@ class TestTeardownAndReaper:
 
         with scope() as db:
             assert db.query(LabSession).count() == 0
+
+    def test_reaper_logs_heartbeat(self, seeded_db):
+        _, _, scope = seeded_db
+        import app.services.lab_service as main_mod
+
+        with patch.object(main_mod, "session_scope", scope):
+            main_mod.reap_expired_sessions_wrapper()
+
+        with scope() as db:
+            hb = db.query(LabHeartbeat).filter(LabHeartbeat.job_name == "reap_expired_sessions").first()
+            assert hb is not None
+            assert hb.last_status == "success"
+
+    def test_reconciler_logs_heartbeat(self, seeded_db):
+        _, _, scope = seeded_db
+        import app.services.lab_service as main_mod
+
+        mock_orch = AsyncMock()
+        with patch.object(main_mod, "session_scope", scope), \
+             patch.object(main_mod, "orchestrator", mock_orch):
+            main_mod.reconcile_environments_wrapper()
+
+        with scope() as db:
+            hb = db.query(LabHeartbeat).filter(LabHeartbeat.job_name == "reconcile_environments").first()
+            assert hb is not None
+            assert hb.last_status == "success"
 
 
 # ---------------------------------------------------------------------------
@@ -416,6 +442,7 @@ class TestEvaluatorPromptBuilder:
 
     def test_learning_note_excluded(self, scenario):
         from app.evaluator import build_system_prompt
+
         prompt = build_system_prompt(scenario, "artifact content")
         assert "SECRET_LEARNING_NOTE" not in prompt
         assert "learning_note" not in prompt.lower()
@@ -479,7 +506,7 @@ class TestFaultedEnvironmentRecovery:
         This test documents the behaviour as a contract.
         """
         _, _, scope = seeded_db
-        import app.main as main_mod
+        import app.services.lab_service as main_mod
 
         with scope() as db:
             db.query(LabEnvironment).filter(LabEnvironment.id == "env-01").update(
@@ -510,7 +537,7 @@ class TestFaultedEnvironmentRecovery:
     def test_admin_reset_restores_faulted_to_available(self, seeded_db):
         """_reset_environment clears the fault and returns the previous status."""
         _, _, scope = seeded_db
-        import app.main as main_mod
+        import app.services.lab_service as main_mod
 
         with scope() as db:
             env = db.query(LabEnvironment).first()
@@ -519,7 +546,7 @@ class TestFaultedEnvironmentRecovery:
             env.provision_step = "reverting"
 
         with patch.object(main_mod, "session_scope", scope):
-            previous = main_mod._reset_environment("env-01")
+            previous = main_mod.reset_environment("env-01")
 
         assert previous == "faulted"
         with scope() as db:
@@ -535,7 +562,7 @@ class TestFaultedEnvironmentRecovery:
         """
         from fastapi import HTTPException
         _, _, scope = seeded_db
-        import app.main as main_mod
+        import app.services.lab_service as main_mod
 
         for active_status in ("provisioning", "busy", "teardown"):
             with scope() as db:
@@ -544,7 +571,7 @@ class TestFaultedEnvironmentRecovery:
                 )
             with patch.object(main_mod, "session_scope", scope):
                 with pytest.raises(HTTPException) as exc_info:
-                    main_mod._reset_environment("env-01")
+                    main_mod.reset_environment("env-01")
                 assert exc_info.value.status_code == 409, \
                     f"Expected 409 for status={active_status!r}, got {exc_info.value.status_code}"
 
@@ -552,11 +579,11 @@ class TestFaultedEnvironmentRecovery:
         """_reset_environment raises 404 for an unknown environment ID."""
         from fastapi import HTTPException
         _, _, scope = db_factory
-        import app.main as main_mod
+        import app.services.lab_service as main_mod
 
         with patch.object(main_mod, "session_scope", scope):
             with pytest.raises(HTTPException) as exc_info:
-                main_mod._reset_environment("nonexistent-env")
+                main_mod.reset_environment("nonexistent-env")
             assert exc_info.value.status_code == 404
 
     def test_reset_all_faulted_restores_entire_pool(self, db_factory):
@@ -575,9 +602,9 @@ class TestFaultedEnvironmentRecovery:
                 capabilities=["windows-server"], status="busy"
             ))
 
-        import app.main as main_mod
+        import app.services.lab_service as main_mod
         with patch.object(main_mod, "session_scope", scope):
-            reset_ids = main_mod._reset_all_faulted()
+            reset_ids = main_mod.reset_all_faulted()
 
         assert set(reset_ids) == {"env-a", "env-b", "env-c"}
         with scope() as db:
@@ -592,10 +619,10 @@ class TestFaultedEnvironmentRecovery:
     def test_reset_all_faulted_returns_empty_when_none_faulted(self, seeded_db):
         """_reset_all_faulted is a no-op (returns []) when no environments are faulted."""
         _, _, scope = seeded_db
-        import app.main as main_mod
+        import app.services.lab_service as main_mod
 
         with patch.object(main_mod, "session_scope", scope):
-            reset_ids = main_mod._reset_all_faulted()
+            reset_ids = main_mod.reset_all_faulted()
 
         assert reset_ids == []
 
@@ -606,7 +633,7 @@ class TestFaultedEnvironmentRecovery:
         the admin reset path restores the environment to the available pool.
         """
         _, _, scope = db_factory
-        import app.main as main_mod
+        import app.services.lab_service as main_mod
 
         with scope() as db:
             db.add(LabEnvironment(
@@ -624,7 +651,7 @@ class TestFaultedEnvironmentRecovery:
 
         # Fix: admin reset
         with patch.object(main_mod, "session_scope", scope):
-            main_mod._reset_environment("env-01")
+            main_mod.reset_environment("env-01")
 
         # Confirm: now available
         with scope() as db:
@@ -682,10 +709,10 @@ class TestReconciler:
     def test_faulted_at_stamped_when_env_first_faults(self, seeded_db):
         """_update_env_status('faulted') records faulted_at on first fault."""
         _, _, scope = seeded_db
-        import app.main as main_mod
+        import app.services.lab_service as main_mod
 
         with patch.object(main_mod, "session_scope", scope):
-            main_mod._update_env_status("env-01", "faulted", last_error="disk full")
+            main_mod.update_env_status("env-01", "faulted", last_error="disk full")
 
         with scope() as db:
             env = db.query(LabEnvironment).first()
@@ -699,16 +726,16 @@ class TestReconciler:
         from when the environment FIRST faulted, not from the last status write.
         """
         _, _, scope = seeded_db
-        import app.main as main_mod
+        import app.services.lab_service as main_mod
 
-        first_fault = datetime.datetime.utcnow() - datetime.timedelta(hours=1)
+        first_fault = datetime.datetime.now(datetime.UTC) - datetime.timedelta(hours=1)
         with scope() as db:
             env = db.query(LabEnvironment).first()
             env.status = "faulted"
             env.faulted_at = first_fault
 
         with patch.object(main_mod, "session_scope", scope):
-            main_mod._update_env_status("env-01", "faulted", last_error="still broken")
+            main_mod.update_env_status("env-01", "faulted", last_error="still broken")
 
         with scope() as db:
             env = db.query(LabEnvironment).first()
@@ -718,16 +745,16 @@ class TestReconciler:
     def test_faulted_at_cleared_when_env_recovers(self, seeded_db):
         """_update_env_status('available') clears faulted_at and fault_retry_count."""
         _, _, scope = seeded_db
-        import app.main as main_mod
+        import app.services.lab_service as main_mod
 
         with scope() as db:
             env = db.query(LabEnvironment).first()
             env.status = "faulted"
-            env.faulted_at = datetime.datetime.utcnow()
+            env.faulted_at = datetime.datetime.now(datetime.UTC)
             env.fault_retry_count = 2
 
         with patch.object(main_mod, "session_scope", scope):
-            main_mod._update_env_status("env-01", "available")
+            main_mod.update_env_status("env-01", "available")
 
         with scope() as db:
             env = db.query(LabEnvironment).first()
@@ -741,12 +768,12 @@ class TestReconciler:
     def test_reconciler_skips_env_faulted_too_recently(self, seeded_db, tmp_path):
         """Env faulted seconds ago must not be retried — delay has not elapsed."""
         _, _, scope = seeded_db
-        import app.main as main_mod
+        import app.services.lab_service as main_mod
 
         with scope() as db:
             env = db.query(LabEnvironment).first()
             env.status = "faulted"
-            env.faulted_at = datetime.datetime.utcnow()  # just now
+            env.faulted_at = datetime.datetime.now(datetime.UTC)  # just now
             env.fault_retry_count = 0
 
         mock_orch = AsyncMock()
@@ -755,7 +782,7 @@ class TestReconciler:
         mock_settings.dry_run = True
         mock_settings.fault_auto_retry_delay_minutes = 10
         mock_settings.fault_max_auto_retries = 2
-        mock_settings.baseline_checkpoint_name = "Baseline"
+        mock_settings.baseline_checkpoint_name = "Baseline Checkpoint"
 
         with patch.object(main_mod, "session_scope", scope), \
              patch.object(main_mod, "orchestrator", mock_orch), \
@@ -768,9 +795,9 @@ class TestReconciler:
     def test_reconciler_retries_env_past_delay(self, seeded_db):
         """Env faulted more than delay minutes ago IS eligible for auto-retry."""
         _, _, scope = seeded_db
-        import app.main as main_mod
+        import app.services.lab_service as main_mod
 
-        old_fault_time = datetime.datetime.utcnow() - datetime.timedelta(minutes=20)
+        old_fault_time = datetime.datetime.now(datetime.UTC) - datetime.timedelta(minutes=20)
         with scope() as db:
             env = db.query(LabEnvironment).first()
             env.status = "faulted"
@@ -784,7 +811,7 @@ class TestReconciler:
         mock_settings.dry_run = True
         mock_settings.fault_auto_retry_delay_minutes = 10
         mock_settings.fault_max_auto_retries = 2
-        mock_settings.baseline_checkpoint_name = "Baseline"
+        mock_settings.baseline_checkpoint_name = "Baseline Checkpoint"
 
         with patch.object(main_mod, "session_scope", scope), \
              patch.object(main_mod, "orchestrator", mock_orch), \
@@ -792,7 +819,7 @@ class TestReconciler:
              patch.object(main_mod, "settings", mock_settings):
             asyncio.run(main_mod.reconcile_environments())
 
-        mock_orch.revert_to_checkpoint.assert_called_once_with("VM1", "Baseline")
+        mock_orch.revert_to_checkpoint.assert_called_once_with("VM1", "Baseline Checkpoint")
         with scope() as db:
             env = db.query(LabEnvironment).first()
             assert env.status == "available"
@@ -800,9 +827,9 @@ class TestReconciler:
     def test_reconciler_skips_env_over_max_retries(self, seeded_db):
         """Env that has already hit fault_max_auto_retries is left for a human."""
         _, _, scope = seeded_db
-        import app.main as main_mod
+        import app.services.lab_service as main_mod
 
-        old_fault_time = datetime.datetime.utcnow() - datetime.timedelta(hours=2)
+        old_fault_time = datetime.datetime.now(datetime.UTC) - datetime.timedelta(hours=2)
         with scope() as db:
             env = db.query(LabEnvironment).first()
             env.status = "faulted"
@@ -814,7 +841,7 @@ class TestReconciler:
         mock_settings.dry_run = True
         mock_settings.fault_auto_retry_delay_minutes = 10
         mock_settings.fault_max_auto_retries = 2
-        mock_settings.baseline_checkpoint_name = "Baseline"
+        mock_settings.baseline_checkpoint_name = "Baseline Checkpoint"
 
         with patch.object(main_mod, "session_scope", scope), \
              patch.object(main_mod, "orchestrator", mock_orch), \
@@ -830,24 +857,24 @@ class TestReconciler:
     def test_auto_recovery_success_resets_to_available(self, seeded_db):
         """Successful revert resets env to 'available' and clears all fault state."""
         _, _, scope = seeded_db
-        import app.main as main_mod
+        import app.services.lab_service as main_mod
 
         with scope() as db:
             env = db.query(LabEnvironment).first()
             env.status = "faulted"
-            env.faulted_at = datetime.datetime.utcnow() - datetime.timedelta(minutes=15)
+            env.faulted_at = datetime.datetime.now(datetime.UTC) - datetime.timedelta(minutes=15)
             env.fault_retry_count = 1
             env.last_error = "prior failure"
 
         mock_orch = AsyncMock()
         mock_orch.revert_to_checkpoint.return_value = OrchestrationResult(success=True, output="ok")
         mock_settings = MagicMock()
-        mock_settings.baseline_checkpoint_name = "Baseline"
+        mock_settings.baseline_checkpoint_name = "Baseline Checkpoint"
 
         with patch.object(main_mod, "session_scope", scope), \
              patch.object(main_mod, "orchestrator", mock_orch), \
              patch.object(main_mod, "settings", mock_settings):
-            asyncio.run(main_mod._attempt_auto_recovery("env-01", ["VM1"]))
+            asyncio.run(main_mod.attempt_auto_recovery("env-01", ["VM1"]))
 
         with scope() as db:
             env = db.query(LabEnvironment).first()
@@ -859,12 +886,12 @@ class TestReconciler:
     def test_auto_recovery_failure_increments_retry_count(self, seeded_db):
         """Failed revert increments fault_retry_count and resets faulted_at timer."""
         _, _, scope = seeded_db
-        import app.main as main_mod
+        import app.services.lab_service as main_mod
 
         with scope() as db:
             env = db.query(LabEnvironment).first()
             env.status = "faulted"
-            env.faulted_at = datetime.datetime.utcnow() - datetime.timedelta(minutes=15)
+            env.faulted_at = datetime.datetime.now(datetime.UTC) - datetime.timedelta(minutes=15)
             env.fault_retry_count = 0
 
         mock_orch = AsyncMock()
@@ -872,12 +899,12 @@ class TestReconciler:
             success=False, output="", error="WinRM timeout"
         )
         mock_settings = MagicMock()
-        mock_settings.baseline_checkpoint_name = "Baseline"
+        mock_settings.baseline_checkpoint_name = "Baseline Checkpoint"
 
         with patch.object(main_mod, "session_scope", scope), \
              patch.object(main_mod, "orchestrator", mock_orch), \
              patch.object(main_mod, "settings", mock_settings):
-            asyncio.run(main_mod._attempt_auto_recovery("env-01", ["VM1"]))
+            asyncio.run(main_mod.attempt_auto_recovery("env-01", ["VM1"]))
 
         with scope() as db:
             env = db.query(LabEnvironment).first()
@@ -892,11 +919,11 @@ class TestReconciler:
             db.add(LabEnvironment(
                 id="env-multi", vms=["VM1", "VM2", "VM3"], guac_connection_id="1",
                 capabilities=["windows-domain", "ad-ds"], status="faulted",
-                faulted_at=datetime.datetime.utcnow() - datetime.timedelta(hours=1),
+                faulted_at=datetime.datetime.now(datetime.UTC) - datetime.timedelta(hours=1),
                 fault_retry_count=0
             ))
 
-        import app.main as main_mod
+        import app.services.lab_service as main_mod
         mock_orch = AsyncMock()
         mock_orch.revert_to_checkpoint.side_effect = [
             OrchestrationResult(success=False, output="", error="access denied"),  # VM1 fails
@@ -904,12 +931,12 @@ class TestReconciler:
             OrchestrationResult(success=True, output="ok"),                        # VM3 ok
         ]
         mock_settings = MagicMock()
-        mock_settings.baseline_checkpoint_name = "Baseline"
+        mock_settings.baseline_checkpoint_name = "Baseline Checkpoint"
 
         with patch.object(main_mod, "session_scope", scope), \
              patch.object(main_mod, "orchestrator", mock_orch), \
              patch.object(main_mod, "settings", mock_settings):
-            asyncio.run(main_mod._attempt_auto_recovery("env-multi", ["VM1", "VM2", "VM3"]))
+            asyncio.run(main_mod.attempt_auto_recovery("env-multi", ["VM1", "VM2", "VM3"]))
 
         assert mock_orch.revert_to_checkpoint.call_count == 3
 
@@ -920,7 +947,7 @@ class TestReconciler:
     def test_orphan_vm_triggers_revert(self, seeded_db):
         """A Running VM in an 'available' environment is reverted to Baseline."""
         _, _, scope = seeded_db
-        import app.main as main_mod
+        import app.services.lab_service as main_mod
 
         mock_orch = AsyncMock()
         mock_orch.get_vm_state.return_value = OrchestrationResult(success=True, output="Running")
@@ -929,7 +956,7 @@ class TestReconciler:
         mock_settings.dry_run = False  # orphan detection requires non-dry-run
         mock_settings.fault_auto_retry_delay_minutes = 10
         mock_settings.fault_max_auto_retries = 2
-        mock_settings.baseline_checkpoint_name = "Baseline"
+        mock_settings.baseline_checkpoint_name = "Baseline Checkpoint"
 
         with patch.object(main_mod, "session_scope", scope), \
              patch.object(main_mod, "orchestrator", mock_orch), \
@@ -937,12 +964,12 @@ class TestReconciler:
             asyncio.run(main_mod.reconcile_environments())
 
         mock_orch.get_vm_state.assert_called_once_with("VM1")
-        mock_orch.revert_to_checkpoint.assert_called_once_with("VM1", "Baseline")
+        mock_orch.revert_to_checkpoint.assert_called_once_with("VM1", "Baseline Checkpoint")
 
     def test_off_vm_not_touched(self, seeded_db):
         """A VM that is already Off requires no remediation."""
         _, _, scope = seeded_db
-        import app.main as main_mod
+        import app.services.lab_service as main_mod
 
         mock_orch = AsyncMock()
         mock_orch.get_vm_state.return_value = OrchestrationResult(success=True, output="Off")
@@ -950,7 +977,7 @@ class TestReconciler:
         mock_settings.dry_run = False
         mock_settings.fault_auto_retry_delay_minutes = 10
         mock_settings.fault_max_auto_retries = 2
-        mock_settings.baseline_checkpoint_name = "Baseline"
+        mock_settings.baseline_checkpoint_name = "Baseline Checkpoint"
 
         with patch.object(main_mod, "session_scope", scope), \
              patch.object(main_mod, "orchestrator", mock_orch), \
@@ -962,7 +989,7 @@ class TestReconciler:
     def test_orphan_vm_revert_failure_marks_faulted(self, seeded_db):
         """If orphan VM revert fails, the environment is marked faulted."""
         _, _, scope = seeded_db
-        import app.main as main_mod
+        import app.services.lab_service as main_mod
 
         mock_orch = AsyncMock()
         mock_orch.get_vm_state.return_value = OrchestrationResult(success=True, output="Running")
@@ -973,7 +1000,7 @@ class TestReconciler:
         mock_settings.dry_run = False
         mock_settings.fault_auto_retry_delay_minutes = 10
         mock_settings.fault_max_auto_retries = 2
-        mock_settings.baseline_checkpoint_name = "Baseline"
+        mock_settings.baseline_checkpoint_name = "Baseline Checkpoint"
 
         with patch.object(main_mod, "session_scope", scope), \
              patch.object(main_mod, "orchestrator", mock_orch), \
@@ -988,14 +1015,14 @@ class TestReconciler:
     def test_orphan_detection_skipped_in_dry_run(self, seeded_db):
         """In dry_run mode, orphan VM detection is skipped entirely."""
         _, _, scope = seeded_db
-        import app.main as main_mod
+        import app.services.lab_service as main_mod
 
         mock_orch = AsyncMock()
         mock_settings = MagicMock()
         mock_settings.dry_run = True
         mock_settings.fault_auto_retry_delay_minutes = 10
         mock_settings.fault_max_auto_retries = 2
-        mock_settings.baseline_checkpoint_name = "Baseline"
+        mock_settings.baseline_checkpoint_name = "Baseline Checkpoint"
 
         with patch.object(main_mod, "session_scope", scope), \
              patch.object(main_mod, "orchestrator", mock_orch), \

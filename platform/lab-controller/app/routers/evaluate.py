@@ -1,0 +1,28 @@
+from fastapi import APIRouter, HTTPException, Depends
+from ..schemas import EvaluateRequest, settings
+from ..deps import verify_api_key
+from ..evaluator import perform_evaluation
+
+router = APIRouter(tags=["evaluate"])
+
+@router.post("/evaluate", dependencies=[Depends(verify_api_key)])
+@router.post("/lab/evaluate", dependencies=[Depends(verify_api_key)])
+async def evaluate_proxy(req: EvaluateRequest):
+    model = req.model or "claude-3-5-sonnet-20241022"
+    api_key = settings.anthropic_api_key
+    
+    if not api_key:
+        raise HTTPException(status_code=500, detail="AI Provider API Key not configured on server.")
+
+    result = await perform_evaluation(
+        api_key=api_key,
+        model=model,
+        scenario=req.scenario,
+        artifact_content=req.artifactContent,
+        response_text=req.responseText,
+        coach_mode=req.coachMode,
+        coach_round=req.coachRound,
+        coach_history=req.coachHistory,
+        compact_rubric=req.compactRubric
+    )
+    return result

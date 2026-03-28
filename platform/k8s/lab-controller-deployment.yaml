@@ -2,11 +2,13 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: lab-controller
-  namespace: assessment
+  namespace: lab-controller
   labels:
     app: lab-controller
 spec:
   replicas: 1
+  strategy:
+    type: RollingUpdate
   selector:
     matchLabels:
       app: lab-controller
@@ -17,11 +19,23 @@ spec:
     spec:
       containers:
         - name: lab-controller
-          image: ghcr.io/hraedon/sysadmin_competence_evaluation-lab-controller:d660c8e954889b5f52e29f9c5ab8668221ec6d59
+          image: ghcr.io/hraedon/sysadmin_competence_evaluation-lab-controller:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 8000
               name: http
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 15
           env:
             - name: GUACAMOLE_URL
               valueFrom:
@@ -76,10 +90,12 @@ spec:
             - name: DRY_RUN
               value: "False"
             - name: SQLALCHEMY_DATABASE_URL
-              value: "sqlite:////data/lab_state.db"
-          volumeMounts:
-            - name: data
-              mountPath: /data
-      volumes:
-        - name: data
-          emptyDir: {}
+              valueFrom:
+                secretKeyRef:
+                  name: lab-controller-secret
+                  key: DATABASE_URL
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: lab-controller-secret
+                  key: JWT_SECRET

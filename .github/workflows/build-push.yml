@@ -30,9 +30,6 @@ jobs:
           tags: |
             ghcr.io/${{ github.repository }}:latest
             ghcr.io/${{ github.repository }}:${{ github.sha }}
-          build-args: |
-            VITE_CONTROLLER_KEY=${{ secrets.VITE_CONTROLLER_KEY }}
-
       - name: Build and push lab controller
         uses: docker/build-push-action@v6
         with:

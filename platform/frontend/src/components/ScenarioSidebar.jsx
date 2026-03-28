@@ -18,7 +18,7 @@ function Badge({ children, className }) {
   )
 }
 
-export default function ScenarioSidebar({ groups, selected, profile, onSelect, onSettings, onProfile, onOnboarding }) {
+export default function ScenarioSidebar({ groups, selected, profile, onSelect, onSettings, onProfile, onOnboarding, user, onLogin, onLogout }) {
   const [filter, setFilter] = useState('')
   const query = filter.toLowerCase()
 
@@ -120,6 +120,25 @@ export default function ScenarioSidebar({ groups, selected, profile, onSelect, o
             </span>
           )}
         </button>
+      </div>
+
+      {/* Auth indicator */}
+      <div className="border-t border-gray-800 px-3 py-2">
+        {user ? (
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-gray-400 truncate" title={user.username}>{user.username}</span>
+            <button onClick={onLogout} className="text-xs text-gray-500 hover:text-gray-300">
+              Sign out
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={onLogin}
+            className="w-full text-xs text-gray-500 hover:text-gray-300 transition-colors"
+          >
+            Sign in to sync profile across devices
+          </button>
+        )}
       </div>
 
     </aside>

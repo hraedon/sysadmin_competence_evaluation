@@ -2,7 +2,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: lab-controller
-  namespace: assessment
+  namespace: lab-controller
 spec:
   selector:
     app: lab-controller

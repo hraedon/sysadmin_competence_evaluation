@@ -13,7 +13,8 @@ import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from app.main import sanitize_scenario_id, resolve_scenario_path
+from app.utils import sanitize_scenario_id, resolve_scenario_path
+from app.schemas import settings
 
 
 class TestSanitizeScenarioId:
@@ -67,7 +68,7 @@ class TestResolveScenarioPath:
         from unittest.mock import patch
         scenarios_dir = str(tmp_path / "scenarios")
 
-        with patch("app.main.settings") as mock_settings:
+        with patch("app.utils.settings") as mock_settings:
             mock_settings.scenarios_dir = scenarios_dir
             path = resolve_scenario_path("d01-audit-is-this-safe")
             assert str(path).startswith(str(tmp_path))
@@ -87,7 +88,7 @@ class TestResolveScenarioPath:
         # to simulate a future regression.
         crafted_id = "d01-..-..-etc-passwd"  # would be blocked by current regex
 
-        with patch("app.main.settings") as mock_settings:
+        with patch("app.utils.settings") as mock_settings:
             mock_settings.scenarios_dir = scenarios_dir
             # A valid-looking ID that contains no path characters passes sanitize,
             # but the path resolver must still catch any escape attempt.

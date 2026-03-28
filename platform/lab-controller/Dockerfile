@@ -48,14 +48,14 @@ COPY scenarios /scenarios
 COPY platform/lab-controller/requirements.txt .
 RUN pip3 install --no-cache-dir -r requirements.txt
 
+COPY platform/lab-controller/alembic.ini .
 COPY platform/lab-controller/app/ ./app/
 COPY platform/lab-controller/environments.yaml .
 
-# SQLite DB lives in /data so it can be backed by a k8s PersistentVolume.
-# The app uses ./lab_state.db by default; override via SQLALCHEMY_DATABASE_URL
-# or mount a PV at /data and set: SQLALCHEMY_DATABASE_URL=sqlite:////data/lab_state.db
+# /data retained for backward compat (SQLite dev mode); PostgreSQL is the production target.
 RUN mkdir -p /data
 
 EXPOSE 8000
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Run Alembic migrations (no-op for SQLite) then start the app.
+CMD ["sh", "-c", "alembic upgrade head 2>/dev/null; uvicorn app.main:app --host 0.0.0.0 --port 8000"]

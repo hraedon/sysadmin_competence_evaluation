@@ -42,8 +42,8 @@ jobs:
 
       - name: Update image tags in k8s manifests
         run: |
-          sed -i "s|ghcr.io/${{ github.repository }}-lab-controller:[a-f0-9]*|ghcr.io/${{ github.repository }}-lab-controller:${{ github.sha }}|g" platform/k8s/lab-controller-deployment.yaml
-          sed -i "s|ghcr.io/${{ github.repository }}:[a-f0-9]*|ghcr.io/${{ github.repository }}:${{ github.sha }}|g" platform/k8s/deployment.yaml
+          sed -i -E "s|ghcr.io/${{ github.repository }}-lab-controller:[a-zA-Z0-9._-]+|ghcr.io/${{ github.repository }}-lab-controller:${{ github.sha }}|g" platform/k8s/lab-controller-deployment.yaml
+          sed -i -E "s|ghcr.io/${{ github.repository }}:[a-zA-Z0-9._-]+|ghcr.io/${{ github.repository }}:${{ github.sha }}|g" platform/k8s/deployment.yaml
 
       - name: Commit updated image tags
         run: |

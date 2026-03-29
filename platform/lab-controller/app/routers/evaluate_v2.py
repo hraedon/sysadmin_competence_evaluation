@@ -116,12 +116,13 @@ def _build_verification_context(scenario_id: str, user_id: str | None, db: Sessi
         .order_by(LabSession.created_at.desc())
         .first()
     )
-    if not session:
+    if not session or not session.verification_results:
         return None
 
-    # Check if there are verification results stored (future: add verification_results to LabSession)
-    # For now, return None — this will be wired in when lab verification storage is added
-    return None
+    lines = []
+    for r in session.verification_results:
+        lines.append(f"- {r['finding_id']}: [{r['status']}] {r['detail']}")
+    return "\n".join(lines)
 
 
 def _prepend_verification_context(response_text: str, verification_context: str | None) -> str:

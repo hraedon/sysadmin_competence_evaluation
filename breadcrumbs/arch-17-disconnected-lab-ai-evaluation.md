@@ -29,3 +29,12 @@ The AI can then use this ground truth to calibrate its assessment of the learner
 
 ## Related
 ARCH-09 (No backend convergence).
+
+## Resolution — Session 29 (2026-03-29)
+
+1. Added `verification_results = Column(JSON, nullable=True)` to `LabSession` model.
+2. Migration `004_add_verification_results_to_sessions.py` adds the column.
+3. `verify_lab` in `routers/admin.py` now calls `session.verification_results = [r.model_dump() for r in results]` and commits before returning.
+4. `_build_verification_context` in `routers/evaluate_v2.py` reads `session.verification_results` and formats each finding as `- finding_id: [status] detail`. The formatted string is prepended to the learner's response text under a `[LAB VERIFICATION STATE]` header before AI evaluation.
+
+The AI evaluator now sees ground-truth environment state alongside the learner's explanation, allowing it to credit a correct fix with a terse explanation and to withhold credit for a convincing but incorrect one.

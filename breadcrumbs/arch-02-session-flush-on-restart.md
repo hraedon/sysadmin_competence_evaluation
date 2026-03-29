@@ -26,11 +26,15 @@ This ensures the reaper — which already knows how to call `teardown_environmen
 ## Related
 ARCH-01, ARCH-03
 
-## Resolution — Session 28 (2026-03-27)
+## Resolution — Session 28 (2026-03-27) + correction Session 29 (2026-03-29)
 
-- `load_environments()` no longer calls `db.query(LabSession).delete()`.
-- Instead, all surviving sessions are marked `suspect=True` with `expires_at` forced to `utcnow()`.
-- Added `suspect` column (Boolean, default False) to `LabSession` model with migration guard (`ALTER TABLE sessions ADD COLUMN suspect BOOLEAN DEFAULT 0`).
-- The reaper's existing expired-session collection naturally picks up suspect sessions on its next tick (since their expiry was forced), triggering graceful teardown via the standard `teardown_environment_logic` path.
-- This reuses the well-tested teardown code path (VM revert + Guacamole cleanup + session deletion) rather than adding a separate recovery mechanism.
-- Test coverage: `test_suspect_sessions_marked_on_startup` in `tests/test_integration.py` verifies the session is marked suspect (not deleted) with forced expiry.
+**Session 28 (commit prior to c0ae237):** `load_environments()` no longer calls `db.query(LabSession).delete()`. Sessions marked `suspect=True` and `expires_at` forced to `utcnow()`. Added `suspect` column.
+
+**Bug in Session 28 fix (discovered Session 29):** The forced-expiry approach was too aggressive — the reaper fired within 60 seconds and tore down sessions that survived a rolling deploy with their VMs still running and the learner still connected. This defeated the purpose of the graceful restart path entirely.
+
+**Session 29 correction (commit c0ae237):** Removed the `expires_at` override. Sessions are now only marked `suspect=True` (a UI hint) without touching their expiry. Instead, environments stuck in `"provisioning"` state at startup are immediately faulted, ensuring the reconciler's auto-recovery path handles them. Environments whose sessions survive (status `"busy"`) are left untouched — their sessions remain valid for their original duration.
+
+- `suspect=True`: UI can warn the learner their session survived a pod restart; session is otherwise healthy.
+- Stuck-provisioning environments: faulted immediately so the reconciler auto-recovers them.
+- Reaper continues to handle natural session expiry; no forced-expiry bypass needed.
+- Test coverage: `test_suspect_sessions_marked_on_startup` still passes (checks `suspect=True`; forced expiry assertion removed).

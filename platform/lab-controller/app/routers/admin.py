@@ -76,4 +76,9 @@ async def verify_lab(session_token: str, db: Session = Depends(get_db)):
                 results.append(VerificationResult(finding_id=finding_id, status="incomplete", detail=f"Verification script output could not be parsed: {raw[:100]}"))
         else:
             results.append(VerificationResult(finding_id=finding_id, status="incomplete", detail=f"Verification script failed: {res.error}"))
+
+    # ARCH-17: persist results so the AI evaluator can include them as context
+    session.verification_results = [r.model_dump() for r in results]
+    db.commit()
+
     return results

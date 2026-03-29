@@ -76,6 +76,7 @@ class LabSession(Base):
     guac_session_username = Column(String, nullable=True)  # SEC-07: per-session Guac user
     guac_session_password = Column(String, nullable=True)  # SEC-07: per-session Guac user password
     suspect = Column(Boolean, default=False)  # ARCH-02: marked on restart, reaper handles teardown
+    verification_results = Column(JSON, nullable=True)  # ARCH-17: stored by /lab/verify for AI context
     created_at = Column(UTCDateTime, default=lambda: datetime.datetime.now(datetime.UTC))
     expires_at = Column(UTCDateTime)
     max_expires_at = Column(UTCDateTime)  # Hard cap (e.g., 4h)

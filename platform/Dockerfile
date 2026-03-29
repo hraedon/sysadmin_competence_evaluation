@@ -4,21 +4,26 @@
 FROM node:20-alpine AS build
 WORKDIR /build
 
-# Copy frontend source, scenarios, and core logic together
-COPY platform/frontend/ ./frontend/
-COPY scenarios/ ./scenarios/
-COPY core/ ./core/
+# Copy root manifest and lockfile
+COPY package.json package-lock.json ./
 
-WORKDIR /build/frontend
+# Copy workspace members
+COPY core/ ./core/
+COPY platform/frontend/ ./platform/frontend/
+COPY scenarios/ ./scenarios/
+
+# Install dependencies for all workspaces
 RUN npm ci
 
-# SCENARIOS_DIR is relative to /build/frontend (the CWD during prebuild)
-ENV SCENARIOS_DIR=../scenarios
+# Build the frontend
+WORKDIR /build/platform/frontend
+# SCENARIOS_DIR is relative to the directory where 'npm run build' (prebuild) runs
+ENV SCENARIOS_DIR=../../scenarios
 RUN npm run build
 
 # Production image
 FROM nginx:alpine
-COPY --from=build /build/frontend/dist /usr/share/nginx/html
+COPY --from=build /build/platform/frontend/dist /usr/share/nginx/html
 # Serve scenario files (artifact content) as static assets
 COPY --from=build /build/scenarios /usr/share/nginx/html/scenarios
 COPY platform/frontend/nginx.conf /etc/nginx/conf.d/default.conf

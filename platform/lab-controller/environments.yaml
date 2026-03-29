@@ -1,8 +1,10 @@
 environments:
   # Single-server Windows environment — D01/D03/D11 scripting and automation scenarios.
+  # LabDC01 must be included: LabServer01 is domain-joined and PS Direct domain auth
+  # fails without the DC's NetLogon service running. Both VMs share the same checkpoint.
   # guac_connection_id: Guacamole connection ID for LabServer01 (RDP, 192.168.100.15)
   - id: env-windows-01
-    vms: ["LabServer01"]
+    vms: ["LabDC01", "LabServer01"]
     guac_target_vm: "LabServer01"
     guac_protocol: "rdp"
     guac_connection_id: "1"

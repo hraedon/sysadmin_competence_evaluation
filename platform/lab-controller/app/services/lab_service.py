@@ -65,7 +65,7 @@ async def load_environments():
                 existing.guac_connection_id = env_data['guac_connection_id']
                 existing.guac_target_vm = env_data.get('guac_target_vm')
                 existing.guac_protocol = env_data.get('guac_protocol')
-                if existing.status not in ["available", "faulted"]:
+                if existing.status not in ["available", "faulted", "busy"]:
                     existing.status = target_status
 
 # ---------------------------------------------------------------------------

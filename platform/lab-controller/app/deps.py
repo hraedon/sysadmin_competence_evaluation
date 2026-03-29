@@ -42,11 +42,8 @@ async def verify_api_key(x_api_key: str = Header(...)):
 # JWT auth
 # ---------------------------------------------------------------------------
 
-async def get_current_user(
-    authorization: str = Header(None),
-    db: Session = Depends(get_db),
-) -> User:
-    """Extract and validate JWT from Authorization: Bearer <token> header."""
+def _validate_bearer_token(authorization: str, db: Session) -> User:
+    """Validate a Bearer token string and return the User. Raises HTTPException on failure."""
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
 
@@ -64,6 +61,14 @@ async def get_current_user(
     return user
 
 
+async def get_current_user(
+    authorization: str = Header(None),
+    db: Session = Depends(get_db),
+) -> User:
+    """Extract and validate JWT from Authorization: Bearer <token> header."""
+    return _validate_bearer_token(authorization, db)
+
+
 async def require_admin(user: User = Depends(get_current_user)) -> User:
     """Ensure the authenticated user has admin role."""
     if user.role != "admin":
@@ -79,7 +84,7 @@ async def optional_auth(
     if not authorization or not authorization.startswith("Bearer "):
         return None
     try:
-        return await get_current_user(authorization, db)
+        return _validate_bearer_token(authorization, db)
     except HTTPException:
         return None
 
@@ -94,7 +99,7 @@ async def verify_api_key_or_jwt(
     # Try JWT first
     if authorization and authorization.startswith("Bearer "):
         try:
-            return await get_current_user(authorization, db)
+            return _validate_bearer_token(authorization, db)
         except HTTPException:
             pass
     # Fall back to API key

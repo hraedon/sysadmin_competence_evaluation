@@ -41,20 +41,20 @@ def build_system_prompt(scenario: Dict[str, Any], artifact_content: Optional[str
     level_indicators = rubric.get('level_indicators', {})
     level_block = "\n\n".join([f"{k.replace('level_', 'Level ')}: {v.strip()}" for k, v in level_indicators.items()])
 
-    mode_note = f"This is a Commission exercise (Mode B). The candidate has been asked to produce a specification or document — not to analyse a given artifact. Evaluate the completeness and quality of what they produced against the rubric findings, which represent required elements of a correct specification." if mode == 'B' else f"This is an Audit/Literacy exercise (Mode {mode}). The candidate has been asked to analyse the provided artifact and identify findings."
+    mode_note = f"This is a Commission exercise (Mode B). The candidate has been asked to produce a specification or document - not to analyse a given artifact. Evaluate the completeness and quality of what they produced against the rubric findings, which represent required elements of a correct specification." if mode == 'B' else f"This is an Audit/Literacy exercise (Mode {mode}). The candidate has been asked to analyse the provided artifact and identify findings."
 
-    artifact_block = f"ARTIFACT ({presentation_type}):\n```\n{artifact_content}\n```" if artifact_content else "(No artifact — Mode B commission exercise)"
+    artifact_block = f"ARTIFACT ({presentation_type}):\n```\n{artifact_content}\n```" if artifact_content else "(No artifact - Mode B commission exercise)"
 
     coach_json_fields = ""
     coach_instructions = ""
 
     if coach_mode:
         if coach_round == 0:
-            coach_json_fields = ",\n  \"coach_question\": <string — a single Socratic question pointing to specific artifact evidence for the primary missed finding; omit this field entirely if all findings are caught>"
-            coach_instructions = "\n\nCOACH MODE: After evaluating, if any findings were missed, include a \"coach_question\" field — a single Socratic question pointing to specific evidence in the artifact that would help the candidate discover their primary missed finding. Do not name the finding or reveal the correct answer. The question should be answerable from the artifact alone. Omit this field if no findings were missed."
+            coach_json_fields = ",\n  \"coach_question\": <string - a single Socratic question pointing to specific artifact evidence for the primary missed finding; omit this field entirely if all findings are caught>"
+            coach_instructions = "\n\nCOACH MODE: After evaluating, if any findings were missed, include a \"coach_question\" field - a single Socratic question pointing to specific evidence in the artifact that would help the candidate discover their primary missed finding. Do not name the finding or reveal the correct answer. The question should be answerable from the artifact alone. Omit this field if no findings were missed."
         else:
-            coach_json_fields = ",\n  \"resolved\": <true|false — whether the candidate has now identified the primary missed finding>,\n  \"coach_question\": <string — a more direct follow-up question; omit if resolved is true or if round >= 3>"
-            coach_instructions = f"\n\nFOLLOW-UP COACHING (round {coach_round} of 3): The candidate has responded to a coaching question. The exchange history follows the initial response in the message thread. Determine whether they have now identified the primary missed finding:\n- If yes: set \"resolved\": true and complete all evaluation fields normally.\n- If no and round < 3: set \"resolved\": false and include a more direct \"coach_question\".\n- If no and round >= 3: set \"resolved\": false and omit \"coach_question\" — the UI will surface explanation content for the candidate."
+            coach_json_fields = ",\n  \"resolved\": <true|false - whether the candidate has now identified the primary missed finding>,\n  \"coach_question\": <string - a more direct follow-up question; omit if resolved is true or if round >= 3>"
+            coach_instructions = f"\n\nFOLLOW-UP COACHING (round {coach_round} of 3): The candidate has responded to a coaching question. The exchange history follows the initial response in the message thread. Determine whether they have now identified the primary missed finding:\n- If yes: set \"resolved\": true and complete all evaluation fields normally.\n- If no and round < 3: set \"resolved\": false and include a more direct \"coach_question\".\n- If no and round >= 3: set \"resolved\": false and omit \"coach_question\" - the UI will surface explanation content for the candidate."
 
     return f"""ROLE: You are an assessment evaluator for the Modern Systems Administration Competency Framework. You are evaluating a candidate's response to a scenario exercise. Do not provide the correct answer or reveal findings the candidate missed.
 
@@ -82,19 +82,19 @@ Level indicators:
 EVALUATION INSTRUCTIONS:
 1. Assess the candidate's response against the rubric.
 2. Identify which finding IDs were caught (clearly addressed) and which were missed.
-3. Assess severity calibration — did they rate critical findings as critical?
+3. Assess severity calibration - did they rate critical findings as critical?
 4. Credit legitimate findings not in the rubric (note them as "unlisted_N").
 5. Produce a level estimate (1–4) with specific evidence from the response.
 6. If the candidate is between levels, describe the specific gap.
 7. Do NOT reveal what was missed or provide the correct answer.
 
-Respond with a single JSON object — no prose before or after it:
+Respond with a single JSON object - no prose before or after it:
 {{
   "level": <1|2|3|4>,
   "confidence": <"high"|"medium"|"low">,
   "caught": [<finding id strings>],
   "missed": [<finding id strings>],
-  "almost_caught": [<finding id strings — findings that the candidate touched on or mentioned but did not describe with enough precision to be fully credited according to the rubric>],
+  "almost_caught": [<finding id strings - findings that the candidate touched on or mentioned but did not describe with enough precision to be fully credited according to the rubric>],
   "unlisted": [<brief descriptions of valid unlisted findings>],
   "severity_calibration": <"accurate"|"understated"|"overstated"|"mixed">,
   "gap": <"prose description of what separates this response from the next level, or null if clearly at a level">,

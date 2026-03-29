@@ -170,11 +170,13 @@ async def run_provisioning_with_watchdog(env_id: str, scenario_path: Path, mode_
         )
     except asyncio.TimeoutError:
         logger.error(f"Provisioning watchdog timeout ({settings.provisioning_timeout_seconds}s) for {env_id}")
+        # Explicit teardown to ensure VMs are stopped/reverted
+        await teardown_environment_logic(env_id, session_token)
         update_env_status(env_id, "faulted", last_error=f"Provisioning timed out after {settings.provisioning_timeout_seconds}s")
 
 async def run_provisioning_flow(env_id: str, scenario_path: Path, mode_e: dict, session_token: str):
     try:
-        checkpoint = mode_e.get('checkpoint', 'Baseline')
+        checkpoint = mode_e.get('checkpoint', 'Baseline Checkpoint') # Standardized in previous session
         config = mode_e.get('config', {})
         provisioning_actions = config.get('provisioning', [])
 

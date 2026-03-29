@@ -1,4 +1,5 @@
 import logging
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
@@ -23,7 +24,25 @@ from .routers import lab, admin, evaluate, evaluate_v2, auth, profile
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="Sysadmin Competency Lab Controller")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    init_db()
+    await load_environments()
+    
+    # Start background jobs
+    scheduler = BackgroundScheduler()
+    scheduler.add_job(reap_expired_sessions_wrapper, 'interval', minutes=1)
+    scheduler.add_job(reconcile_environments_wrapper, 'interval', minutes=settings.reconcile_interval_minutes)
+    scheduler.start()
+    app.state.scheduler = scheduler
+    
+    yield
+    
+    # Shutdown
+    scheduler.shutdown()
+
+app = FastAPI(title="Sysadmin Competency Lab Controller", lifespan=lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
@@ -55,18 +74,6 @@ async def health_check(db: Session = Depends(get_db)):
         "status": "healthy",
         "jobs": {hb.job_name: {"last_run": hb.last_run_at, "status": hb.last_status, "error": hb.last_error} for hb in heartbeats}
     }
-
-@app.on_event("startup")
-async def startup_event():
-    init_db()
-    await load_environments()
-    
-    # Start background jobs
-    scheduler = BackgroundScheduler()
-    scheduler.add_job(reap_expired_sessions_wrapper, 'interval', minutes=1)
-    scheduler.add_job(reconcile_environments_wrapper, 'interval', minutes=settings.reconcile_interval_minutes)
-    scheduler.start()
-    app.state.scheduler = scheduler
 
 if __name__ == "__main__":
     import uvicorn

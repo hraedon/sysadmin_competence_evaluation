@@ -402,6 +402,9 @@ class TestTeardownAndReaper:
         import app.services.lab_service as main_mod
 
         mock_orch = AsyncMock()
+        mock_orch.get_vm_state.return_value = OrchestrationResult(success=True, output="Off")
+        mock_orch.revert_to_checkpoint.return_value = OrchestrationResult(success=True, output="ok")
+
         with patch.object(main_mod, "session_scope", scope), \
              patch.object(main_mod, "orchestrator", mock_orch):
             main_mod.reconcile_environments_wrapper()

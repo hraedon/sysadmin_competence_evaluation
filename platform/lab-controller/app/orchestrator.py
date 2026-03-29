@@ -130,12 +130,17 @@ class HyperVOrchestrator:
             logger.info(f"[DRY RUN] Testing connectivity for {vm_name}")
             await asyncio.sleep(0.5)
             return OrchestrationResult(success=True, output="OK")
+        
         cred_snippet = self._guest_cred_ps() if self.guest_username else ""
         inner = (
             f"{cred_snippet}"
-            f"Invoke-Command -VMName '{vm_name}'"
-            f"{' -Credential $guestCred' if self.guest_username else ''}"
-            f" -ScriptBlock {{ 'OK' }}"
+            f"$s = New-PSSession -VMName '{vm_name}'"
+            f"{' -Credential $guestCred' if self.guest_username else ''}; "
+            f"try {{ "
+            f"  Invoke-Command -Session $s -ScriptBlock {{ 'OK' }}; "
+            f"}} finally {{ "
+            f"  Remove-PSSession $s; "
+            f"}}"
         )
         return await self._run_ps(self._remote_wrap(inner))
 
@@ -199,10 +204,6 @@ class HyperVOrchestrator:
     async def run_script_in_guest(self, vm_name: str, script_path: str) -> OrchestrationResult:
         """
         Runs a local script file inside the guest VM using PowerShell Direct.
-
-        Instead of injecting script content into a string (which is fragile),
-        this method copies the script file to the guest's C:\Windows\Temp
-        directory and then executes it.
         """
         if self.dry_run:
             logger.info(f"[DRY RUN] Running script in {vm_name}: {script_path}")
@@ -215,36 +216,41 @@ class HyperVOrchestrator:
         if not os.path.exists(script_path):
             return OrchestrationResult(success=False, output="", error=f"Script not found: {script_path}")
 
-        # 1. Copy script to guest
         filename = os.path.basename(script_path)
         guest_path = f"C:\\Windows\\Temp\\{filename}"
-        copy_res = await self.copy_file_to_guest(vm_name, script_path, guest_path)
-        if not copy_res.success:
-            return copy_res
 
-        # 2. Execute script in guest
-        try:
-            cred_snippet = self._guest_cred_ps() if self.guest_username else ""
-            inner = (
-                f"{cred_snippet}"
-                f"Invoke-Command -VMName '{vm_name}'"
-                f"{' -Credential $guestCred' if self.guest_username else ''}"
-                f" -ScriptBlock {{ & '{guest_path}' }}"
-            )
-            return await self._run_ps(self._remote_wrap(inner))
-        except Exception as e:
-            return OrchestrationResult(success=False, output="", error=str(e))
+        cred_snippet = self._guest_cred_ps() if self.guest_username else ""
+        
+        # Use a single PSSession for both Copy-Item and Invoke-Command
+        # This is more robust and handles credentials correctly for file operations
+        inner = (
+            f"{cred_snippet}"
+            f"$s = New-PSSession -VMName '{vm_name}'"
+            f"{' -Credential $guestCred' if self.guest_username else ''}; "
+            f"try {{ "
+            f"  Copy-Item -Path '{script_path}' -Destination '{guest_path}' -ToSession $s; "
+            f"  Invoke-Command -Session $s -ScriptBlock {{ & '{guest_path}' }}; "
+            f"}} finally {{ "
+            f"  Remove-PSSession $s; "
+            f"}}"
+        )
+        return await self._run_ps(self._remote_wrap(inner))
 
     async def copy_file_to_guest(self, vm_name: str, source: str, destination: str) -> OrchestrationResult:
         if self.dry_run:
             logger.info(f"[DRY RUN] Copying {source} → {vm_name}:{destination}")
             await asyncio.sleep(0.5)
             return OrchestrationResult(success=True, output="Dry run success")
+        
         cred_snippet = self._guest_cred_ps() if self.guest_username else ""
         inner = (
             f"{cred_snippet}"
-            f"Copy-Item -Path '{source}' -Destination '{destination}'"
-            f" -VMName '{vm_name}'"
-            f"{' -Credential $guestCred' if self.guest_username else ''}"
+            f"$s = New-PSSession -VMName '{vm_name}'"
+            f"{' -Credential $guestCred' if self.guest_username else ''}; "
+            f"try {{ "
+            f"  Copy-Item -Path '{source}' -Destination '{destination}' -ToSession $s; "
+            f"}} finally {{ "
+            f"  Remove-PSSession $s; "
+            f"}}"
         )
         return await self._run_ps(self._remote_wrap(inner))

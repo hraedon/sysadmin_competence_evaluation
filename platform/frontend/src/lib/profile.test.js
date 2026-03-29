@@ -1,25 +1,8 @@
-/**
- * Unit tests for profile.js — localStorage-backed capability profile.
- *
- * Run with: node --test platform/frontend/src/lib/profile.test.js
- * Requires Node 18+. No additional test runner needed.
- *
- * Tests cover: saveResult aggregation, domainLevel median logic,
- * recommendNext sequencing, staleScenariosForReview threshold,
- * and almost_caught persistence.
- */
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 
-import { test, describe, beforeEach } from 'node:test'
-import assert from 'node:assert/strict'
-
-// ── localStorage shim for Node ──────────────────────────────────────────
-const store = {}
-globalThis.localStorage = {
-  getItem: (k) => store[k] ?? null,
-  setItem: (k, v) => { store[k] = String(v) },
-  removeItem: (k) => { delete store[k] },
-  clear: () => { for (const k of Object.keys(store)) delete store[k] },
-}
+// ── localStorage shim for JSDOM/Vitest ──────────────────────────────────────────
+// Vitest with jsdom already has localStorage, but we can clear it
+const clearStore = () => localStorage.clear()
 
 const { loadProfile, saveResult, domainLevel, recommendNext, staleScenariosForReview, clearProfile, isOnboardingDismissed, dismissOnboarding } = await import('./profile.js')
 
@@ -35,52 +18,52 @@ const mkScenario = (overrides) => ({
 })
 
 describe('loadProfile', () => {
-  beforeEach(() => localStorage.clear())
+  beforeEach(() => clearStore())
 
-  test('returns empty profile when localStorage is empty', () => {
+  it('returns empty profile when localStorage is empty', () => {
     const p = loadProfile()
-    assert.deepStrictEqual(p.domains, {})
-    assert.strictEqual(p.updated, null)
+    expect(p.domains).toEqual({})
+    expect(p.updated).toBeNull()
   })
 
-  test('returns empty profile when localStorage contains invalid JSON', () => {
+  it('returns empty profile when localStorage contains invalid JSON', () => {
     localStorage.setItem('sysadmin_assessment_profile', 'not json')
     const p = loadProfile()
-    assert.deepStrictEqual(p.domains, {})
+    expect(p.domains).toEqual({})
   })
 })
 
 describe('saveResult', () => {
-  beforeEach(() => localStorage.clear())
+  beforeEach(() => clearStore())
 
-  test('creates domain entry on first save', () => {
+  it('creates domain entry on first save', () => {
     const s = mkScenario()
     const p = saveResult({ scenario: s, level: 2, confidence: 'high', gap: null })
-    assert.strictEqual(p.domains[1].domain_name, 'Scripting and Automation')
-    assert.strictEqual(p.domains[1].results.length, 1)
-    assert.strictEqual(p.domains[1].results[0].level, 2)
+    expect(p.domains[1].domain_name).toBe('Scripting and Automation')
+    expect(p.domains[1].results.length).toBe(1)
+    expect(p.domains[1].results[0].level).toBe(2)
   })
 
-  test('replaces prior result for same scenario_id', () => {
+  it('replaces prior result for same scenario_id', () => {
     const s = mkScenario()
     saveResult({ scenario: s, level: 1, confidence: 'low', gap: 'missed everything' })
     const p = saveResult({ scenario: s, level: 3, confidence: 'high', gap: null })
-    assert.strictEqual(p.domains[1].results.length, 1)
-    assert.strictEqual(p.domains[1].results[0].level, 3)
+    expect(p.domains[1].results.length).toBe(1)
+    expect(p.domains[1].results[0].level).toBe(3)
   })
 
-  test('preserves results from different scenarios in same domain', () => {
+  it('preserves results from different scenarios in same domain', () => {
     saveResult({ scenario: mkScenario({ id: 'd01-a' }), level: 2, confidence: 'medium', gap: null })
     const p = saveResult({ scenario: mkScenario({ id: 'd01-b' }), level: 3, confidence: 'high', gap: null })
-    assert.strictEqual(p.domains[1].results.length, 2)
+    expect(p.domains[1].results.length).toBe(2)
   })
 
-  test('persists gap field', () => {
+  it('persists gap field', () => {
     const p = saveResult({ scenario: mkScenario(), level: 2, confidence: 'medium', gap: 'needs error handling' })
-    assert.strictEqual(p.domains[1].results[0].gap, 'needs error handling')
+    expect(p.domains[1].results[0].gap).toBe('needs error handling')
   })
 
-  test('persists almost_caught field', () => {
+  it('persists almost_caught field', () => {
     const p = saveResult({
       scenario: mkScenario(),
       level: 2,
@@ -88,58 +71,58 @@ describe('saveResult', () => {
       gap: null,
       almost_caught: ['finding_a', 'finding_b'],
     })
-    assert.deepStrictEqual(p.domains[1].results[0].almost_caught, ['finding_a', 'finding_b'])
+    expect(p.domains[1].results[0].almost_caught).toEqual(['finding_a', 'finding_b'])
   })
 
-  test('defaults almost_caught to empty array when omitted', () => {
+  it('defaults almost_caught to empty array when omitted', () => {
     const p = saveResult({ scenario: mkScenario(), level: 2, confidence: 'high', gap: null })
-    assert.deepStrictEqual(p.domains[1].results[0].almost_caught, [])
+    expect(p.domains[1].results[0].almost_caught).toEqual([])
   })
 
-  test('round-trips through localStorage', () => {
+  it('round-trips through localStorage', () => {
     saveResult({ scenario: mkScenario(), level: 3, confidence: 'high', gap: 'a gap' })
     const reloaded = loadProfile()
-    assert.strictEqual(reloaded.domains[1].results[0].level, 3)
-    assert.strictEqual(reloaded.domains[1].results[0].gap, 'a gap')
+    expect(reloaded.domains[1].results[0].level).toBe(3)
+    expect(reloaded.domains[1].results[0].gap).toBe('a gap')
   })
 })
 
 describe('domainLevel — median logic', () => {
-  beforeEach(() => localStorage.clear())
+  beforeEach(() => clearStore())
 
-  test('returns null for empty domain', () => {
-    assert.strictEqual(domainLevel(loadProfile(), 1), null)
+  it('returns null for empty domain', () => {
+    expect(domainLevel(loadProfile(), 1)).toBeNull()
   })
 
-  test('returns the single result level', () => {
+  it('returns the single result level', () => {
     saveResult({ scenario: mkScenario(), level: 3, confidence: 'high', gap: null })
-    assert.strictEqual(domainLevel(loadProfile(), 1), 3)
+    expect(domainLevel(loadProfile(), 1)).toBe(3)
   })
 
-  test('returns median of odd count', () => {
+  it('returns median of odd count', () => {
     saveResult({ scenario: mkScenario({ id: 'd01-a' }), level: 1, confidence: 'low', gap: null })
     saveResult({ scenario: mkScenario({ id: 'd01-b' }), level: 3, confidence: 'high', gap: null })
     saveResult({ scenario: mkScenario({ id: 'd01-c' }), level: 4, confidence: 'high', gap: null })
-    assert.strictEqual(domainLevel(loadProfile(), 1), 3)
+    expect(domainLevel(loadProfile(), 1)).toBe(3)
   })
 
-  test('returns floor of average for even count', () => {
+  it('returns floor of average for even count', () => {
     saveResult({ scenario: mkScenario({ id: 'd01-a' }), level: 2, confidence: 'medium', gap: null })
     saveResult({ scenario: mkScenario({ id: 'd01-b' }), level: 3, confidence: 'medium', gap: null })
     // (2+3)/2 = 2.5 → floor → 2
-    assert.strictEqual(domainLevel(loadProfile(), 1), 2)
+    expect(domainLevel(loadProfile(), 1)).toBe(2)
   })
 
-  test('handles single outlier without dragging median', () => {
+  it('handles single outlier without dragging median', () => {
     saveResult({ scenario: mkScenario({ id: 'd01-a' }), level: 3, confidence: 'high', gap: null })
     saveResult({ scenario: mkScenario({ id: 'd01-b' }), level: 3, confidence: 'high', gap: null })
     saveResult({ scenario: mkScenario({ id: 'd01-c' }), level: 1, confidence: 'low', gap: null })
-    assert.strictEqual(domainLevel(loadProfile(), 1), 3)
+    expect(domainLevel(loadProfile(), 1)).toBe(3)
   })
 })
 
 describe('recommendNext', () => {
-  beforeEach(() => localStorage.clear())
+  beforeEach(() => clearStore())
 
   const scenarios = [
     mkScenario({ id: 'd01-a', level: 1, difficulty: 2 }),
@@ -148,44 +131,44 @@ describe('recommendNext', () => {
     mkScenario({ id: 'd01-d', level: 3, difficulty: 5 }),
   ]
 
-  test('returns lowest-difficulty scenario when no prior results', () => {
+  it('returns lowest-difficulty scenario when no prior results', () => {
     const next = recommendNext(scenarios, loadProfile(), 1)
-    assert.strictEqual(next.id, 'd01-a')
+    expect(next.id).toBe('d01-a')
   })
 
-  test('recommends next level up after assessment', () => {
+  it('recommends next level up after assessment', () => {
     saveResult({ scenario: mkScenario({ id: 'd01-a' }), level: 1, confidence: 'medium', gap: null })
     const next = recommendNext(scenarios, loadProfile(), 1)
-    assert.strictEqual(next.id, 'd01-b')
+    expect(next.id).toBe('d01-b')
   })
 
-  test('returns null when all scenarios completed', () => {
+  it('returns null when all scenarios completed', () => {
     for (const s of scenarios) {
       saveResult({ scenario: s, level: s.level, confidence: 'high', gap: null })
     }
     const next = recommendNext(scenarios, loadProfile(), 1)
-    assert.strictEqual(next, null)
+    expect(next).toBeNull()
   })
 
-  test('falls back to same-level scenario if next level not available', () => {
+  it('falls back to same-level scenario if next level not available', () => {
     saveResult({ scenario: mkScenario({ id: 'd01-c' }), level: 3, confidence: 'high', gap: null })
     saveResult({ scenario: mkScenario({ id: 'd01-a' }), level: 1, confidence: 'low', gap: null })
     // median of [1,3] = floor(2) = 2 → looks for L3, finds d01-d
     const next = recommendNext(scenarios, loadProfile(), 1)
     // assessed = 2, target = 3, d01-c already done → d01-d is L3 and available
-    assert.strictEqual(next.id, 'd01-d')
+    expect(next.id).toBe('d01-d')
   })
 })
 
 describe('staleScenariosForReview', () => {
-  beforeEach(() => localStorage.clear())
+  beforeEach(() => clearStore())
 
-  test('returns empty for fresh results', () => {
+  it('returns empty for fresh results', () => {
     saveResult({ scenario: mkScenario(), level: 2, confidence: 'high', gap: null })
-    assert.strictEqual(staleScenariosForReview(loadProfile()).length, 0)
+    expect(staleScenariosForReview(loadProfile()).length).toBe(0)
   })
 
-  test('returns results older than threshold', () => {
+  it('returns results older than threshold', () => {
     // Manually inject an old result
     const profile = loadProfile()
     profile.domains[1] = {
@@ -202,24 +185,24 @@ describe('staleScenariosForReview', () => {
     localStorage.setItem('sysadmin_assessment_profile', JSON.stringify(profile))
 
     const stale = staleScenariosForReview(loadProfile())
-    assert.strictEqual(stale.length, 1)
-    assert.strictEqual(stale[0].scenario_id, 'd01-old')
+    expect(stale.length).toBe(1)
+    expect(stale[0].scenario_id).toBe('d01-old')
   })
 })
 
 describe('clearProfile and onboarding', () => {
-  beforeEach(() => localStorage.clear())
+  beforeEach(() => clearStore())
 
-  test('clearProfile removes all profile data', () => {
+  it('clearProfile removes all profile data', () => {
     saveResult({ scenario: mkScenario(), level: 2, confidence: 'high', gap: null })
     clearProfile()
     const p = loadProfile()
-    assert.deepStrictEqual(p.domains, {})
+    expect(p.domains).toEqual({})
   })
 
-  test('onboarding dismissed state persists', () => {
-    assert.strictEqual(isOnboardingDismissed(), false)
+  it('onboarding dismissed state persists', () => {
+    expect(isOnboardingDismissed()).toBe(false)
     dismissOnboarding()
-    assert.strictEqual(isOnboardingDismissed(), true)
+    expect(isOnboardingDismissed()).toBe(true)
   })
 })

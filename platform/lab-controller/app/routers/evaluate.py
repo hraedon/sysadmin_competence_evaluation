@@ -1,12 +1,12 @@
 from fastapi import APIRouter, HTTPException, Depends
 from ..schemas import EvaluateRequest, settings
-from ..deps import verify_api_key
+from ..deps import verify_api_key_or_jwt
 from ..evaluator import perform_evaluation
 
 router = APIRouter(tags=["evaluate"])
 
-@router.post("/evaluate", dependencies=[Depends(verify_api_key)])
-@router.post("/lab/evaluate", dependencies=[Depends(verify_api_key)])
+@router.post("/evaluate", dependencies=[Depends(verify_api_key_or_jwt)])
+@router.post("/lab/evaluate", dependencies=[Depends(verify_api_key_or_jwt)])
 async def evaluate_proxy(req: EvaluateRequest):
     model = req.model or "claude-3-5-sonnet-20241022"
     api_key = settings.anthropic_api_key

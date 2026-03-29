@@ -5,7 +5,7 @@ import logging
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
 from ..database import get_db, LabEnvironment, LabSession
-from ..deps import verify_api_key, orchestrator
+from ..deps import verify_api_key, verify_api_key_or_jwt, orchestrator
 from ..utils import resolve_scenario_path
 from ..schemas import VerificationResult
 from ..services.lab_service import reset_environment, reset_all_faulted
@@ -43,7 +43,7 @@ async def admin_reset_all_faulted_endpoint():
     logger.info(f"Admin reset-all-faulted: reset {len(reset_ids)} environment(s): {reset_ids}")
     return {"reset": reset_ids, "count": len(reset_ids)}
 
-@router.post("/verify/{session_token}", dependencies=[Depends(verify_api_key)])
+@router.post("/verify/{session_token}", dependencies=[Depends(verify_api_key_or_jwt)])
 async def verify_lab(session_token: str, db: Session = Depends(get_db)):
     session = db.query(LabSession).filter(LabSession.session_token == session_token).first()
     if not session:

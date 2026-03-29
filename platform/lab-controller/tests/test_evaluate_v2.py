@@ -135,21 +135,20 @@ class TestRubricService:
 # ---------------------------------------------------------------------------
 
 class TestEvaluateV2Auth:
-    def test_evaluate_rejects_without_api_key(self):
-        """POST /api/evaluate should reject requests without X-API-Key header."""
+    def test_evaluate_rejects_without_auth(self):
+        """POST /api/evaluate should reject requests without any auth."""
         from fastapi.testclient import TestClient
         from app.main import app
 
         client = TestClient(app)
-        # No X-API-Key header → 422 (required header missing)
         response = client.post("/api/evaluate", json={
             "scenarioId": "d01-test-scenario",
             "responseText": "The script kills all processes."
         })
-        assert response.status_code == 422
+        assert response.status_code == 401
 
     def test_evaluate_rejects_wrong_api_key(self):
-        """POST /api/evaluate should return 403 with wrong X-API-Key."""
+        """POST /api/evaluate should return 401 with wrong X-API-Key and no JWT."""
         from fastapi.testclient import TestClient
         from app.main import app
 
@@ -159,7 +158,7 @@ class TestEvaluateV2Auth:
             json={"scenarioId": "d01-test-scenario", "responseText": "test"},
             headers={"X-API-Key": "wrong-key"}
         )
-        assert response.status_code == 403
+        assert response.status_code == 401
 
 
 # ---------------------------------------------------------------------------

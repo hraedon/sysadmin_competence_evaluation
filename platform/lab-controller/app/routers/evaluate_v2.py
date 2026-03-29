@@ -14,7 +14,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from ..database import get_db, EvaluationRecord, _is_sqlite
-from ..deps import verify_api_key
+from ..deps import verify_api_key_or_jwt
 from ..middleware.rate_limit import limiter
 from ..schemas import settings
 from ..evaluator import perform_evaluation
@@ -35,7 +35,7 @@ class EvaluateRequestV2(BaseModel):
     userId: Optional[str] = None
 
 
-@router.post("/evaluate", dependencies=[Depends(verify_api_key)])
+@router.post("/evaluate", dependencies=[Depends(verify_api_key_or_jwt)])
 @limiter.limit("20/minute")
 async def evaluate_v2(request: Request, req: EvaluateRequestV2, db: Session = Depends(get_db)):
     """Evaluate a learner's response against a scenario rubric.
@@ -92,7 +92,7 @@ async def evaluate_v2(request: Request, req: EvaluateRequestV2, db: Session = De
     return result
 
 
-@router.post("/coach", dependencies=[Depends(verify_api_key)])
+@router.post("/coach", dependencies=[Depends(verify_api_key_or_jwt)])
 @limiter.limit("20/minute")
 async def coach_v2(request: Request, req: EvaluateRequestV2, db: Session = Depends(get_db)):
     """Coach mode evaluation — same as evaluate but with coachMode forced on."""

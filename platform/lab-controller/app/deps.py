@@ -82,3 +82,22 @@ async def optional_auth(
         return await get_current_user(authorization, db)
     except HTTPException:
         return None
+
+
+async def verify_api_key_or_jwt(
+    x_api_key: Optional[str] = Header(None),
+    authorization: Optional[str] = Header(None),
+    db: Session = Depends(get_db),
+):
+    """Accept either X-API-Key or JWT Bearer token. Used by lab endpoints
+    during the transition from API-key to JWT auth."""
+    # Try JWT first
+    if authorization and authorization.startswith("Bearer "):
+        try:
+            return await get_current_user(authorization, db)
+        except HTTPException:
+            pass
+    # Fall back to API key
+    if x_api_key and x_api_key == settings.controller_api_key:
+        return x_api_key
+    raise HTTPException(status_code=401, detail="Valid API key or JWT token required")

@@ -93,7 +93,8 @@ export function useLabSession(scenario, labControllerUrl, { enabled = true } = {
       })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
-        throw new Error(data.detail ?? `HTTP ${res.status}`)
+        const detail = typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail)
+        throw new Error(detail ?? `HTTP ${res.status}`)
       }
       const data = await res.json()
       setSession(data)

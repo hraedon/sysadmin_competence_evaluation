@@ -8,7 +8,7 @@ from pathlib import Path
 
 from ..database import get_db, LabEnvironment, LabSession, _is_sqlite
 from ..schemas import ProvisionRequest, ProvisionResponse, settings
-from ..deps import verify_api_key, guac_client
+from ..deps import verify_api_key, verify_api_key_or_jwt, guac_client
 from ..middleware.rate_limit import limiter
 from ..utils import sanitize_scenario_id, resolve_scenario_path
 from ..services.lab_service import run_provisioning_with_watchdog, teardown_environment_logic
@@ -29,7 +29,7 @@ async def get_status(db: Session = Depends(get_db)):
         "active_sessions": len(sessions)
     }
 
-@router.post("/provision/{scenario_id}", response_model=ProvisionResponse, dependencies=[Depends(verify_api_key)])
+@router.post("/provision/{scenario_id}", response_model=ProvisionResponse, dependencies=[Depends(verify_api_key_or_jwt)])
 @limiter.limit("5/minute")
 async def provision_lab(
     request: Request,
@@ -125,7 +125,7 @@ async def provision_lab(
         instructions=mode_e.get('instructions', '')
     )
 
-@router.get("/session/{session_token}", dependencies=[Depends(verify_api_key)])
+@router.get("/session/{session_token}", dependencies=[Depends(verify_api_key_or_jwt)])
 async def get_session_status(session_token: str, db: Session = Depends(get_db)):
     session = db.query(LabSession).filter(LabSession.session_token == session_token).first()
     if not session:
@@ -162,7 +162,7 @@ async def get_session_status(session_token: str, db: Session = Depends(get_db)):
         "guacamole_url": guacamole_url
     }
 
-@router.post("/renew/{session_token}", dependencies=[Depends(verify_api_key)])
+@router.post("/renew/{session_token}", dependencies=[Depends(verify_api_key_or_jwt)])
 async def renew_session(session_token: str, db: Session = Depends(get_db)):
     session = db.query(LabSession).filter(LabSession.session_token == session_token).first()
     if not session:
@@ -172,7 +172,7 @@ async def renew_session(session_token: str, db: Session = Depends(get_db)):
     db.commit()
     return {"expires_at": session.expires_at}
 
-@router.post("/teardown/{session_token}", dependencies=[Depends(verify_api_key)])
+@router.post("/teardown/{session_token}", dependencies=[Depends(verify_api_key_or_jwt)])
 async def teardown_lab(session_token: str, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     session = db.query(LabSession).filter(LabSession.session_token == session_token).first()
     if not session:

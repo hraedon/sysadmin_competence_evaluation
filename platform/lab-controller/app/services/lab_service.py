@@ -206,7 +206,7 @@ async def run_provisioning_flow(env_id: str, scenario_path: Path, mode_e: dict, 
         if guac_target_vm and guac_protocol:
             ip_res = await orchestrator.get_vm_ip(guac_target_vm)
             if ip_res.success and ip_res.output:
-                params = {"hostname": ip_res.output, "username": "labuser", "password": settings.hyperv_guest_password}
+                params = {"hostname": ip_res.output, "username": settings.hyperv_guest_username, "password": settings.hyperv_guest_password}
                 if guac_protocol == "rdp":
                     params["ignore-cert"] = "true"
                     params["security"] = "any"

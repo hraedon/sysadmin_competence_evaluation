@@ -95,8 +95,8 @@ async def provision_lab(
     db.commit()
 
     session_token = str(uuid.uuid4())
-    expires_at = datetime.datetime.utcnow() + datetime.timedelta(minutes=settings.session_timeout_minutes)
-    max_expires_at = datetime.datetime.utcnow() + datetime.timedelta(hours=settings.max_session_hours)
+    expires_at = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=settings.session_timeout_minutes)
+    max_expires_at = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=settings.max_session_hours)
     
     new_session = LabSession(
         session_token=session_token,
@@ -167,7 +167,7 @@ async def renew_session(session_token: str, db: Session = Depends(get_db)):
     session = db.query(LabSession).filter(LabSession.session_token == session_token).first()
     if not session:
         raise HTTPException(status_code=404, detail="Session not found.")
-    now = datetime.datetime.utcnow()
+    now = datetime.datetime.now(datetime.timezone.utc)
     session.expires_at = min(now + datetime.timedelta(minutes=30), session.max_expires_at)
     db.commit()
     return {"expires_at": session.expires_at}

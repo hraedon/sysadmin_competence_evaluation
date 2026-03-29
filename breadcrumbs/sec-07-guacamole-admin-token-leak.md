@@ -1,7 +1,9 @@
-# SEC-07: Global Guacamole Admin Token Leaked to Browser Client
+# SEC-07: Global Guacamole Admin Token Leaked to Browser Client — **Partially Resolved**
 
-## Severity
-High
+## Status
+- **Original severity**: High
+- **Current severity**: Low (admin token used only as fallback)
+- **Partially resolved**: 2026-03-28
 
 ## Location
 `platform/lab-controller/app/guacamole.py` — `_client_url()` (line ~43)
@@ -23,6 +25,11 @@ The lab controller should:
 1.  Continue using the admin token for *creating* the connection via the REST API.
 2.  Generate a *separate*, restricted user/token (or use a signed JSON/HMAC token) that only has access to the specific connection ID created for that session.
 3.  Only return the restricted token to the browser.
+
+## Partial Resolution (2026-03-28)
+`GuacamoleClient.create_session_user()` now creates a temporary Guacamole user restricted to a single connection on provisioning. `authenticate_session_user()` returns a scoped token for that user, and `_session_client_url()` builds the URL with the restricted token. The admin token is now only sent to the browser as a fallback when session user creation fails (`lab.py:get_session_status`). The fallback path still exposes the admin token.
+
+**Remaining risk:** The admin token fallback in `lab.py` should log a security warning and optionally refuse to return the URL rather than silently degrade. The `_client_url()` admin-token method remains as dead code until the fallback is removed.
 
 ## Related
 SEC-02 (Guacamole predictable token — previously closed, but this "admin token leak" is a more fundamental credential exposure).

@@ -1,7 +1,10 @@
-# ARCH-09: "No Backend" Architecture Has Reached Its Limits
+# ~~ARCH-09~~: "No Backend" Architecture Has Reached Its Limits — **Closed**
+
+## Status
+- **Priority**: High → **Resolved**: 2026-03-28
 
 ## Severity
-High — architectural
+High — architectural (resolved)
 
 ## Location
 Multiple: `platform/frontend/src/lib/evaluator.js`, `platform/frontend/src/lib/profile.js`, `platform/frontend/src/components/LabPanel.jsx`, `platform/frontend/scripts/generate-manifest.mjs`
@@ -40,6 +43,11 @@ Do not add individual workarounds for each symptom (strip manifest fields but ke
 2. Add thin evaluation proxy route (closes SEC-03, SEC-05 together)
 3. Add profile storage routes (closes EVAL-03)
 4. Add auth to lab controller (closes SEC-04 — or fold lab controller routes into the same API layer)
+
+## Resolution
+Implemented 2026-03-28. `POST /api/evaluate` (evaluate_v2.py) loads rubric server-side. JWT auth (register/login/refresh) in auth.py. Profile API in profile.py with PostgreSQL storage. Rate limiting via slowapi. Per-session Guacamole users (SEC-07). Alembic migrations (3 revisions). 102 tests passing.
+
+**Remaining:** Legacy v1 `/evaluate` endpoint still live (see ARCH-19). Frontend JWT refresh not wired (see ARCH-20). Profile sync after migration incomplete.
 
 ## Related
 SEC-03, SEC-05, SEC-04, EVAL-03, ARCH-06

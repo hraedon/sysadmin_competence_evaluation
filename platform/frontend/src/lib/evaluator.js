@@ -1,5 +1,5 @@
 import OpenAI from 'openai'
-import { buildSystemPrompt, performEvaluation } from '../../../core/evaluator.js'
+import { buildSystemPrompt, performEvaluation } from '../../../../core/evaluator.js'
 import { isAuthenticated, getAuthHeaders } from './auth.js'
 
 // ---------------------------------------------------------------------------

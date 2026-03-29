@@ -180,10 +180,11 @@ class GuacamoleClient:
         url += f"?token={token}#/client/{client_identifier}"
         return url
 
-    async def authenticate_session_user(self, username: str, password: str) -> tuple[str, str]:
-        """Authenticate a session user and return (token, client_url).
+    async def authenticate_session_user(self, username: str, password: str) -> str:
+        """Authenticate a session user and return the auth token.
 
         The token is scoped to the session user's permissions — no admin access.
+        Caller is responsible for building the client URL via _session_client_url().
         """
         url = f"{self.base_url}/api/tokens"
         data = {"username": username, "password": password}

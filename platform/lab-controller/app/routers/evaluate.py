@@ -8,7 +8,7 @@ router = APIRouter(tags=["evaluate"])
 @router.post("/evaluate", dependencies=[Depends(verify_api_key_or_jwt)])
 @router.post("/lab/evaluate", dependencies=[Depends(verify_api_key_or_jwt)])
 async def evaluate_proxy(req: EvaluateRequest):
-    model = req.model or "claude-3-5-sonnet-20241022"
+    model = req.model or "claude-sonnet-4-6-20250514"
     api_key = settings.anthropic_api_key
     
     if not api_key:

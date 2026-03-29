@@ -20,7 +20,7 @@ Tracked gaps and remediation tasks identified through architectural review.
 | ARCH-06 | [arch-06-no-rate-limiting.md](arch-06-no-rate-limiting.md) | Low/Medium | No rate limiting on lab provision endpoint; pool exhaustion via unauthenticated flood |
 | ~~ARCH-07~~ | [arch-07-verification-script-injection.md](arch-07-verification-script-injection.md) | ~~Medium~~ **Closed** | run_script_in_guest already uses file-copy approach, not string interpolation. Resolved Session 25. |
 | ~~ARCH-08~~ | [arch-08-no-explicit-teardown.md](arch-08-no-explicit-teardown.md) | ~~Low/Medium~~ **Closed** | POST /lab/teardown/{session_token} exists and is called by both useLabSession.js and LabPanel.jsx. Resolved Sessions 21/26. |
-| ARCH-09 | [arch-09-no-backend-convergence.md](arch-09-no-backend-convergence.md) | High — architectural | "No backend" constraint underlies SEC-03, SEC-05, EVAL-03, ARCH-06; thin API layer closes all |
+| ~~ARCH-09~~ | [arch-09-no-backend-convergence.md](arch-09-no-backend-convergence.md) | ~~High~~ **Closed** | /api/evaluate, JWT auth, profile API, rate limiting all implemented 2026-03-28. See ARCH-19, ARCH-20 for remaining items. |
 | ~~ARCH-10~~ | [arch-10-no-react-error-boundary.md](arch-10-no-react-error-boundary.md) | ~~Low/Medium~~ **Closed** | ErrorBoundary added in main.jsx + App.jsx wrapping ScenarioPanel/EvalPanel. Resolved Session 25. |
 | ARCH-11 | [arch-11-cicd-commits-to-main.md](arch-11-cicd-commits-to-main.md) | Low | GHA workflow commits image tag directly to main; breaks if branch protection is added |
 | ~~EVAL-01~~ | [eval-01-silent-json-parse-failure.md](eval-01-silent-json-parse-failure.md) | ~~Medium~~ **Closed** | Null parse result now surfaces error message in App.jsx handleSubmit + handleFollowUp. Resolved Session 25. |
@@ -29,16 +29,18 @@ Tracked gaps and remediation tasks identified through architectural review.
 | EVAL-04 | [eval-04-coach-history-token-growth.md](eval-04-coach-history-token-growth.md) | Low | Coach context heavy for long artifacts; failure mode is silent quality degradation, not error |
 | EVAL-05 | [eval-05-calibration-synthetic-only.md](eval-05-calibration-synthetic-only.md) | Medium | Calibration tests clean synthetic responses only; robustness against real messy responses unvalidated |
 | EVAL-06 | [eval-06-d14-evaluator-variance.md](eval-06-d14-evaluator-variance.md) | Medium | D14 subtle level distinctions have high expected LLM evaluator variance; no human baseline |
-| ARCH-12 | [arch-12-guacamole-stale-token.md](arch-12-guacamole-stale-token.md) | Medium | GuacamoleClient caches auth token; stale after Guacamole restart, no 401 retry |
+| ~~ARCH-12~~ | [arch-12-guacamole-stale-token.md](arch-12-guacamole-stale-token.md) | ~~Medium~~ **Closed** | _request() helper auto-authenticates and retries on 401. Resolved 2026-03-28. |
 | ~~ARCH-13~~ | [arch-13-checkpoint-name-mismatch.md](arch-13-checkpoint-name-mismatch.md) | ~~High~~ **Closed** | Verified on Hyper-V: all VMs use `"Baseline Checkpoint"`. Default corrected. |
 | ARCH-14 | [arch-14-reconciler-no-alerting.md](arch-14-reconciler-no-alerting.md) | Low/Medium | Reconciler stops silently at max retries with no push notification to operator |
 | ARCH-15 | [arch-15-vestigial-guac-connection-id.md](arch-15-vestigial-guac-connection-id.md) | Low | `LabEnvironment.guac_connection_id` is never read post-SEC-02; dead field, minor confusion |
 | INFRA-01 | [infra-01-environments-yaml-in-public-repo.md](infra-01-environments-yaml-in-public-repo.md) | Medium | VM hostnames and Guacamole connection IDs in public repo |
 | CONTENT-01 | [content-01-domain-coverage-gaps.md](content-01-domain-coverage-gaps.md) | Medium — **improving** | D06 still 1 scenario; D08→2, D10→2, D12→3 (56 total). D06 remains the most undercovered domain. |
 | ~~CONTENT-02~~ | [content-02-recall-disguised-as-reasoning.md](content-02-recall-disguised-as-reasoning.md) | ~~Low/Medium~~ **Closed** | 4 L4 indicators reworded to test reasoning over terminology (d02-ticket-flags, d04-revocation, d02-upn-routing, d02-sql-spn). Resolved Session 27. |
-| SEC-07 | [sec-07-guacamole-admin-token-leak.md](sec-07-guacamole-admin-token-leak.md) | High | Global Guacamole admin token leaked to browser client via URL |
+| SEC-07 | [sec-07-guacamole-admin-token-leak.md](sec-07-guacamole-admin-token-leak.md) | Low — **partially resolved** | Per-session restricted Guac users implemented; admin token still used as fallback on failure |
 | ARCH-16 | [arch-16-brittle-verification-parsing.md](arch-16-brittle-verification-parsing.md) | Medium | Lab verification fails if script output contains non-JSON noise |
 | ARCH-17 | [arch-17-disconnected-lab-ai-evaluation.md](arch-17-disconnected-lab-ai-evaluation.md) | Medium | AI evaluator unaware of automated lab verification results |
 | ARCH-18 | [arch-18-sequential-calibration.md](arch-18-sequential-calibration.md) | Low/Medium | Calibration harness runs sequentially; slow feedback loop (~1 hour) |
 | EVAL-07 | [eval-07-missing-hit-signal.md](eval-07-missing-hit-signal.md) | Low/Medium | Rubric lacks "hit signals" to confirm positive evidence in messy responses |
 | INFRA-02 | [infra-02-hardcoded-infra-host.md](infra-02-hardcoded-infra-host.md) | Low | Hardcoded Hyper-V host FQDN in lab controller settings |
+| ARCH-19 | [arch-19-legacy-evaluate-endpoint.md](arch-19-legacy-evaluate-endpoint.md) | Low | Legacy v1 `/evaluate` and `/lab/evaluate` routes still registered; accepts full rubric from caller |
+| ARCH-20 | [arch-20-frontend-jwt-refresh.md](arch-20-frontend-jwt-refresh.md) | Low/Medium | Frontend has no JWT refresh logic; silent 401s after 60-min token expiry |

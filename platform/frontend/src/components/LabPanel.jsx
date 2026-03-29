@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import { useLabSession, PROVISION_STEPS } from '../hooks/useLabSession.js'
 
 const STATUS_BADGE = {
@@ -11,6 +12,7 @@ export default function LabPanel({ scenario, labControllerUrl }) {
   const { phase, session, verifyResults, error, provisionStep, elapsed,
           handleStartLab, handleVerify, handleEndLab } = lab
 
+  const iframeRef = useRef(null)
   const modeE = scenario?.presentation?.modes?.E
   const instructions = modeE?.instructions ?? ''
 
@@ -89,18 +91,24 @@ export default function LabPanel({ scenario, labControllerUrl }) {
         {/* Ready + verified — Guacamole console */}
         {(phase === 'ready' || phase === 'verifying' || phase === 'verified') && session && (
           <>
-            <div className="rounded-lg overflow-hidden border border-gray-700" style={{ height: '480px' }}>
+            <div
+              className="rounded-lg overflow-hidden border border-gray-700"
+              style={{ height: '480px' }}
+              onClick={() => iframeRef.current?.focus()}
+            >
               <iframe
+                ref={iframeRef}
                 src={session.guacamole_url}
                 title="Lab console"
                 className="w-full h-full bg-black"
                 allow="fullscreen"
+                tabIndex={0}
               />
             </div>
 
             <div className="flex items-center gap-3">
               <button
-                onClick={handleVerify}
+                onClick={() => { handleVerify(); setTimeout(() => iframeRef.current?.focus(), 100) }}
                 disabled={phase === 'verifying'}
                 className="rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-40 transition-colors"
               >

@@ -26,7 +26,26 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-pip \
     curl \
     libkrb5-dev \
-    gss-ntlmssp \
+    && rm -rf /var/lib/apt/lists/*
+
+# ----- gss-ntlmssp 1.2.0 from source -----
+# Ubuntu 22.04 ships gss-ntlmssp 0.7.0 which has undefined GSSAPI mechglue
+# symbols (gss_mech_initialize etc.) when loaded via PSWSMan's libmi.so dlopen.
+# Building 1.2.0 from source resolves this.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential autoconf automake libtool pkg-config \
+    libssl-dev libwbclient-dev libunistring-dev zlib1g-dev \
+    gettext xsltproc docbook-xsl \
+    && curl -sL https://github.com/gssapi/gss-ntlmssp/releases/download/v1.2.0/gssntlmssp-1.2.0.tar.gz \
+       | tar xz -C /tmp \
+    && cd /tmp/gssntlmssp-1.2.0 \
+    && ./configure --prefix=/usr --libdir=/usr/lib/x86_64-linux-gnu --without-manpages \
+    && make -j$(nproc) \
+    && make install \
+    && rm -rf /tmp/gssntlmssp-1.2.0 \
+    && apt-get purge -y build-essential autoconf automake libtool pkg-config \
+       xsltproc docbook-xsl \
+    && apt-get autoremove -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Use python3.11 as default python3

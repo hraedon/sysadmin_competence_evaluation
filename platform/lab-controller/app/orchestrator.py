@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import logging
 import os
 from typing import Optional
@@ -204,6 +205,12 @@ class HyperVOrchestrator:
     async def run_script_in_guest(self, vm_name: str, script_path: str) -> OrchestrationResult:
         """
         Runs a local script file inside the guest VM using PowerShell Direct.
+
+        The script is read from the container filesystem, base64-encoded, and
+        embedded directly in the PowerShell command string.  The Hyper-V host
+        decodes it to a host-side temp file and then uses Copy-Item -ToSession
+        to push it into the guest.  This avoids the cross-OS path mismatch that
+        arises when a Linux container path is used inside a WinRM remote block.
         """
         if self.dry_run:
             logger.info(f"[DRY RUN] Running script in {vm_name}: {script_path}")
@@ -216,22 +223,27 @@ class HyperVOrchestrator:
         if not os.path.exists(script_path):
             return OrchestrationResult(success=False, output="", error=f"Script not found: {script_path}")
 
+        with open(script_path, 'rb') as f:
+            b64_content = base64.b64encode(f.read()).decode('ascii')
+
         filename = os.path.basename(script_path)
+        host_temp = f"C:\\Windows\\Temp\\{filename}"
         guest_path = f"C:\\Windows\\Temp\\{filename}"
 
         cred_snippet = self._guest_cred_ps() if self.guest_username else ""
-        
-        # Use a single PSSession for both Copy-Item and Invoke-Command
-        # This is more robust and handles credentials correctly for file operations
+
         inner = (
             f"{cred_snippet}"
+            f"$bytes = [System.Convert]::FromBase64String('{b64_content}'); "
+            f"[System.IO.File]::WriteAllBytes('{host_temp}', $bytes); "
             f"$s = New-PSSession -VMName '{vm_name}'"
             f"{' -Credential $guestCred' if self.guest_username else ''}; "
             f"try {{ "
-            f"  Copy-Item -Path '{script_path}' -Destination '{guest_path}' -ToSession $s; "
+            f"  Copy-Item -Path '{host_temp}' -Destination '{guest_path}' -ToSession $s; "
             f"  Invoke-Command -Session $s -ScriptBlock {{ & '{guest_path}' }}; "
             f"}} finally {{ "
             f"  Remove-PSSession $s; "
+            f"  Remove-Item '{host_temp}' -ErrorAction SilentlyContinue; "
             f"}}"
         )
         return await self._run_ps(self._remote_wrap(inner))
@@ -241,16 +253,28 @@ class HyperVOrchestrator:
             logger.info(f"[DRY RUN] Copying {source} → {vm_name}:{destination}")
             await asyncio.sleep(0.5)
             return OrchestrationResult(success=True, output="Dry run success")
-        
+
+        if not os.path.exists(source):
+            return OrchestrationResult(success=False, output="", error=f"Source not found: {source}")
+
+        with open(source, 'rb') as f:
+            b64_content = base64.b64encode(f.read()).decode('ascii')
+
+        filename = os.path.basename(source)
+        host_temp = f"C:\\Windows\\Temp\\{filename}"
+
         cred_snippet = self._guest_cred_ps() if self.guest_username else ""
         inner = (
             f"{cred_snippet}"
+            f"$bytes = [System.Convert]::FromBase64String('{b64_content}'); "
+            f"[System.IO.File]::WriteAllBytes('{host_temp}', $bytes); "
             f"$s = New-PSSession -VMName '{vm_name}'"
             f"{' -Credential $guestCred' if self.guest_username else ''}; "
             f"try {{ "
-            f"  Copy-Item -Path '{source}' -Destination '{destination}' -ToSession $s; "
+            f"  Copy-Item -Path '{host_temp}' -Destination '{destination}' -ToSession $s; "
             f"}} finally {{ "
             f"  Remove-PSSession $s; "
+            f"  Remove-Item '{host_temp}' -ErrorAction SilentlyContinue; "
             f"}}"
         )
         return await self._run_ps(self._remote_wrap(inner))

@@ -130,9 +130,19 @@ async def reconcile_environments():
 
     with session_scope() as db:
         available_list = [(e.id, list(e.vms)) for e in db.query(LabEnvironment).filter(LabEnvironment.status == "available").all()]
+        # Collect every VM currently claimed by a non-available environment so the
+        # orphan check does not revert VMs that are legitimately in use by a
+        # different environment entry sharing the same physical machines.
+        active_vms: set = set()
+        for e in db.query(LabEnvironment).filter(
+            LabEnvironment.status.in_(["busy", "provisioning", "teardown"])
+        ).all():
+            active_vms.update(e.vms or [])
 
     for env_id, vm_list in available_list:
         for vm in vm_list:
+            if vm in active_vms:
+                continue  # VM is in use by another environment — not an orphan
             state_res = await orchestrator.get_vm_state(vm)
             if state_res.success and state_res.output.strip().lower() != "off":
                 logger.warning(f"Reconciler: orphan VM '{vm}' in '{env_id}' is running. Reverting.")

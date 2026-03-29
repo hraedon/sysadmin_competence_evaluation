@@ -95,3 +95,24 @@ export async function refreshToken() {
 export function logout() {
   clearAuth()
 }
+
+/**
+ * Fetch wrapper that automatically retries with a refreshed token on 401.
+ * Use this instead of raw fetch() for authenticated API calls.
+ */
+export async function authFetch(url, options = {}) {
+  const headers = { ...options.headers, ...getAuthHeaders() }
+  let res = await fetch(url, { ...options, headers })
+
+  if (res.status === 401 && isAuthenticated()) {
+    try {
+      await refreshToken()
+      const retryHeaders = { ...options.headers, ...getAuthHeaders() }
+      res = await fetch(url, { ...options, headers: retryHeaders })
+    } catch {
+      // refresh failed — force re-login
+      clearAuth()
+    }
+  }
+  return res
+}

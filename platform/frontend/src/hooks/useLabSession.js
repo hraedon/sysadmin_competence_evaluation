@@ -1,12 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { isAuthenticated, getAuthHeaders } from '../lib/auth.js'
+import { authFetch } from '../lib/auth.js'
 
 const POLL_INTERVAL_MS = 3000
-
-/** Build auth headers for lab controller requests. */
-function labHeaders() {
-  return getAuthHeaders()
-}
 
 function getLocalUserId() {
   const key = 'sysadmin_lab_user_id'
@@ -80,11 +75,10 @@ export function useLabSession(scenario, labControllerUrl, { enabled = true } = {
     }, 1000)
 
     try {
-      const res = await fetch(`${labControllerUrl}/lab/provision/${scenario.id}`, {
+      const res = await authFetch(`${labControllerUrl}/lab/provision/${scenario.id}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...labHeaders()
         },
         body: JSON.stringify({
           user_id: getLocalUserId(),
@@ -102,9 +96,7 @@ export function useLabSession(scenario, labControllerUrl, { enabled = true } = {
 
       pollRef.current = setInterval(async () => {
         try {
-          const sr = await fetch(`${labControllerUrl}/lab/session/${data.session_token}`, {
-            headers: labHeaders()
-          })
+          const sr = await authFetch(`${labControllerUrl}/lab/session/${data.session_token}`, {})
           if (!sr.ok) return
           const sd = await sr.json()
           if (sd.provision_step) setProvisionStep(sd.provision_step)
@@ -132,9 +124,8 @@ export function useLabSession(scenario, labControllerUrl, { enabled = true } = {
     setPhase('verifying')
     setError(null)
     try {
-      const res = await fetch(`${labControllerUrl}/lab/verify/${session.session_token}`, {
+      const res = await authFetch(`${labControllerUrl}/lab/verify/${session.session_token}`, {
         method: 'POST',
-        headers: labHeaders()
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data = await res.json()
@@ -149,9 +140,8 @@ export function useLabSession(scenario, labControllerUrl, { enabled = true } = {
   const handleEndLab = useCallback(async () => {
     if (!enabled) return
     if (session?.session_token) {
-      fetch(`${labControllerUrl}/lab/teardown/${session.session_token}`, {
+      authFetch(`${labControllerUrl}/lab/teardown/${session.session_token}`, {
         method: 'POST',
-        headers: labHeaders()
       }).catch(err => console.error('Teardown failed:', err))
     }
     resetAll()

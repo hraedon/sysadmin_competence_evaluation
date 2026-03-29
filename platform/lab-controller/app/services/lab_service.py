@@ -192,7 +192,9 @@ async def run_provisioning_flow(env_id: str, scenario_path: Path, mode_e: dict, 
             if not res.success: raise Exception(f"Revert failed for {vm}: {res.error}")
 
         update_provision_step(env_id, "starting")
-        for vm in vm_targets:
+        for i, vm in enumerate(vm_targets):
+            if i > 0:
+                await asyncio.sleep(15)  # Give earlier VMs (DC) time to begin booting
             res = await orchestrator.start_vm(vm)
             if not res.success: raise Exception(f"Start failed for {vm}: {res.error}")
 
@@ -206,10 +208,19 @@ async def run_provisioning_flow(env_id: str, scenario_path: Path, mode_e: dict, 
         if guac_target_vm and guac_protocol:
             ip_res = await orchestrator.get_vm_ip(guac_target_vm)
             if ip_res.success and ip_res.output:
-                params = {"hostname": ip_res.output, "username": settings.hyperv_guest_username, "password": settings.hyperv_guest_password}
+                # Split "domain\username" so Guacamole/FreeRDP receives them as
+                # separate fields — passing the whole string as username causes
+                # RDP auth to fail when the server is domain-joined.
+                rdp_user = settings.hyperv_guest_username
+                rdp_domain = None
+                if '\\' in rdp_user:
+                    rdp_domain, rdp_user = rdp_user.split('\\', 1)
+                params = {"hostname": ip_res.output, "username": rdp_user, "password": settings.hyperv_guest_password}
                 if guac_protocol == "rdp":
                     params["ignore-cert"] = "true"
                     params["security"] = "any"
+                    if rdp_domain:
+                        params["domain"] = rdp_domain
 
                 guac_id, _ = await guac_client.create_connection(f"Session-{session_token[:8]}", guac_protocol, params)
 

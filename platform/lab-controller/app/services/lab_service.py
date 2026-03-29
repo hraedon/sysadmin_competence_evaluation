@@ -27,12 +27,22 @@ async def load_environments():
         config = yaml.safe_load(f)
 
     with session_scope() as db:
-        # ARCH-02: Mark survival sessions as suspect
+        # ARCH-02: Mark survival sessions as suspect so the UI can warn the user,
+        # but do NOT touch expires_at — a session whose environment is 'busy' is
+        # perfectly healthy and must survive rolling deploys.
+        # Environments left in 'provisioning' state had their background task killed
+        # by the pod restart; fault them so the reconciler can auto-recover them.
         orphaned = db.query(LabSession).all()
         for sess in orphaned:
             sess.suspect = True
-            sess.expires_at = datetime.datetime.now(datetime.UTC)
             logger.info(f"Marked session {sess.session_token} as suspect (restart recovery)")
+
+        stuck = db.query(LabEnvironment).filter(LabEnvironment.status == "provisioning").all()
+        for env in stuck:
+            env.status = "faulted"
+            env.last_error = "Provisioning interrupted by pod restart"
+            env.faulted_at = datetime.datetime.now(datetime.UTC)
+            logger.info(f"Faulted stuck-provisioning env '{env.id}' (pod restart)")
 
         for env_data in config.get('environments', []):
             existing = db.query(LabEnvironment).filter(LabEnvironment.id == env_data['id']).first()

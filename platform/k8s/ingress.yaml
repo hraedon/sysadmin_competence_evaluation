@@ -1,16 +1,4 @@
 ---
-# ExternalName service to route from assessment namespace to lab-controller namespace
-apiVersion: v1
-kind: Service
-metadata:
-  name: lab-controller-proxy
-  namespace: assessment
-spec:
-  type: ExternalName
-  externalName: lab-controller.lab-controller.svc.cluster.local
-  ports:
-    - port: 8000
----
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -26,20 +14,6 @@ spec:
     - host: learning.hraedon.com
       http:
         paths:
-          - path: /api
-            pathType: Prefix
-            backend:
-              service:
-                name: lab-controller-proxy
-                port:
-                  number: 8000
-          - path: /lab
-            pathType: Prefix
-            backend:
-              service:
-                name: lab-controller-proxy
-                port:
-                  number: 8000
           - path: /
             pathType: Prefix
             backend:
@@ -47,6 +21,42 @@ spec:
                 name: assessment
                 port:
                   name: http
+  tls:
+    - hosts:
+        - learning.hraedon.com
+      secretName: learning-tls
+---
+# Separate ingress in lab-controller namespace — avoids ExternalName
+# (Traefik disables allowExternalNameServices by default)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: lab-controller
+  namespace: lab-controller
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+spec:
+  ingressClassName: traefik-external
+  rules:
+    - host: learning.hraedon.com
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: lab-controller
+                port:
+                  number: 8000
+          - path: /lab
+            pathType: Prefix
+            backend:
+              service:
+                name: lab-controller
+                port:
+                  number: 8000
   tls:
     - hosts:
         - learning.hraedon.com

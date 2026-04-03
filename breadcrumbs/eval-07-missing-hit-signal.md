@@ -1,4 +1,7 @@
-# EVAL-07: Missing "Hit Signal" in Rubric Schema
+# ~~EVAL-07~~: Missing "Hit Signal" in Rubric Schema — **Closed**
+
+## Status
+Resolved 2026-04-03. Added optional `hit_signal` field to both evaluators (`core/evaluator.js` and `app/evaluator.py`) under the `LOOK FOR (HIT SIGNAL):` label, suppressed in compact mode consistent with `miss_signal`. Two new tests added to `test_evaluator_consistency.py` verify identical output from both evaluators and correct suppression in compact mode. Field documented in `scenario_specification_v2.md` with a worked example.
 
 ## Severity
 Low/Medium

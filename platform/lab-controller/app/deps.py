@@ -5,21 +5,43 @@ from fastapi import Header, HTTPException, Depends
 from sqlalchemy.orm import Session
 
 from .schemas import settings
-from .orchestrator import HyperVOrchestrator
+from .orchestrator_base import Orchestrator
 from .guacamole import GuacamoleClient
 from .database import get_db, User
 
 logger = logging.getLogger(__name__)
 
+
+def _create_orchestrator() -> Orchestrator:
+    """Factory: create the appropriate orchestrator based on LAB_PLATFORM setting."""
+    platform = settings.lab_platform.lower()
+
+    if platform == "hyper-v":
+        from .orchestrator import HyperVOrchestrator
+        return HyperVOrchestrator(
+            host=settings.hyperv_host,
+            username=settings.hyperv_username,
+            password=settings.hyperv_password,
+            guest_username=settings.hyperv_guest_username,
+            guest_password=settings.hyperv_guest_password,
+            dry_run=settings.dry_run,
+        )
+    elif platform == "proxmox":
+        from .orchestrator_proxmox import ProxmoxOrchestrator
+        return ProxmoxOrchestrator(
+            api_url=settings.proxmox_api_url,
+            api_token_id=settings.proxmox_api_token_id,
+            api_token_secret=settings.proxmox_api_token_secret,
+            node=settings.proxmox_node,
+            verify_ssl=settings.proxmox_verify_ssl,
+            dry_run=settings.dry_run,
+        )
+    else:
+        raise ValueError(f"Unknown lab platform: '{platform}'. Must be 'hyper-v' or 'proxmox'.")
+
+
 # Shared Instances
-orchestrator = HyperVOrchestrator(
-    host=settings.hyperv_host,
-    username=settings.hyperv_username,
-    password=settings.hyperv_password,
-    guest_username=settings.hyperv_guest_username,
-    guest_password=settings.hyperv_guest_password,
-    dry_run=settings.dry_run,
-)
+orchestrator = _create_orchestrator()
 
 guac_client = GuacamoleClient(
     settings.guacamole_url,

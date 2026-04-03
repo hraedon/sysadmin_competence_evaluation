@@ -1,1 +1,1 @@
-from . import lab, admin, evaluate
+from . import lab, admin

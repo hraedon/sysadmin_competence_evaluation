@@ -1,4 +1,7 @@
-# ARCH-20: Frontend JWT Token Refresh Not Wired
+# ~~ARCH-20~~: Frontend JWT Token Refresh Not Wired — **Closed**
+
+## Status
+Resolved 2026-04-03. `authFetch` (the 401-retry wrapper) already existed in `auth.js` and was correctly used in `useLabSession.js`, but `evaluator.js` and `profile.js` were still using raw `fetch` + `getAuthHeaders()`. Switched both files to `authFetch` and removed the now-unused `getAuthHeaders` imports. All 26 frontend tests pass.
 
 ## Severity
 Low/Medium

@@ -2,32 +2,42 @@ environments:
   # Single-server Windows environment — D01/D03/D11 scripting and automation scenarios.
   # LabDC01 must be included: LabServer01 is domain-joined and PS Direct domain auth
   # fails without the DC's NetLogon service running. Both VMs share the same checkpoint.
-  # guac_connection_id: Guacamole connection ID for LabServer01 (RDP, 192.168.100.15)
   - id: env-windows-01
+    platform: hyper-v
     vms: ["LabDC01", "LabServer01"]
     guac_target_vm: "LabServer01"
     guac_protocol: "rdp"
-    guac_connection_id: "1"
+    guac_connection_id: "1"  # vestigial (ARCH-15), kept for backward compat
     capabilities: ["windows-server", "windows-domain"]
     status: "available"
 
   # Full domain environment — for scenarios requiring AD DS, DNS, or DHCP.
   # Candidate connects to LabServer01; LabDC01 runs domain services in the background.
-  # guac_connection_id points to LabServer01 (the member server the candidate works on).
   - id: env-domain-01
+    platform: hyper-v
     vms: ["LabDC01", "LabServer01"]
     guac_target_vm: "LabServer01"
     guac_protocol: "rdp"
-    guac_connection_id: "1"
+    guac_connection_id: "1"  # vestigial (ARCH-15)
     capabilities: ["windows-server", "windows-domain", "ad-ds"]
     status: "available"
 
   # Linux environment — D12 Linux/shell scenarios.
-  # guac_connection_id: Guacamole connection ID for LabLinux01 (SSH, 192.168.100.21)
   - id: env-linux-01
+    platform: hyper-v
     vms: ["LabLinux01"]
     guac_target_vm: "LabLinux01"
     guac_protocol: "ssh"
-    guac_connection_id: "2"
+    guac_connection_id: "2"  # vestigial (ARCH-15)
     capabilities: ["linux"]
     status: "available"
+
+  # --- Proxmox environments (template, uncomment when Proxmox is configured) ---
+  # - id: env-proxmox-linux-01
+  #   platform: proxmox
+  #   vms: ["ProxLinux01"]
+  #   vm_id_map: {"ProxLinux01": "101"}
+  #   guac_target_vm: "ProxLinux01"
+  #   guac_protocol: "ssh"
+  #   capabilities: ["linux"]
+  #   status: "available"

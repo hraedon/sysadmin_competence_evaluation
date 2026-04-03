@@ -20,6 +20,7 @@ import datetime
 import os
 import sys
 import yaml
+from pathlib import Path
 from unittest.mock import patch, AsyncMock, MagicMock
 from contextlib import contextmanager
 
@@ -357,7 +358,9 @@ class TestTeardownAndReaper:
             sess = db.query(LabSession).first()
             assert sess is not None, "Session should NOT be deleted (ARCH-02)"
             assert sess.suspect is True
-            assert sess.expires_at <= datetime.datetime.now(datetime.UTC)
+            # ARCH-02 fix (S29): expires_at is NOT forced to now() — busy sessions
+            # must survive rolling deploys. Only the suspect flag is set.
+            assert sess.expires_at > datetime.datetime.now(datetime.UTC)
 
     def test_reaper_collects_expired_sessions(self, seeded_db):
         _, _, scope = seeded_db
@@ -1033,3 +1036,433 @@ class TestReconciler:
             asyncio.run(main_mod.reconcile_environments())
 
         mock_orch.get_vm_state.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# T-8: Shared-VM topology validation (ARCH-26)
+# ---------------------------------------------------------------------------
+
+class TestSharedVMValidation:
+    """Tests for ARCH-26: startup validation of shared-VM topology."""
+
+    def test_shared_vm_logs_warning(self, db_factory, tmp_path, caplog):
+        """When two environments share a VM, load_environments logs a warning."""
+        _, _, scope = db_factory
+        import app.services.lab_service as main_mod
+
+        env_config = {
+            "environments": [
+                {"id": "env-a", "vms": ["SharedVM", "VM-A"], "guac_target_vm": "SharedVM",
+                 "guac_protocol": "rdp", "guac_connection_id": "1",
+                 "capabilities": ["windows-server"], "status": "available"},
+                {"id": "env-b", "vms": ["SharedVM", "VM-B"], "guac_target_vm": "SharedVM",
+                 "guac_protocol": "rdp", "guac_connection_id": "2",
+                 "capabilities": ["windows-server", "ad-ds"], "status": "available"},
+            ]
+        }
+        env_yaml = tmp_path / "environments.yaml"
+        env_yaml.write_text(yaml.dump(env_config))
+
+        mock_settings = MagicMock()
+        mock_settings.environments_config = str(env_yaml)
+
+        import logging
+        with patch.object(main_mod, "session_scope", scope), \
+             patch.object(main_mod, "settings", mock_settings), \
+             caplog.at_level(logging.WARNING):
+            asyncio.run(main_mod.load_environments())
+
+        assert any("SharedVM" in r.message and "ARCH-26" in r.message for r in caplog.records), \
+            "Should log ARCH-26 warning about shared VM"
+
+    def test_no_warning_when_vms_unique(self, db_factory, tmp_path, caplog):
+        """No warning logged when environments have distinct VMs."""
+        _, _, scope = db_factory
+        import app.services.lab_service as main_mod
+
+        env_config = {
+            "environments": [
+                {"id": "env-a", "vms": ["VM-A"], "guac_target_vm": "VM-A",
+                 "guac_protocol": "rdp", "guac_connection_id": "1",
+                 "capabilities": ["windows-server"], "status": "available"},
+                {"id": "env-b", "vms": ["VM-B"], "guac_target_vm": "VM-B",
+                 "guac_protocol": "ssh", "guac_connection_id": "2",
+                 "capabilities": ["linux"], "status": "available"},
+            ]
+        }
+        env_yaml = tmp_path / "environments.yaml"
+        env_yaml.write_text(yaml.dump(env_config))
+
+        mock_settings = MagicMock()
+        mock_settings.environments_config = str(env_yaml)
+
+        import logging
+        with patch.object(main_mod, "session_scope", scope), \
+             patch.object(main_mod, "settings", mock_settings), \
+             caplog.at_level(logging.WARNING):
+            asyncio.run(main_mod.load_environments())
+
+        assert not any("ARCH-26" in r.message for r in caplog.records), \
+            "Should NOT log ARCH-26 warning when VMs are unique"
+
+
+# ---------------------------------------------------------------------------
+# T-9: Provisioning flow execution (TEST-02)
+# ---------------------------------------------------------------------------
+
+class TestProvisioningFlowExecution:
+    """
+    T-9: run_provisioning_flow / run_provisioning_with_watchdog execution.
+
+    The provisioning flow was the source of the most S26/S29 production bugs, all
+    of which were found manually. These tests cover the three highest-priority gaps
+    from breadcrumbs/test-02-missing-high-value-tests.md, plus lifecycle invariants
+    for teardown resilience and the reaper.
+
+    All tests use the seeded_db fixture (env-01, VM1, rdp) and a default
+    'provisioning_mock_orch' fixture that returns success for every step,
+    so individual tests only need to override the step they're exercising.
+    """
+
+    @pytest.fixture
+    def provisioning_mock_orch(self):
+        """Mock orchestrator with all provisioning operations succeeding by default."""
+        mock = AsyncMock()
+        mock.revert_to_checkpoint.return_value = OrchestrationResult(success=True, output="ok")
+        mock.start_vm.return_value = OrchestrationResult(success=True, output="ok")
+        mock.wait_for_guest_readiness.return_value = True
+        mock.get_vm_ip.return_value = OrchestrationResult(success=True, output="192.168.1.100")
+        return mock
+
+    @pytest.fixture
+    def mock_settings(self):
+        s = MagicMock()
+        s.baseline_checkpoint_name = "Baseline Checkpoint"
+        s.hyperv_guest_username = "administrator"
+        s.hyperv_guest_password = "testpass"
+        s.provisioning_timeout_seconds = 300
+        return s
+
+    # ------------------------------------------------------------------ #
+    # Priority 1: Error propagation                                        #
+    # ------------------------------------------------------------------ #
+
+    def test_provisioning_faults_on_revert_failure(self, seeded_db, provisioning_mock_orch, mock_settings):
+        """Revert failure must fault the environment, not leave it in 'provisioning'.
+
+        Bug this catches: S26 bug #2 — the guard was missing and provisioning
+        continued silently after revert_to_checkpoint returned success=False.
+        """
+        _, _, scope = seeded_db
+        import app.services.lab_service as main_mod
+
+        provisioning_mock_orch.revert_to_checkpoint.return_value = OrchestrationResult(
+            success=False, output="", error="Checkpoint not found"
+        )
+        mock_guac = AsyncMock()
+
+        with patch.object(main_mod, "session_scope", scope), \
+             patch.object(main_mod, "orchestrator", provisioning_mock_orch), \
+             patch.object(main_mod, "guac_client", mock_guac), \
+             patch.object(main_mod, "settings", mock_settings):
+            asyncio.run(main_mod.run_provisioning_flow(
+                "env-01", Path("/fake/scenario.yaml"), {}, "tok-test"
+            ))
+
+        with scope() as db:
+            env = db.query(LabEnvironment).first()
+            assert env.status == "faulted"
+            assert "Checkpoint not found" in env.last_error
+
+    def test_provisioning_faults_on_start_vm_failure(self, seeded_db, provisioning_mock_orch, mock_settings):
+        """start_vm failure must fault the environment."""
+        _, _, scope = seeded_db
+        import app.services.lab_service as main_mod
+
+        provisioning_mock_orch.start_vm.return_value = OrchestrationResult(
+            success=False, output="", error="VM failed to start"
+        )
+        mock_guac = AsyncMock()
+
+        with patch.object(main_mod, "session_scope", scope), \
+             patch.object(main_mod, "orchestrator", provisioning_mock_orch), \
+             patch.object(main_mod, "guac_client", mock_guac), \
+             patch.object(main_mod, "settings", mock_settings):
+            asyncio.run(main_mod.run_provisioning_flow(
+                "env-01", Path("/fake/scenario.yaml"), {}, "tok-test"
+            ))
+
+        with scope() as db:
+            env = db.query(LabEnvironment).first()
+            assert env.status == "faulted"
+            assert "VM failed to start" in env.last_error
+
+    def test_provisioning_faults_on_readiness_timeout(self, seeded_db, provisioning_mock_orch, mock_settings):
+        """wait_for_guest_readiness returning False must fault the environment."""
+        _, _, scope = seeded_db
+        import app.services.lab_service as main_mod
+
+        provisioning_mock_orch.wait_for_guest_readiness.return_value = False
+        mock_guac = AsyncMock()
+
+        with patch.object(main_mod, "session_scope", scope), \
+             patch.object(main_mod, "orchestrator", provisioning_mock_orch), \
+             patch.object(main_mod, "guac_client", mock_guac), \
+             patch.object(main_mod, "settings", mock_settings):
+            asyncio.run(main_mod.run_provisioning_flow(
+                "env-01", Path("/fake/scenario.yaml"), {}, "tok-test"
+            ))
+
+        with scope() as db:
+            env = db.query(LabEnvironment).first()
+            assert env.status == "faulted"
+            assert "readiness" in env.last_error.lower()
+
+    def test_provisioning_success_marks_env_busy(self, seeded_db, provisioning_mock_orch, mock_settings):
+        """Happy-path: all orchestration steps succeed → environment becomes 'busy'."""
+        _, _, scope = seeded_db
+        import app.services.lab_service as main_mod
+
+        mock_guac = AsyncMock()
+        mock_guac.create_connection.return_value = ("guac-id-1", None)
+        mock_guac.create_session_user.return_value = ("sess-user", "sess-pass")
+
+        with patch.object(main_mod, "session_scope", scope), \
+             patch.object(main_mod, "orchestrator", provisioning_mock_orch), \
+             patch.object(main_mod, "guac_client", mock_guac), \
+             patch.object(main_mod, "settings", mock_settings):
+            asyncio.run(main_mod.run_provisioning_flow(
+                "env-01", Path("/fake/scenario.yaml"), {}, "tok-test"
+            ))
+
+        with scope() as db:
+            env = db.query(LabEnvironment).first()
+            assert env.status == "busy"
+
+    # ------------------------------------------------------------------ #
+    # Priority 2: Guacamole domain\username splitting                     #
+    # ------------------------------------------------------------------ #
+
+    def test_domain_username_split_for_rdp(self, seeded_db, provisioning_mock_orch, mock_settings):
+        """'domain\\\\username' in hyperv_guest_username is split into separate RDP params.
+
+        Bug this catches: S29 bug #3 — the full 'ad.labdomain.dev\\\\claude' string
+        was passed as username to Guacamole/FreeRDP, causing a login-failure loop
+        because RDP rejects a domain-qualified username in the username field.
+        """
+        _, _, scope = seeded_db
+        import app.services.lab_service as main_mod
+
+        mock_settings.hyperv_guest_username = r"ad.labdomain.dev\claude"
+        mock_guac = AsyncMock()
+        mock_guac.create_connection.return_value = ("guac-id-1", None)
+        mock_guac.create_session_user.return_value = ("sess-user", "sess-pass")
+
+        with patch.object(main_mod, "session_scope", scope), \
+             patch.object(main_mod, "orchestrator", provisioning_mock_orch), \
+             patch.object(main_mod, "guac_client", mock_guac), \
+             patch.object(main_mod, "settings", mock_settings):
+            asyncio.run(main_mod.run_provisioning_flow(
+                "env-01", Path("/fake/scenario.yaml"), {}, "tok-test"
+            ))
+
+        mock_guac.create_connection.assert_called_once()
+        params = mock_guac.create_connection.call_args.args[2]
+        assert params["username"] == "claude", \
+            f"Expected username 'claude', got {params['username']!r}"
+        assert params["domain"] == "ad.labdomain.dev", \
+            f"Expected domain 'ad.labdomain.dev', got {params.get('domain')!r}"
+
+    def test_plain_username_has_no_domain_field(self, seeded_db, provisioning_mock_orch, mock_settings):
+        """Username without backslash is passed as-is with no 'domain' param."""
+        _, _, scope = seeded_db
+        import app.services.lab_service as main_mod
+
+        mock_settings.hyperv_guest_username = "administrator"
+        mock_guac = AsyncMock()
+        mock_guac.create_connection.return_value = ("guac-id-1", None)
+        mock_guac.create_session_user.return_value = ("sess-user", "sess-pass")
+
+        with patch.object(main_mod, "session_scope", scope), \
+             patch.object(main_mod, "orchestrator", provisioning_mock_orch), \
+             patch.object(main_mod, "guac_client", mock_guac), \
+             patch.object(main_mod, "settings", mock_settings):
+            asyncio.run(main_mod.run_provisioning_flow(
+                "env-01", Path("/fake/scenario.yaml"), {}, "tok-test"
+            ))
+
+        mock_guac.create_connection.assert_called_once()
+        params = mock_guac.create_connection.call_args.args[2]
+        assert params["username"] == "administrator"
+        assert "domain" not in params
+
+    # ------------------------------------------------------------------ #
+    # Priority 3: Watchdog triggers teardown on timeout                  #
+    # ------------------------------------------------------------------ #
+
+    def test_watchdog_triggers_teardown_on_timeout(self, seeded_db, mock_settings):
+        """Provisioning timeout fires teardown and leaves the environment 'faulted'.
+
+        Bug this catches: S26 bug #2 (pre-watchdog) — hung provisioning permanently
+        locked an environment. The watchdog's job is to ensure that even if
+        provisioning hangs, VMs are reverted and the environment is recoverable.
+        """
+        _, _, scope = seeded_db
+        import app.services.lab_service as main_mod
+
+        with scope() as db:
+            db.add(LabSession(
+                session_token="tok-watchdog", environment_id="env-01",
+                user_id="u1", scenario_id="d01-test",
+                expires_at=datetime.datetime.now(datetime.UTC) + datetime.timedelta(hours=2),
+                max_expires_at=datetime.datetime.now(datetime.UTC) + datetime.timedelta(hours=4),
+            ))
+
+        revert_call_count = 0
+
+        async def slow_then_fast(vm, checkpoint):
+            nonlocal revert_call_count
+            revert_call_count += 1
+            if revert_call_count == 1:
+                await asyncio.sleep(100)  # Cancelled by the watchdog timeout
+            return OrchestrationResult(success=True, output="ok")
+
+        mock_orch = AsyncMock()
+        mock_orch.revert_to_checkpoint.side_effect = slow_then_fast
+        mock_guac = AsyncMock()
+        mock_settings.provisioning_timeout_seconds = 0.1  # 100 ms
+
+        with patch.object(main_mod, "session_scope", scope), \
+             patch.object(main_mod, "orchestrator", mock_orch), \
+             patch.object(main_mod, "guac_client", mock_guac), \
+             patch.object(main_mod, "settings", mock_settings):
+            asyncio.run(main_mod.run_provisioning_with_watchdog(
+                "env-01", Path("/fake/scenario.yaml"), {}, "tok-watchdog"
+            ))
+
+        with scope() as db:
+            env = db.query(LabEnvironment).first()
+            assert env.status == "faulted"
+            assert "timed out" in (env.last_error or "").lower()
+        # Teardown must have issued its own revert after the provisioning revert was cancelled
+        assert revert_call_count >= 2, \
+            "Watchdog should call teardown, which issues a second revert_to_checkpoint"
+
+    # ------------------------------------------------------------------ #
+    # Priority 4: load_environments preserves busy status               #
+    # ------------------------------------------------------------------ #
+
+    def test_busy_env_preserved_across_load_environments(self, seeded_db, tmp_path):
+        """load_environments must not reset a 'busy' environment to 'available'.
+
+        Bug this catches: S29 bug #7 — load_environments reset 'busy' envs on
+        restart, which triggered the reconciler to revert actively-used VMs and
+        disconnect the learner's session.
+        """
+        _, _, scope = seeded_db
+        import app.services.lab_service as main_mod
+
+        with scope() as db:
+            db.query(LabEnvironment).first().status = "busy"
+
+        env_config = {"environments": [{
+            "id": "env-01", "vms": ["VM1"], "guac_target_vm": "VM1",
+            "guac_protocol": "rdp", "guac_connection_id": "1",
+            "capabilities": ["windows-server"], "status": "available"
+        }]}
+        env_yaml = tmp_path / "environments.yaml"
+        env_yaml.write_text(yaml.dump(env_config))
+        mock_settings = MagicMock()
+        mock_settings.environments_config = str(env_yaml)
+
+        with patch.object(main_mod, "session_scope", scope), \
+             patch.object(main_mod, "settings", mock_settings):
+            asyncio.run(main_mod.load_environments())
+
+        with scope() as db:
+            env = db.query(LabEnvironment).first()
+            assert env.status == "busy", (
+                "load_environments must not reset 'busy' status — "
+                "the environment has an active session and a running VM"
+            )
+
+    # ------------------------------------------------------------------ #
+    # Priority 6: Teardown resilience                                     #
+    # ------------------------------------------------------------------ #
+
+    def test_guac_failure_does_not_prevent_vm_revert(self, seeded_db, mock_settings):
+        """Guacamole deletion failure must not abort VM revert during teardown.
+
+        VMs being reverted is the critical operation (they're metered infrastructure);
+        Guacamole connection cleanup is best-effort and wrapped in try/except.
+        A refactor that accidentally makes a Guacamole failure abort teardown would
+        leave VMs running indefinitely.
+        """
+        _, _, scope = seeded_db
+        import app.services.lab_service as main_mod
+
+        with scope() as db:
+            env = db.query(LabEnvironment).first()
+            env.status = "busy"
+            db.add(LabSession(
+                session_token="tok-teardown", environment_id="env-01",
+                user_id="u1", scenario_id="d01-test",
+                guac_connection_id="stale-conn-99",
+                expires_at=datetime.datetime.now(datetime.UTC),
+                max_expires_at=datetime.datetime.now(datetime.UTC),
+            ))
+
+        mock_orch = AsyncMock()
+        mock_orch.revert_to_checkpoint.return_value = OrchestrationResult(success=True, output="ok")
+        mock_guac = AsyncMock()
+        mock_guac.delete_connection.side_effect = Exception("Guacamole connection not found")
+
+        with patch.object(main_mod, "session_scope", scope), \
+             patch.object(main_mod, "orchestrator", mock_orch), \
+             patch.object(main_mod, "guac_client", mock_guac), \
+             patch.object(main_mod, "settings", mock_settings):
+            asyncio.run(main_mod.teardown_environment_logic("env-01", "tok-teardown"))
+
+        mock_orch.revert_to_checkpoint.assert_called_once()
+        with scope() as db:
+            env = db.query(LabEnvironment).first()
+            assert env.status == "available"
+
+    # ------------------------------------------------------------------ #
+    # Priority 7: Reaper leaves suspect sessions with future expiry      #
+    # ------------------------------------------------------------------ #
+
+    def test_reaper_spares_suspect_session_with_future_expiry(self, seeded_db):
+        """Suspect sessions that have not yet expired must survive the reaper.
+
+        Bug this catches: S29 bug #6 — the reaper was killing sessions marked
+        suspect at restart because a prior fix had set expires_at = now(), causing
+        them to appear expired. The correct fix (stop touching expires_at) relies
+        on this invariant: the reaper filters by expires_at only, not the suspect flag.
+        """
+        _, _, scope = seeded_db
+        import app.services.lab_service as main_mod
+
+        future = datetime.datetime.now(datetime.UTC) + datetime.timedelta(hours=1)
+        with scope() as db:
+            env = db.query(LabEnvironment).first()
+            env.status = "busy"
+            db.add(LabSession(
+                session_token="tok-suspect", environment_id="env-01",
+                user_id="u1", scenario_id="d01-test", suspect=True,
+                expires_at=future,
+                max_expires_at=future + datetime.timedelta(hours=2),
+            ))
+
+        mock_orch = AsyncMock()
+        mock_guac = AsyncMock()
+
+        with patch.object(main_mod, "session_scope", scope), \
+             patch.object(main_mod, "orchestrator", mock_orch), \
+             patch.object(main_mod, "guac_client", mock_guac):
+            asyncio.run(main_mod.reap_expired_sessions())
+
+        with scope() as db:
+            assert db.query(LabSession).count() == 1, \
+                "Suspect session with future expiry must survive the reaper"
+        mock_orch.revert_to_checkpoint.assert_not_called()

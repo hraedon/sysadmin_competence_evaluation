@@ -31,7 +31,7 @@ Tracked gaps and remediation tasks identified through architectural review.
 | EVAL-06 | [eval-06-d14-evaluator-variance.md](eval-06-d14-evaluator-variance.md) | Medium | D14 subtle level distinctions have high expected LLM evaluator variance; no human baseline |
 | ~~ARCH-12~~ | [arch-12-guacamole-stale-token.md](arch-12-guacamole-stale-token.md) | ~~Medium~~ **Closed** | _request() helper auto-authenticates and retries on 401. Resolved 2026-03-28. |
 | ~~ARCH-13~~ | [arch-13-checkpoint-name-mismatch.md](arch-13-checkpoint-name-mismatch.md) | ~~High~~ **Closed** | Verified on Hyper-V: all VMs use `"Baseline Checkpoint"`. Default corrected. |
-| ARCH-14 | [arch-14-reconciler-no-alerting.md](arch-14-reconciler-no-alerting.md) | Low/Medium | Reconciler stops silently at max retries with no push notification to operator |
+| ~~ARCH-14~~ | [arch-14-reconciler-no-alerting.md](arch-14-reconciler-no-alerting.md) | ~~Medium~~ **Closed** | Heartbeat table + /health endpoint track background job status. Resolved 2026-03-28. |
 | ARCH-15 | [arch-15-vestigial-guac-connection-id.md](arch-15-vestigial-guac-connection-id.md) | Low | `LabEnvironment.guac_connection_id` is never read post-SEC-02; dead field, minor confusion |
 | INFRA-01 | [infra-01-environments-yaml-in-public-repo.md](infra-01-environments-yaml-in-public-repo.md) | Medium | VM hostnames and Guacamole connection IDs in public repo |
 | CONTENT-01 | [content-01-domain-coverage-gaps.md](content-01-domain-coverage-gaps.md) | Medium — **improving** | D06 still 1 scenario; D08→2, D10→2, D12→3 (56 total). D06 remains the most undercovered domain. |
@@ -44,4 +44,8 @@ Tracked gaps and remediation tasks identified through architectural review.
 | INFRA-02 | [infra-02-hardcoded-infra-host.md](infra-02-hardcoded-infra-host.md) | Low | Hardcoded Hyper-V host FQDN in lab controller settings |
 | ARCH-19 | [arch-19-legacy-evaluate-endpoint.md](arch-19-legacy-evaluate-endpoint.md) | Low | Legacy v1 `/evaluate` and `/lab/evaluate` routes still registered; accepts full rubric from caller |
 | ARCH-20 | [arch-20-frontend-jwt-refresh.md](arch-20-frontend-jwt-refresh.md) | Low/Medium | Frontend has no JWT refresh logic; silent 401s after 60-min token expiry |
+| ~~ARCH-22~~ | [arch-22-pssession-for-powershell-direct.md](arch-22-pssession-for-powershell-direct.md) | ~~High~~ **Closed** | PSSession for PowerShell Direct; hardened provisioning flow with teardown on failure. Resolved 2026-03-28. |
 | ~~ARCH-23~~ | [arch-23-reconciler-shared-vm-orphan-false-positive.md](arch-23-reconciler-shared-vm-orphan-false-positive.md) | ~~High~~ **Closed** | Reconciler falsely reverted VMs shared between env entries; active sessions killed within 5 min. Fixed S29 (c015102). |
+| ARCH-24 | [arch-24-proxmox-orchestrator.md](arch-24-proxmox-orchestrator.md) | Medium | Proxmox VE orchestrator stub exists; needs implementation (REST API, QEMU Guest Agent, aiohttp) |
+| ~~ARCH-25~~ | [arch-25-dead-labpanel-component.md](arch-25-dead-labpanel-component.md) | ~~Low~~ **Closed** | Dead `LabPanel.jsx` removed; replaced by LabInfoPanel + LabConsole architecture. Resolved 2026-04-02. |
+| ~~ARCH-26~~ | [arch-26-shared-vm-topology-validation.md](arch-26-shared-vm-topology-validation.md) | ~~Medium~~ **Closed** | Startup validation warns on shared-VM topology in environments.yaml. Resolved 2026-04-02. |

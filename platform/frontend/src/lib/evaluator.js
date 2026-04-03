@@ -1,6 +1,6 @@
 import OpenAI from 'openai'
 import { buildSystemPrompt, performEvaluation } from '../../../../core/evaluator.js'
-import { isAuthenticated, getAuthHeaders } from './auth.js'
+import { isAuthenticated, authFetch } from './auth.js'
 
 // ---------------------------------------------------------------------------
 // Settings schema and persistence
@@ -110,11 +110,9 @@ export async function evaluate({ scenario, artifactContent, responseText, settin
   // Sends only scenarioId + responseText — rubric is loaded server-side.
   const labUrl = settings.labControllerUrl ?? (IS_PRODUCTION ? 'https://learning.hraedon.com' : 'http://localhost:8000')
 
-  const headers = { 'Content-Type': 'application/json', ...getAuthHeaders() }
-
-  const res = await fetch(`${labUrl}/api/evaluate`, {
+  const res = await authFetch(`${labUrl}/api/evaluate`, {
     method: 'POST',
-    headers,
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       scenarioId: scenario.id,
       responseText,

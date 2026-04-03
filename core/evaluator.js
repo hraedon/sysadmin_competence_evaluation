@@ -33,6 +33,9 @@ export function buildSystemPrompt(scenario, artifactContent, { coachMode = false
     if (!compactRubric && f.miss_signal) {
       block += `\nWATCH FOR (MISS SIGNAL): ${f.miss_signal.trim()}`
     }
+    if (!compactRubric && f.hit_signal) {
+      block += `\nLOOK FOR (HIT SIGNAL): ${f.hit_signal.trim()}`
+    }
     return block
   }
 

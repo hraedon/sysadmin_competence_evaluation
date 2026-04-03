@@ -13,21 +13,30 @@ class Settings(BaseSettings):
     max_session_hours: int = 4
     provisioning_timeout_seconds: int = 600
     dry_run: bool = True
+    # Lab platform selection: "hyper-v" or "proxmox"
+    lab_platform: str = "hyper-v"
     # Hyper-V host credentials for WinRM remoting (used by HyperVOrchestrator)
-    hyperv_host: str = "mvmhyperv02.ad.hraedon.com" # INFRA-02: was hardcoded
+    hyperv_host: str = "mvmhyperv02.ad.hraedon.com"
     hyperv_username: str = "svc_claude@ad.hraedon.com"
     hyperv_password: str = ""
     # Guest OS credentials for PowerShell Direct (lab domain admin)
     hyperv_guest_username: str = "ad.labdomain.dev\\claude"
     hyperv_guest_password: str = ""
+    # Proxmox credentials (used by ProxmoxOrchestrator)
+    proxmox_api_url: str = ""
+    proxmox_api_token_id: str = ""
+    proxmox_api_token_secret: str = ""
+    proxmox_node: str = "pve"
+    proxmox_verify_ssl: bool = False
     controller_api_key: str = "dev-key-change-me"
     anthropic_api_key: str = ""
     # Reconciler settings
     reconcile_interval_minutes: int = 5
     fault_auto_retry_delay_minutes: int = 10
     fault_max_auto_retries: int = 2
-    # Verified 2026-03-28: all Hyper-V VMs (LabServer01, LabDC01, LabLinux01) use
-    # "Baseline Checkpoint" as the snapshot name. This must match exactly.
+    # Snapshot/checkpoint name. Must match actual names on the hypervisor.
+    # Hyper-V: verified 2026-03-28 all VMs use "Baseline Checkpoint".
+    # Proxmox: will depend on snapshot naming convention.
     baseline_checkpoint_name: str = "Baseline Checkpoint"
     # JWT auth settings
     jwt_secret: str = "change-me-in-production"
@@ -70,12 +79,3 @@ class VerificationResult(BaseModel):
     status: str  # correct | workaround | incomplete
     detail: str
 
-class EvaluateRequest(BaseModel):
-    scenario: Dict[str, Any]
-    artifactContent: Optional[str] = None
-    responseText: str
-    model: Optional[str] = None
-    coachMode: bool = False
-    coachRound: int = 0
-    coachHistory: List[Dict[str, str]] = []
-    compactRubric: bool = False

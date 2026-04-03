@@ -3,17 +3,17 @@ import base64
 import logging
 import os
 from typing import Optional
-from pydantic import BaseModel
+
+from .orchestrator_base import Orchestrator, OrchestrationResult
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-class OrchestrationResult(BaseModel):
-    success: bool
-    output: str
-    error: Optional[str] = None
+# Re-export for backward compatibility with existing imports
+__all__ = ["HyperVOrchestrator", "OrchestrationResult"]
 
-class HyperVOrchestrator:
+
+class HyperVOrchestrator(Orchestrator):
     """
     Runs Hyper-V management commands on a remote host via WinRM (PowerShell Core).
 
@@ -35,12 +35,12 @@ class HyperVOrchestrator:
         guest_password: str = "",
         dry_run: bool = True,
     ):
+        super().__init__(dry_run=dry_run)
         self.host = host
         self.username = username
         self.password = password
         self.guest_username = guest_username
         self.guest_password = guest_password
-        self.dry_run = dry_run
 
     def _remote_wrap(self, inner_command: str) -> str:
         """Wraps an inner PowerShell command to execute on the Hyper-V host via WinRM."""
@@ -160,38 +160,7 @@ class HyperVOrchestrator:
         inner = f"(Get-VM -Name '{vm_name}').State.ToString()"
         return await self._run_ps(self._remote_wrap(inner))
 
-    async def wait_for_guest_readiness(self, vm_name: str, timeout_seconds: int = 300, on_connectivity_phase=None) -> bool:
-        """Polls the VM for an IP address, then confirms with a connectivity test.
-
-        Args:
-            on_connectivity_phase: optional async callback invoked when transitioning
-                from IP-wait to connectivity-test phase.
-        """
-        start_time = asyncio.get_running_loop().time()
-        # Phase 1: wait for IP address (fast check)
-        while asyncio.get_running_loop().time() - start_time < timeout_seconds:
-            res = await self.get_vm_ip(vm_name)
-            if res.success and res.output:
-                logger.info(f"VM {vm_name} has IP: {res.output}")
-                break
-            await asyncio.sleep(2)
-        else:
-            logger.warning(f"Timeout waiting for {vm_name} IP address.")
-            return False
-
-        # Phase 2: confirm guest OS is responsive
-        if on_connectivity_phase:
-            await on_connectivity_phase()
-        remaining = timeout_seconds - (asyncio.get_running_loop().time() - start_time)
-        conn_start = asyncio.get_running_loop().time()
-        while asyncio.get_running_loop().time() - conn_start < remaining:
-            conn_res = await self.test_guest_connectivity(vm_name)
-            if conn_res.success:
-                logger.info(f"VM {vm_name} guest OS confirmed responsive.")
-                return True
-            await asyncio.sleep(3)
-        logger.warning(f"Timeout waiting for {vm_name} guest connectivity.")
-        return False
+    # wait_for_guest_readiness is inherited from Orchestrator base class
 
     def _guest_cred_ps(self) -> str:
         """Returns a PowerShell snippet that creates $guestCred from guest credentials."""

@@ -68,6 +68,19 @@ async def load_environments():
                 if existing.status not in ["available", "faulted", "busy"]:
                     existing.status = target_status
 
+    # ARCH-26: Warn about shared-VM topology so operators know which
+    # environments are mutually exclusive (cannot run concurrently).
+    vm_owners: dict = {}
+    for env_data in config.get('environments', []):
+        for vm in env_data.get('vms', []):
+            vm_owners.setdefault(vm, []).append(env_data['id'])
+    for vm, owners in vm_owners.items():
+        if len(owners) > 1:
+            logger.warning(
+                f"ARCH-26: VM '{vm}' is shared by environments {owners}. "
+                f"These environments are mutually exclusive and cannot run concurrently."
+            )
+
 # ---------------------------------------------------------------------------
 # Background Jobs (Scheduler Wrappers)
 # ---------------------------------------------------------------------------
@@ -144,7 +157,7 @@ async def reconcile_environments():
             if vm in active_vms:
                 continue  # VM is in use by another environment — not an orphan
             state_res = await orchestrator.get_vm_state(vm)
-            if state_res.success and state_res.output.strip().lower() != "off":
+            if state_res.success and state_res.output.strip().lower() not in ("off", "stopped"):
                 logger.warning(f"Reconciler: orphan VM '{vm}' in '{env_id}' is running. Reverting.")
                 revert_res = await orchestrator.revert_to_checkpoint(vm, settings.baseline_checkpoint_name)
                 if not revert_res.success:

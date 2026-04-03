@@ -1,7 +1,7 @@
 # Platform Build Notes
 ## For future Claude instances: read this before touching platform/ code.
 
-Last updated: 2026-03-27 — Session 28 (post-lab restructure, integration tests, SEC-02/ARCH-02 resolution).
+Last updated: 2026-04-02 — Housekeeping pass (doc consistency, Proxmox prep).
 
 ---
 
@@ -21,7 +21,8 @@ platform/
         evaluator.js            Builds system prompt, calls OpenAI-compatible API, parses JSON result
         scenarios.js            loadManifest(), loadArtifact(), groupByDomain()
         profile.js              localStorage capability profile: save/load/domainLevel/recommendNext
-        profile.test.js         22 tests (node --test): median logic, save/load, staleness
+        profile.test.js         22 tests (Vitest): median logic, save/load, staleness
+        auth.js                 JWT auth client: login, register, refreshToken, migrateLocalProfile
       hooks/
         useLabSession.js        Custom hook: all lab state, polling, elapsed timer, handlers
       components/
@@ -31,80 +32,113 @@ platform/
         LabPanel.jsx            Standalone lab mode (legacy, still works independently)
         LabInfoPanel.jsx        Lab left column: scenario info + Start/Verify/End controls
         LabConsole.jsx          Lab center: maximized Guacamole iframe
+        LoginView.jsx           Auth modal: login/register
         SettingsPage.jsx        API key/endpoint/provider configuration (full-screen overlay)
         OnboardingView.jsx      First-visit overlay with level descriptions + guided start
         ProfileView.jsx         Full profile: domain cards, history, suggested review
         ErrorBoundary.jsx       React error boundary (class component, ~35 lines)
-    index.html
-    package.json
-    vite.config.js / tailwind.config.js / postcss.config.js / nginx.conf
+    index.html / package.json / vite.config.js / tailwind.config.js / postcss.config.js / nginx.conf
   Dockerfile                    Build context: sysadmin_competence_evaluation/
                                 docker build -f platform/Dockerfile -t assessment-app .
-  lab-controller/               FastAPI orchestration for Mode E labs
+  lab-controller/               FastAPI backend: evaluation, auth, lab orchestration
     app/
-      __init__.py               Package marker (needed for test mocking)
-      main.py                   FastAPI app: provision, teardown, verify, evaluate, session endpoints
-      database.py               SQLAlchemy models (LabEnvironment, LabSession); SQLite + WAL mode
-      orchestrator.py           HyperVOrchestrator: WinRM remoting, checkpoint mgmt, PowerShell Direct
-      guacamole.py              GuacamoleClient: REST API for ephemeral connection management
+      main.py                   FastAPI app with lifespan, CORS, router wiring (~80 lines)
+      database.py               SQLAlchemy models (LabEnvironment, LabSession, User, etc.)
+      schemas.py                Pydantic settings + request/response models
+      deps.py                   Dependency injection: orchestrator, guac_client singletons
       evaluator.py              Server-side evaluation (mirrors core/evaluator.js logic)
+      orchestrator.py           HyperVOrchestrator: WinRM remoting, checkpoint mgmt, PS Direct
+      guacamole.py              GuacamoleClient: REST API for ephemeral connection management
+      utils.py                  Shared utilities
+      routers/
+        lab.py                  Lab provisioning, session polling, verify, teardown
+        admin.py                Environment reset, status, faulted recovery
+        evaluate.py             Legacy evaluation endpoint (ARCH-19: to be removed)
+        evaluate_v2.py          Server-side evaluation with rubric loading + coach mode
+        auth.py                 JWT register/login/refresh
+        profile.py              Server-side profile storage with merge-on-import
+      services/
+        lab_service.py          Core orchestration: provisioning, teardown, reconciler, reaper
+        auth_service.py         User creation, password hashing, JWT minting
+        profile_service.py      Profile CRUD with domain-level aggregation
+        rubric_service.py       Server-side rubric/scenario loading
+      middleware/
+        rate_limit.py           slowapi rate limiting configuration
+      migrations/               Alembic migrations (PostgreSQL + SQLite fallback)
     environments.yaml           Lab environment pool definitions (VMs, capabilities, protocols)
-    requirements.txt            FastAPI, SQLAlchemy, Anthropic, OpenAI, APScheduler, etc.
+    requirements.txt            FastAPI, SQLAlchemy, Anthropic, bcrypt, APScheduler, etc.
     Dockerfile                  PowerShell 7.4 + Python 3.11 + PSWSMan + FastAPI
+    alembic.ini                 Alembic configuration
     tests/
+      conftest.py               Shared fixtures (test DB, mock orchestrator/guac)
       test_security.py          20 tests: sanitize_scenario_id + resolve_scenario_path
-      test_integration.py       19 tests: DB models, helpers, provisioning, teardown, ARCH-02, evaluator
-    .env                        Dev environment variables (not in repo)
+      test_integration.py       Integration tests: DB models, helpers, provisioning, teardown
+      test_auth.py              Auth endpoint tests
+      test_evaluate_v2.py       Server-side evaluation tests
+      test_profile.py           Profile API tests
+      test_evaluator_consistency.py  Cross-language evaluator consistency (Python vs JS)
+      test_verification_parsing.py   Verification output parsing tests
+      test_smoke.py             Real infrastructure smoke tests (requires .env)
   k8s/
     namespace.yaml              assessment namespace
     deployment.yaml             Assessment app (nginx, replicas: 1)
     service.yaml                ClusterIP on port 80
     ingress.yaml                learning.hraedon.com, traefik-external, cert-manager letsencrypt
-    lab-controller-deployment.yaml   Lab controller (replicas: 1, emptyDir for SQLite)
+    lab-controller-deployment.yaml   Lab controller (replicas: 1, PVC for DB)
     lab-controller-service.yaml      ClusterIP on port 8000
+    lab-controller-pvc.yaml     PersistentVolumeClaim for DB durability
     argocd-application.yaml
     argocd-ingress.yaml
+  guacamole/
+    guacamole.yaml              Guacamole deployment configuration
   build_notes.md                This file
 ```
 
 ## Architecture
 
-### Assessment app (frontend)
+```
+                   learning.hraedon.com
+                          |
+                      [Traefik]
+                     /    |    \
+                  /api   /lab    /
+                  |       |      |
+            [lab-controller]  [frontend SPA]
+             (FastAPI)          (React + Vite)
+               |    |
+          [PostgreSQL]  [Hyper-V VMs]
+               |              |
+          [Alembic]    [Guacamole]
+```
 
-- **No backend for evaluation.** Browser calls OpenAI-compatible endpoints directly via the `openai`
-  npm package. Learners supply their own API key and base URL, stored in localStorage.
-  An nginx sidecar proxy (`/llm-proxy/v1`) routes to a local LM Studio instance for production use.
-  This architecture is the subject of ARCH-09 — see breadcrumbs/.
-- **Scenarios bundled at build time** via `generate-manifest.mjs`. The script walks `../../scenarios/`
-  (local) or `../scenarios/` (Docker, via `SCENARIOS_DIR` env var) and emits
-  `public/scenarios-manifest.json` with full parsed YAML minus answer-key fields.
-- **Artifact files served as static assets.** nginx serves `scenarios/` alongside the React build.
-- **Profile in localStorage.** Per-domain level estimates (median of all attempts). Keyed by
-  `sysadmin_assessment_profile`. No server persistence (EVAL-03).
-- **Evaluator returns structured JSON:** `{ level, confidence, caught, missed, almost_caught,
-  unlisted, severity_calibration, gap, narrative }`. JSON extracted with regex fallback.
-- **Coach mode:** Up to 3 Socratic rounds. Coach history accumulates per round (EVAL-04).
+### Backend (lab-controller)
 
-### Lab controller (backend)
+- **FastAPI + SQLAlchemy + PostgreSQL** (SQLite fallback for tests). Alembic migrations.
+- **Auth:** JWT with bcrypt. Register/login/refresh. Dual-auth transition supports both legacy API keys and JWT.
+- **Evaluation API:** Server-side rubric loading via `POST /api/evaluate`. No secrets in browser.
+- **Profile storage:** PostgreSQL-backed. Merge-on-import from localStorage for migration.
+- **Rate limiting:** Per-user/IP via slowapi.
+- **Lab orchestration:** Session lifecycle: provision -> poll -> ready (Guacamole iframe) -> verify -> teardown.
+- **Environment pooling:** Environments defined in `environments.yaml` with capabilities. Atomic mutex prevents double-provisioning. Background watchdog (600s) prevents hung provisioning.
+- **Orchestration:** WinRM remoting to Hyper-V host via `pwsh`. Checkpoint revert -> VM start -> guest readiness -> Guacamole connection -> provisioning scripts.
+- **Ephemeral Guacamole connections:** Per-session connections + restricted session users (SEC-07). Deleted on teardown.
+- **Graceful restart recovery (ARCH-02):** Sessions marked suspect on restart; stuck-provisioning envs faulted. Reaper handles teardown.
+- **Reconciler:** Auto-recovers faulted environments, detects orphan VMs, respects shared-VM topology (ARCH-23).
+- **Health monitoring:** `/health` endpoint with background job heartbeats (reaper, reconciler).
 
-- **FastAPI + SQLAlchemy + SQLite** (WAL mode for concurrent access).
-- **Session lifecycle:** provision → poll status → ready (Guacamole iframe) → verify → teardown.
-- **Environment pooling:** Environments defined in `environments.yaml` with capabilities. Atomic
-  mutex prevents double-provisioning. Background watchdog (600s default) prevents hung provisioning.
-- **Orchestration:** WinRM remoting to Hyper-V host via `pwsh`. Checkpoint revert → VM start →
-  guest readiness (IP + connectivity test) → Guacamole connection creation → provisioning scripts.
-- **Ephemeral Guacamole connections:** Per-session connections created via REST API during
-  provisioning. Deleted on teardown. No static/predictable tokens (SEC-02, resolved S28).
-- **Graceful restart recovery:** On startup, surviving sessions are marked `suspect` with forced
-  expiry. The reaper handles teardown on its next tick (ARCH-02, resolved S28).
-- **Auth:** All endpoints (except `/health`) require `X-API-Key` header matching
-  `CONTROLLER_API_KEY` env var.
+### Frontend
+
+- **Auth-aware:** Login/register modal. JWT in localStorage. Falls back to localStorage-only for anonymous users.
+- **Scenarios bundled at build time** via `generate-manifest.mjs`. Strips answer-key fields (SEC-05).
+- **Two evaluation modes:** Server-side (JWT auth, default) or local (air-gapped, `VITE_EVALUATION_MODE=local`).
+- **Profile:** Syncs to server when authenticated. Falls back to localStorage for anonymous users.
+- **Evaluator returns structured JSON:** `{ level, confidence, caught, missed, almost_caught, unlisted, severity_calibration, gap, narrative }`.
+- **Coach mode:** Up to 3 Socratic rounds.
 
 ### Layout modes
 
-- **Standard (Modes A–D):** Three-column: Sidebar (w-72) | ScenarioPanel (flex-1) | EvalPanel (w-96)
-- **Lab (Mode E):** Four-column: Sidebar (w-72) | LabInfoPanel (w-80) | LabConsole (flex-1) |
-  EvalPanel (w-10 collapsed, auto-expands on eval results)
+- **Standard (Modes A-D):** Three-column: Sidebar (w-72) | ScenarioPanel (flex-1) | EvalPanel (w-96)
+- **Lab (Mode E):** Four-column: Sidebar (w-72) | LabInfoPanel (w-80) | LabConsole (flex-1) | EvalPanel (w-10 collapsed, auto-expands on eval results)
 
 ## To build and deploy
 
@@ -113,7 +147,6 @@ platform/
 npm install
 npm run dev     # runs prebuild (generate-manifest) then vite dev server
 ```
-SCENARIOS_DIR defaults to `../../scenarios` (relative to platform/frontend CWD).
 
 ### Docker build (from sysadmin_competence_evaluation/)
 ```bash
@@ -131,39 +164,37 @@ kubectl apply -f platform/k8s/namespace.yaml
 kubectl apply -f platform/k8s/deployment.yaml
 kubectl apply -f platform/k8s/service.yaml
 kubectl apply -f platform/k8s/ingress.yaml
+kubectl apply -f platform/k8s/lab-controller-pvc.yaml
 kubectl apply -f platform/k8s/lab-controller-deployment.yaml
 kubectl apply -f platform/k8s/lab-controller-service.yaml
 ```
-cert-manager issues the TLS cert automatically via Porkbun DNS challenge.
-DNS: learning.hraedon.com → 192.168.11.201 (traefik-external).
+cert-manager issues TLS cert automatically via Porkbun DNS challenge.
+DNS: learning.hraedon.com -> 192.168.11.201 (traefik-external).
 
 ### Running tests
 ```bash
 # Python (from platform/lab-controller/)
-python -m pytest tests/ -v              # 39 tests (security + integration)
+python -m pytest tests/ -v              # 140+ tests
 
 # JavaScript evaluator (from core/)
 node --test evaluator.test.js           # 11 tests
 
 # JavaScript profile (from platform/frontend/src/lib/)
 node --test profile.test.js             # 22 tests
+
+# Frontend components (from platform/frontend/)
+npx vitest run                          # Vitest suite
 ```
 
 ## CI/CD
 
-`.github/workflows/build-push.yml`: On push to main, builds both Docker images, pushes to
-ghcr.io with `:latest` + `:{commit-sha}` tags, updates k8s manifest image fields, and commits
-the tag update directly to main (ARCH-11 — should use PR workflow if branch protection is added).
+`.github/workflows/build-push.yml`: On push to main, builds both Docker images, pushes to ghcr.io with `:latest` + `:{commit-sha}` tags. Uses `imagePullPolicy: Always` for seamless updates.
 
 ## Known issues
 
-- **ARCH-09 (convergence):** The "no backend" design is the root cause of SEC-03 (API key in
-  browser), SEC-05 (rubric fields in manifest), EVAL-03 (profile not portable), and ARCH-06
-  (no rate limiting). A thin API layer (4 routes) would close all simultaneously.
-- **ARCH-04:** SQLite in container loses state on pod restart. Wire PostgreSQL via
-  `SQLALCHEMY_DATABASE_URL` env var (mvmpostgres01 already available).
-- **ARCH-11:** CI/CD commits image tags directly to main.
-- **Deprecation warnings:** `datetime.utcnow()` (Python 3.12+), `declarative_base()` (SQLAlchemy 2.0),
-  `@app.on_event("startup")` (FastAPI lifespan handlers), Pydantic class-based Config.
-- The `LabEnvironment.guac_connection_id` column is vestigial after SEC-02 resolution — only
-  ephemeral per-session connections are used now. Safe to drop once confirmed stable.
+See `breadcrumbs/README.md` for the full tracker. Key open items:
+- **ARCH-19:** Legacy `/evaluate` endpoint still active (accepts full rubric from caller).
+- **ARCH-20:** Frontend has no JWT refresh logic — silent 401s after 60-min token expiry.
+- **ARCH-15:** `LabEnvironment.guac_connection_id` column is vestigial post-SEC-02.
+- **INFRA-02:** Hardcoded Hyper-V host FQDN in settings (mitigated by env vars).
+- **CONTENT-01:** D06 has only 1 scenario.

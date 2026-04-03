@@ -1,4 +1,4 @@
-# ARCH-17: Disconnected Lab Verification and AI Evaluation
+# ~~ARCH-17~~: Disconnected Lab Verification and AI Evaluation — **Closed**
 
 ## Severity
 Medium

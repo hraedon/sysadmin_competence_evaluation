@@ -8,7 +8,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from app.evaluator import build_system_prompt
 
-# Shared test scenario
+# Shared test scenario — no hit_signal (baseline)
 SCENARIO = {
     "schema_version": 2.0,
     "id": "test-consistency",
@@ -37,6 +37,37 @@ SCENARIO = {
 }
 
 ARTIFACT = "Some artifact content"
+
+# Scenario with hit_signal on one finding — used to test EVAL-07 field
+SCENARIO_WITH_HIT_SIGNAL = {
+    "schema_version": 2.0,
+    "id": "test-hit-signal",
+    "domain_name": "Test Domain",
+    "level": 2,
+    "title": "Hit Signal Test",
+    "delivery_modes": ["A"],
+    "presentation": {
+        "modes": {
+            "A": {
+                "type": "script",
+                "context": "Test context"
+            }
+        }
+    },
+    "rubric": {
+        "findings": [
+            {
+                "id": "f1", "type": "critical", "description": "Critical finding",
+                "miss_signal": "Miss 1", "hit_signal": "Candidate names the $newPassword variable"
+            },
+            {"id": "f2", "type": "secondary", "description": "Secondary finding", "miss_signal": "Miss 2"}
+        ],
+        "level_indicators": {
+            "level_1": "Level 1 info",
+            "level_4": "Level 4 info"
+        }
+    }
+}
 
 def get_js_prompt(scenario, artifact, coach_mode=False, coach_round=0, compact_rubric=False):
     # Get absolute path to the core evaluator
@@ -95,5 +126,23 @@ def test_prompt_consistency_coach_round_1():
 def test_prompt_consistency_compact():
     py_prompt = build_system_prompt(SCENARIO, ARTIFACT, compact_rubric=True)
     js_prompt = get_js_prompt(SCENARIO, ARTIFACT, compact_rubric=True)
-    
+
     assert py_prompt == js_prompt
+
+def test_prompt_consistency_with_hit_signal():
+    """EVAL-07: hit_signal field appears in both evaluators identically."""
+    py_prompt = build_system_prompt(SCENARIO_WITH_HIT_SIGNAL, ARTIFACT)
+    js_prompt = get_js_prompt(SCENARIO_WITH_HIT_SIGNAL, ARTIFACT)
+
+    assert py_prompt == js_prompt
+    assert "LOOK FOR (HIT SIGNAL)" in py_prompt
+    assert "Candidate names the $newPassword variable" in py_prompt
+
+def test_hit_signal_excluded_in_compact_mode():
+    """EVAL-07: hit_signal is suppressed in compact mode, same as miss_signal."""
+    py_prompt = build_system_prompt(SCENARIO_WITH_HIT_SIGNAL, ARTIFACT, compact_rubric=True)
+    js_prompt = get_js_prompt(SCENARIO_WITH_HIT_SIGNAL, ARTIFACT, compact_rubric=True)
+
+    assert py_prompt == js_prompt
+    assert "LOOK FOR (HIT SIGNAL)" not in py_prompt
+    assert "WATCH FOR (MISS SIGNAL)" not in py_prompt

@@ -15,7 +15,7 @@
  * Note: gap was added in Phase B++. Existing results without it degrade cleanly (gap is null).
  */
 
-import { isAuthenticated, getAuthHeaders } from './auth.js'
+import { isAuthenticated, authFetch } from './auth.js'
 
 const KEY = 'sysadmin_assessment_profile'
 const ONBOARDING_KEY = 'sysadmin_onboarding_dismissed'
@@ -58,9 +58,9 @@ export function saveResult({ scenario, level, confidence, gap, almost_caught }) 
 
   // If authenticated, also save to server
   if (isAuthenticated()) {
-    fetch(`${getBaseUrl()}/api/profile/result`, {
+    authFetch(`${getBaseUrl()}/api/profile/result`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         scenario_id: scenario.id,
         domain: scenario.domain,
@@ -86,9 +86,9 @@ export async function migrateLocalProfile() {
   if (!local.updated || Object.keys(local.domains).length === 0) return
 
   try {
-    await fetch(`${getBaseUrl()}/api/profile/import`, {
+    await authFetch(`${getBaseUrl()}/api/profile/import`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ profile: local })
     })
   } catch {

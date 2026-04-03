@@ -15,7 +15,7 @@ from .services.lab_service import (
     reap_expired_sessions_wrapper,
     reconcile_environments_wrapper
 )
-from .routers import lab, admin, evaluate, evaluate_v2, auth, profile
+from .routers import lab, admin, evaluate_v2, auth, profile
 
 # ---------------------------------------------------------------------------
 # Initialization
@@ -62,7 +62,6 @@ app.add_middleware(
 # Include Routers
 app.include_router(lab.router)
 app.include_router(admin.router)
-app.include_router(evaluate.router)
 app.include_router(evaluate_v2.router)
 app.include_router(auth.router)
 app.include_router(profile.router)

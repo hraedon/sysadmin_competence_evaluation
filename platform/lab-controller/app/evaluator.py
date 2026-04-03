@@ -28,6 +28,8 @@ def build_system_prompt(scenario: Dict[str, Any], artifact_content: Optional[str
         block = f"[{f['id']}] (Severity: {f.get('type') or f.get('severity')}) {f['description'].strip()}"
         if not compact_rubric and f.get('miss_signal'):
             block += f"\nWATCH FOR (MISS SIGNAL): {f['miss_signal'].strip()}"
+        if not compact_rubric and f.get('hit_signal'):
+            block += f"\nLOOK FOR (HIT SIGNAL): {f['hit_signal'].strip()}"
         return block
 
     if schema_version >= 2.0 and 'findings' in rubric:

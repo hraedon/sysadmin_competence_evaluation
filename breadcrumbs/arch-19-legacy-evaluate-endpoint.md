@@ -1,4 +1,7 @@
-# ARCH-19: Legacy v1 `/evaluate` Endpoint Still Active
+# ~~ARCH-19~~: Legacy v1 `/evaluate` Endpoint Still Active — **Closed**
+
+## Status
+Resolved 2026-04-03. Confirmed no callers in frontend, calibration harness, or tests. Deleted `app/routers/evaluate.py`, removed the import from `app/main.py` and `app/routers/__init__.py`. All 122 Python tests pass.
 
 ## Severity
 Low

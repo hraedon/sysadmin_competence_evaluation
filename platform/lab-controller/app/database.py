@@ -51,7 +51,6 @@ class LabEnvironment(Base):
 
     id = Column(String, primary_key=True, index=True)
     vms = Column(JSON)  # List of VM names: ["Env01-DC01", "Env01-SRV01"]
-    guac_connection_id = Column(String) # Static ID for fallback (legacy)
     guac_target_vm = Column(String, nullable=True) # VM to connect to
     guac_protocol = Column(String, nullable=True)  # rdp or ssh
     capabilities = Column(JSON)  # ["windows-domain", "ad-ds"]

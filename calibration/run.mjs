@@ -123,6 +123,7 @@ Options:
   --scenario <id>        Filter by scenario ID (can be used multiple times)
   --domain <n>           Filter by domain number
   --level <n>            Filter by expected level (1-4)
+  --concurrency <n>      Max parallel evaluator calls (default: 5, min: 1)
   --list-models          List available model aliases
   --help, -h             Show this help
 
@@ -161,6 +162,18 @@ const providerFlag   = getArg('--provider')
 const endpointFlag   = getArg('--endpoint')
 const modelFlag      = getArg('--model')
 const apiKeyFlag     = getArg('--api-key')
+const concurrencyArg = getArg('--concurrency')
+
+if (args.includes('--concurrency') && !concurrencyArg) {
+  console.error('Error: --concurrency requires a value (e.g., --concurrency 5).')
+  process.exit(2)
+}
+
+let concurrency = concurrencyArg ? parseInt(concurrencyArg, 10) : 5
+if (!Number.isInteger(concurrency) || concurrency < 1) {
+  console.error(`Error: --concurrency must be a positive integer (got '${concurrencyArg}').`)
+  process.exit(2)
+}
 
 // ---------------------------------------------------------------------------
 // Configuration Resolution
@@ -257,6 +270,82 @@ function loadArtifact(scenario) {
 }
 
 // ---------------------------------------------------------------------------
+// Concurrency pool
+// ---------------------------------------------------------------------------
+
+async function runWithConcurrency(tasks, limit, fn) {
+  const results = new Array(tasks.length)
+  let index = 0
+  async function worker() {
+    while (index < tasks.length) {
+      const i = index++
+      results[i] = await fn(tasks[i], i)
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, tasks.length) }, () => worker()))
+  return results
+}
+
+async function runTask(task) {
+  const { scenario, expectedLevel, responseFile, artifactContent } = task
+  const prefix = `[${scenario.id}/L${expectedLevel}]`
+
+  if (!existsSync(responseFile)) {
+    if (!levelFilter) {
+      console.log(`${prefix} [SKIP] response_level_${expectedLevel}.txt not found`)
+    }
+    return { expected: expectedLevel, status: 'skip' }
+  }
+
+  const responseText = readFileSync(responseFile, 'utf-8')
+
+  try {
+    const result = await callEvaluator(scenario, artifactContent, responseText, compactRubric)
+
+    if (!result.parsed) {
+      console.log(`${prefix} [ERROR] JSON parse failed`)
+      console.log(`${prefix}        Raw: ${result.raw.slice(0, 200)}`)
+      return { expected: expectedLevel, status: 'error', raw: result.raw }
+    }
+
+    const returnedLevel = result.parsed.level
+    const deviation = Math.abs(returnedLevel - expectedLevel)
+    const pass = deviation <= PASS_TOLERANCE
+
+    if (pass) {
+      console.log(`${prefix} [PASS] returned L${returnedLevel} (expected L${expectedLevel})`)
+    } else {
+      console.log(`${prefix} [FAIL] returned L${returnedLevel} (expected L${expectedLevel}, deviation ${deviation.toFixed(1)})`)
+      console.log(`${prefix}        Gap: ${result.parsed.gap ?? 'none'}`)
+      console.log(`${prefix}        Caught: ${(result.parsed.caught ?? []).join(', ') || '(none)'}`)
+      if (result.parsed.almost_caught && result.parsed.almost_caught.length > 0) {
+        console.log(`${prefix}        Almost: ${result.parsed.almost_caught.join(', ')}`)
+      }
+      console.log(`${prefix}        Missed: ${(result.parsed.missed ?? []).join(', ') || '(none)'}`)
+      if (result.parsed.narrative) {
+        console.log(`${prefix}        Narrative: ${result.parsed.narrative.split('\n')[0]}...`)
+      }
+    }
+
+    return {
+      expected: expectedLevel,
+      returned: returnedLevel,
+      confidence: result.parsed.confidence,
+      deviation,
+      pass,
+      caught: result.parsed.caught ?? [],
+      missed: result.parsed.missed ?? [],
+      gap: result.parsed.gap,
+      narrative: result.parsed.narrative,
+      status: pass ? 'pass' : 'fail',
+    }
+  } catch (err) {
+    console.log(`${prefix} [ERROR] API call failed: ${err.message}`)
+    return { expected: expectedLevel, status: 'error', error: err.message }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 
@@ -281,101 +370,40 @@ async function main() {
     process.exit(2)
   }
 
+  const sortedPaths = filteredPaths.sort()
+
   console.log(`\nCalibration harness — ${new Date().toISOString()}`)
   console.log(`Provider: ${provider}`)
   console.log(`Endpoint: ${baseURL}`)
   console.log(`Model:    ${MODEL}`)
-  console.log(`Scenarios: ${filteredPaths.length}\n`)
+  console.log(`Scenarios: ${sortedPaths.length}`)
+  console.log(`Concurrency: ${concurrency}\n`)
 
   const results = []
-  let totalRuns = 0
-  let passed = 0
-  let failed = 0
-  let skipped = 0
-
-  for (const yamlPath of filteredPaths.sort()) {
+  const tasks = []
+  for (const yamlPath of sortedPaths) {
     const scenarioDir = dirname(yamlPath)
     const scenario = loadScenario(yamlPath)
-    
-    // Resolve mode correctly for V1/V2
     const mode = scenario.delivery_mode || (scenario.delivery_modes && scenario.delivery_modes[0]) || 'A'
-    
     const artifactContent = loadArtifact(scenario)
     const scenarioResults = { id: scenario.id, domain: scenario.domain, level: scenario.level, mode, runs: [] }
-
-    console.log(`Scenario: ${scenario.id} (Domain ${scenario.domain}, Level ${scenario.level}, Mode ${mode})`)
-
+    results.push(scenarioResults)
     for (const expectedLevel of EXPECTED_LEVELS) {
       if (levelFilter && expectedLevel !== levelFilter) continue
-
       const responseFile = join(scenarioDir, `response_level_${expectedLevel}.txt`)
-      if (!existsSync(responseFile)) {
-        if (!levelFilter) { // Don't log skips if we're filtering for a specific level
-          console.log(`  L${expectedLevel}: [SKIP] response_level_${expectedLevel}.txt not found`)
-        }
-        skipped++
-        scenarioResults.runs.push({ expected: expectedLevel, status: 'skip' })
-        continue
-      }
-
-      const responseText = readFileSync(responseFile, 'utf-8')
-
-      process.stdout.write(`  L${expectedLevel}: calling evaluator... `)
-      try {
-        const result = await callEvaluator(scenario, artifactContent, responseText, compactRubric)
-        totalRuns++
-
-        if (!result.parsed) {
-          console.log(`[ERROR] JSON parse failed`)
-          console.log(`        Raw: ${result.raw.slice(0, 200)}`)
-          failed++
-          scenarioResults.runs.push({ expected: expectedLevel, status: 'error', raw: result.raw })
-          continue
-        }
-
-        const returnedLevel = result.parsed.level
-        const deviation = Math.abs(returnedLevel - expectedLevel)
-        const pass = deviation <= PASS_TOLERANCE
-
-        if (pass) {
-          passed++
-          console.log(`[PASS] returned L${returnedLevel} (expected L${expectedLevel})`)
-        } else {
-          failed++
-          console.log(`[FAIL] returned L${returnedLevel} (expected L${expectedLevel}, deviation ${deviation.toFixed(1)})`)
-          console.log(`        Gap: ${result.parsed.gap ?? 'none'}`)
-          console.log(`        Caught: ${(result.parsed.caught ?? []).join(', ') || '(none)'}`)
-          if (result.parsed.almost_caught && result.parsed.almost_caught.length > 0) {
-            console.log(`        Almost: ${result.parsed.almost_caught.join(', ')}`)
-          }
-          console.log(`        Missed: ${(result.parsed.missed ?? []).join(', ') || '(none)'}`)
-          if (result.parsed.narrative) {
-            console.log(`        Narrative: ${result.parsed.narrative.split('\n')[0]}...`)
-          }
-        }
-
-        scenarioResults.runs.push({
-          expected: expectedLevel,
-          returned: returnedLevel,
-          confidence: result.parsed.confidence,
-          deviation,
-          pass,
-          caught: result.parsed.caught ?? [],
-          missed: result.parsed.missed ?? [],
-          gap: result.parsed.gap,
-          narrative: result.parsed.narrative,
-          status: pass ? 'pass' : 'fail',
-        })
-      } catch (err) {
-        console.log(`[ERROR] API call failed: ${err.message}`)
-        failed++
-        scenarioResults.runs.push({ expected: expectedLevel, status: 'error', error: err.message })
-      }
+      tasks.push({ scenario, expectedLevel, responseFile, artifactContent, scenarioResults })
     }
-
-    results.push(scenarioResults)
-    console.log()
   }
+
+  const taskResults = await runWithConcurrency(tasks, concurrency, runTask)
+
+  for (let i = 0; i < tasks.length; i++) {
+    tasks[i].scenarioResults.runs.push(taskResults[i])
+  }
+
+  const passed = taskResults.filter(r => r.status === 'pass').length
+  const failed = taskResults.filter(r => r.status === 'fail' || r.status === 'error').length
+  const skipped = taskResults.filter(r => r.status === 'skip').length
 
   // Summary
   const totalAttempted = passed + failed

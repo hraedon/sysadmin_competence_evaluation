@@ -1,4 +1,7 @@
-# ARCH-06: No Rate Limiting on Lab Controller or Evaluate Path
+# ~~ARCH-06~~: No Rate Limiting on Lab Controller or Evaluate Path — **Closed**
+
+## Status
+Resolved. `slowapi` rate limiting implemented via `middleware/rate_limit.py`. Per-endpoint limits applied: `/lab/provision` 5/min, `/api/evaluate` 20/min, `/auth/register` 3/hour, `/auth/login` 10/min. Key function uses JWT user_id if authenticated, else client IP. Disablable via `RATE_LIMIT_ENABLED=false`.
 
 ## Severity
 Low (pending SEC-04 fix), Medium (if API remains unauthenticated)

@@ -52,7 +52,6 @@ async def load_environments():
                 env = LabEnvironment(
                     id=env_data['id'],
                     vms=env_data['vms'],
-                    guac_connection_id=env_data['guac_connection_id'],
                     guac_target_vm=env_data.get('guac_target_vm'),
                     guac_protocol=env_data.get('guac_protocol'),
                     capabilities=env_data['capabilities'],
@@ -62,7 +61,6 @@ async def load_environments():
             else:
                 existing.vms = env_data['vms']
                 existing.capabilities = env_data['capabilities']
-                existing.guac_connection_id = env_data['guac_connection_id']
                 existing.guac_target_vm = env_data.get('guac_target_vm')
                 existing.guac_protocol = env_data.get('guac_protocol')
                 if existing.status not in ["available", "faulted", "busy"]:

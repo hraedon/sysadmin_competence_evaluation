@@ -7,7 +7,6 @@ environments:
     vms: ["LabDC01", "LabServer01"]
     guac_target_vm: "LabServer01"
     guac_protocol: "rdp"
-    guac_connection_id: "1"  # vestigial (ARCH-15), kept for backward compat
     capabilities: ["windows-server", "windows-domain"]
     status: "available"
 
@@ -18,7 +17,6 @@ environments:
     vms: ["LabDC01", "LabServer01"]
     guac_target_vm: "LabServer01"
     guac_protocol: "rdp"
-    guac_connection_id: "1"  # vestigial (ARCH-15)
     capabilities: ["windows-server", "windows-domain", "ad-ds"]
     status: "available"
 
@@ -28,7 +26,6 @@ environments:
     vms: ["LabLinux01"]
     guac_target_vm: "LabLinux01"
     guac_protocol: "ssh"
-    guac_connection_id: "2"  # vestigial (ARCH-15)
     capabilities: ["linux"]
     status: "available"
 

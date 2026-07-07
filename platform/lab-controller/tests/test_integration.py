@@ -67,7 +67,7 @@ def seeded_db(db_factory):
     engine, factory, scope = db_factory
     with scope() as db:
         db.add(LabEnvironment(
-            id="env-01", vms=["VM1"], guac_connection_id="1",
+            id="env-01", vms=["VM1"],
             guac_target_vm="VM1", guac_protocol="rdp",
             capabilities=["windows-server"], status="available"
         ))
@@ -90,7 +90,7 @@ class TestDatabase:
         _, _, scope = db_factory
         with scope() as db:
             db.add(LabEnvironment(
-                id="test-env", vms=["VM1", "VM2"], guac_connection_id="42",
+                id="test-env", vms=["VM1", "VM2"],
                 guac_target_vm="VM1", guac_protocol="rdp",
                 capabilities=["windows-server"], status="available",
                 provision_step="reverting",
@@ -122,7 +122,7 @@ class TestDatabase:
         _, _, scope = db_factory
         with scope() as db:
             db.add(LabEnvironment(
-                id="e1", vms=[], guac_connection_id="1", capabilities=[], status="available"
+                id="e1", vms=[], capabilities=[], status="available"
             ))
         with scope() as db:
             assert db.query(LabEnvironment).count() == 1
@@ -132,7 +132,7 @@ class TestDatabase:
         with pytest.raises(ValueError):
             with scope() as db:
                 db.add(LabEnvironment(
-                    id="e1", vms=[], guac_connection_id="1", capabilities=[], status="available"
+                    id="e1", vms=[], capabilities=[], status="available"
                 ))
                 raise ValueError("boom")
         with scope() as db:
@@ -216,11 +216,11 @@ class TestProvisioningFlow:
         _, _, scope = db_factory
         with scope() as db:
             db.add(LabEnvironment(
-                id="linux-01", vms=["L1"], guac_connection_id="2",
+                id="linux-01", vms=["L1"],
                 capabilities=["linux"], status="available"
             ))
             db.add(LabEnvironment(
-                id="win-01", vms=["W1"], guac_connection_id="1",
+                id="win-01", vms=["W1"],
                 capabilities=["windows-server", "ad-ds"], status="available"
             ))
 
@@ -340,7 +340,7 @@ class TestTeardownAndReaper:
         env_config = {
             "environments": [{
                 "id": "env-01", "vms": ["VM1"], "guac_target_vm": "VM1",
-                "guac_protocol": "rdp", "guac_connection_id": "1",
+                "guac_protocol": "rdp",
                 "capabilities": ["windows-server"], "status": "available"
             }]
         }
@@ -521,7 +521,7 @@ class TestFaultedEnvironmentRecovery:
 
         env_config = {"environments": [{
             "id": "env-01", "vms": ["VM1"], "guac_target_vm": "VM1",
-            "guac_protocol": "rdp", "guac_connection_id": "1",
+            "guac_protocol": "rdp",
             "capabilities": ["windows-server"], "status": "available"
         }]}
         env_yaml = tmp_path / "environments.yaml"
@@ -598,13 +598,13 @@ class TestFaultedEnvironmentRecovery:
         with scope() as db:
             for env_id in ("env-a", "env-b", "env-c"):
                 db.add(LabEnvironment(
-                    id=env_id, vms=["VM1"], guac_connection_id="1",
+                    id=env_id, vms=["VM1"],
                     capabilities=["windows-server"], status="faulted",
                     last_error="prior failure"
                 ))
             # Add a non-faulted env to confirm it is untouched
             db.add(LabEnvironment(
-                id="env-busy", vms=["VM2"], guac_connection_id="2",
+                id="env-busy", vms=["VM2"],
                 capabilities=["windows-server"], status="busy"
             ))
 
@@ -643,7 +643,7 @@ class TestFaultedEnvironmentRecovery:
 
         with scope() as db:
             db.add(LabEnvironment(
-                id="env-01", vms=["VM1"], guac_connection_id="1",
+                id="env-01", vms=["VM1"],
                 capabilities=["windows-server"], status="faulted",
                 last_error="WinRM timeout after 300s"
             ))
@@ -675,7 +675,7 @@ class TestFaultedEnvironmentRecovery:
         _, _, scope = db_factory
         with scope() as db:
             db.add(LabEnvironment(
-                id="linux-01", vms=["L1"], guac_connection_id="2",
+                id="linux-01", vms=["L1"],
                 capabilities=["linux"], status="available"
             ))
 
@@ -923,7 +923,7 @@ class TestReconciler:
         _, _, scope = db_factory
         with scope() as db:
             db.add(LabEnvironment(
-                id="env-multi", vms=["VM1", "VM2", "VM3"], guac_connection_id="1",
+                id="env-multi", vms=["VM1", "VM2", "VM3"],
                 capabilities=["windows-domain", "ad-ds"], status="faulted",
                 faulted_at=datetime.datetime.now(datetime.UTC) - datetime.timedelta(hours=1),
                 fault_retry_count=0
@@ -1053,10 +1053,10 @@ class TestSharedVMValidation:
         env_config = {
             "environments": [
                 {"id": "env-a", "vms": ["SharedVM", "VM-A"], "guac_target_vm": "SharedVM",
-                 "guac_protocol": "rdp", "guac_connection_id": "1",
+                 "guac_protocol": "rdp",
                  "capabilities": ["windows-server"], "status": "available"},
                 {"id": "env-b", "vms": ["SharedVM", "VM-B"], "guac_target_vm": "SharedVM",
-                 "guac_protocol": "rdp", "guac_connection_id": "2",
+                 "guac_protocol": "rdp",
                  "capabilities": ["windows-server", "ad-ds"], "status": "available"},
             ]
         }
@@ -1083,10 +1083,10 @@ class TestSharedVMValidation:
         env_config = {
             "environments": [
                 {"id": "env-a", "vms": ["VM-A"], "guac_target_vm": "VM-A",
-                 "guac_protocol": "rdp", "guac_connection_id": "1",
+                 "guac_protocol": "rdp",
                  "capabilities": ["windows-server"], "status": "available"},
                 {"id": "env-b", "vms": ["VM-B"], "guac_target_vm": "VM-B",
-                 "guac_protocol": "ssh", "guac_connection_id": "2",
+                 "guac_protocol": "ssh",
                  "capabilities": ["linux"], "status": "available"},
             ]
         }
@@ -1367,7 +1367,7 @@ class TestProvisioningFlowExecution:
 
         env_config = {"environments": [{
             "id": "env-01", "vms": ["VM1"], "guac_target_vm": "VM1",
-            "guac_protocol": "rdp", "guac_connection_id": "1",
+            "guac_protocol": "rdp",
             "capabilities": ["windows-server"], "status": "available"
         }]}
         env_yaml = tmp_path / "environments.yaml"

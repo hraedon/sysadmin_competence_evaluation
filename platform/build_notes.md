@@ -193,8 +193,7 @@ npx vitest run                          # Vitest suite
 ## Known issues
 
 See `breadcrumbs/README.md` for the full tracker. Key open items:
-- **ARCH-19:** Legacy `/evaluate` endpoint still active (accepts full rubric from caller).
-- **ARCH-20:** Frontend has no JWT refresh logic — silent 401s after 60-min token expiry.
-- **ARCH-15:** `LabEnvironment.guac_connection_id` column is vestigial post-SEC-02.
+- **ARCH-04:** SQLite hardcoded in lab controller; state lost on restart, scaling impossible.
+- **ARCH-24:** Proxmox orchestrator stub exists; needs full implementation.
 - **INFRA-02:** Hardcoded Hyper-V host FQDN in settings (mitigated by env vars).
 - **CONTENT-01:** D06 has only 1 scenario.

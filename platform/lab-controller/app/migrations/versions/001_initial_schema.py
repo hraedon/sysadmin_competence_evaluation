@@ -18,7 +18,6 @@ def upgrade():
         "environments",
         sa.Column("id", sa.String(), primary_key=True),
         sa.Column("vms", sa.JSON()),
-        sa.Column("guac_connection_id", sa.String(), nullable=True),
         sa.Column("guac_target_vm", sa.String(), nullable=True),
         sa.Column("guac_protocol", sa.String(), nullable=True),
         sa.Column("capabilities", sa.JSON()),

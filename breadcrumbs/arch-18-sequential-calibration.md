@@ -1,4 +1,7 @@
-# ARCH-18: Sequential Calibration Performance Bottleneck
+# ~~ARCH-18~~: Sequential Calibration Performance Bottleneck — **Closed**
+
+## Status
+Resolved. Calibration harness now supports `--concurrency <n>` flag (default: 5). Uses a worker-pool pattern with no external dependencies. A full run of 224 evaluations at concurrency 5 takes ~12 minutes (down from ~56 minutes sequential).
 
 ## Severity
 Low/Medium

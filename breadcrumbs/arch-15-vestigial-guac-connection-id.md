@@ -1,4 +1,7 @@
-# ARCH-15: Vestigial guac_connection_id on LabEnvironment
+# ~~ARCH-15~~: Vestigial guac_connection_id on LabEnvironment — **Closed**
+
+## Status
+Resolved. Removed `guac_connection_id` from `LabEnvironment` model, `environments.yaml`, `load_environments()`, migration, and all test fixtures. `LabSession.guac_connection_id` (which stores dynamic per-session connection IDs) is untouched.
 
 ## Severity
 Low (technical debt)
@@ -6,7 +9,7 @@ Low (technical debt)
 ## Location
 - `platform/lab-controller/app/database.py` — `LabEnvironment.guac_connection_id`
 - `platform/lab-controller/environments.yaml` — `guac_connection_id` field on each environment
-- `platform/lab-controller/app/main.py` — `load_environments()` reads and stores the field
+- `platform/lab-controller/app/services/lab_service.py` — `load_environments()` reads and stores the field
 
 ## Description
 `LabEnvironment.guac_connection_id` was used for static pre-configured Guacamole connections

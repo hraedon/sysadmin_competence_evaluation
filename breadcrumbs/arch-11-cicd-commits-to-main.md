@@ -1,4 +1,7 @@
-# ARCH-11: GitHub Actions Workflow Commits Directly to Main
+# ARCH-11: GitHub Actions Workflow Commits Directly to Main — **Partially Resolved**
+
+## Status
+Option 3 implemented: bot commit message includes `[skip ci]` to prevent CI loops. Options 1 (deploy branch) and 2 (kubectl set image) remain as future work if branch protection is added or contributors join.
 
 ## Severity
 Low (solo project), Medium (if contributors are added)

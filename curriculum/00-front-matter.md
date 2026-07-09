@@ -2,7 +2,7 @@
 
 Competency Map & Assessment Framework
 
-*Version 0.24 — Working Draft*
+*Version 0.25 — Working Draft*
 
 # Preface: Why This Exists
 

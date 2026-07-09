@@ -41,10 +41,13 @@ references; bare "Domain N" references are unvalidatable (audit them
 with `--list-bare` after any structural change).
 
 **R3 — Reasoning frameworks vs. house opinions are labeled.** Sections
-that argue a position (Kubernetes organizational fit, the portability
-argument) are legitimate and stay — marked as positions. Assessment
-rubrics built on them must reward tradeoff articulation, not agreement
-with the author's conclusion.
+that argue a position (e.g. the portability argument) are legitimate and
+stay — marked as positions. Assessment rubrics built on them must reward
+tradeoff articulation, not agreement with the author's conclusion.
+(The Domain 6 Kubernetes organizational-fit editorial was demoted to a
+neutral fit-question framing in v0.25 per owner decision 2026-07-09:
+agentic support lowers the operational-overhead ledger, and basic
+orchestration fluency is now assumed of any modern sysadmin.)
 
 **R4 — New domains follow the established chapter shape:** why-this-domain,
 scope/boundary statement (naming which existing domains own adjacent
@@ -144,9 +147,9 @@ framework and the assessment posture):
   a Deployment/Service/Ingress/PVC is at literacy level; triage of
   CrashLoopBackOff / ImagePullBackOff / pending-unschedulable;
   when the answer is "this needs a platform engineer."
-- Owner's k8s-skepticism editorial in D6 stands (R3: labeled as a
-  position); this domain is deliberately neutral — the cluster exists,
-  operate it competently.
+- The D6 organizational-fit section was demoted to a neutral fit
+  question in v0.25; this domain is likewise neutral — the cluster
+  exists, operate it competently.
 
 ### Domain 18 — Minimum Viable Database Administration (reads after 17; owner said "section" — see note)
 
@@ -168,11 +171,63 @@ to the MV Linux scale (3–4 exercises).
   workloads); D10 keeps restore-test discipline; this domain owns the
   database-specific semantics both of them currently gesture at.
 
+## Phase 1.5 — Platform parity (PROPOSED, pending owner decision 2026-07-09)
+
+The owner is leaning toward extending the map to genuinely fit the
+"Modern Systems Administration" title rather than declaring a
+Windows-centric persona. The organizing move: **the persona is not
+"Windows sysadmin" — it is "sysadmin with a declared native platform
+plus a functional floor on the other."** The reasoning layer (~80% of
+the map's content) is already platform-neutral; the platform-specific
+content becomes explicit tracks. The "minimum viable X" pattern —
+already proven for Linux, extended by Domains 17–18 — becomes the map's
+signature structure: platform-neutral judgment + declared native depth
++ calibrated floors everywhere else.
+
+Work items, sized:
+
+- **Front matter: native-track mechanism** (small). Candidate declares a
+  native platform; a full assessment = native-track depth + the MV floor
+  on the other platform. Preface persona paragraph written around this.
+- **Domain 1 dual-language parity** (moderate). Scope keeps
+  PowerShell + Bash as the two languages; author Bash-flavored parallels
+  for the five exercises. The audit/commission reasoning is identical —
+  that's the point, and the exercises should demonstrate it.
+- **Domain 2 → "Identity & Access" extension** (the big lift, part 1).
+  Keep the AD/Entra hybrid depth — it is the map's crown jewel and
+  reflects market reality (most enterprise Linux identity is still
+  AD-joined). Add: Linux-in-AD (SSSD/realmd, Kerberos on Linux), cloud
+  IdP / OIDC / SAML as the identity plane for SaaS-first shops, sudo/PAM
+  as the tiering instrument on Linux hosts, workload/machine identity.
+  The tiering-as-blast-radius framework already covers all of it.
+- **Domain 3 / Domain 11 example sweeps** (small). Dual-tool examples
+  (dig/nslookup, traceroute/tracert, nftables/Windows Firewall); a
+  syslog/journald credential-stuffing mirror of the Event 4625 exercise.
+- **New domain: Minimum Viable Windows Administration** (the big lift,
+  part 2; next free number). The symmetric mirror of Domain 12, for
+  Linux-native candidates: AD member-server basics and what GPO does to
+  a box, Event Viewer navigation, services/sc, PowerShell survival
+  vocabulary, WinRM/RDP, licensing/activation gotchas, the
+  Windows-reflex-on-Linux failure mode inverted. Domain 12's chapter
+  shape makes this near-mechanical to author.
+- **Coverage matrix** (small): add RHCSA / Linux+ columns so the gap
+  analysis isn't benchmarked only against Windows-adjacent certs.
+- **Platform implication**: exercises exist in platform flavors where
+  content is platform-specific; capability profiles annotate native
+  track vs. floor. Calibration per flavor.
+
+Total honest sizing: roughly two Phase-1 domains' worth of authoring
+(the Domain 2 extension and MV Windows), plus sweeps. Deliberately still
+out of scope: macOS/endpoint management, network engineering depth,
+full DBA — the floors stop where the specialist roles begin.
+
 ## Phase 2 — Revisions to existing content (team)
 
-- **Persona declaration** (preface): this is a map for the hybrid
-  Windows-infrastructure generalist in a mid-size org. Say so on page
-  one; stop implying universal coverage the Linux-shop reader won't find.
+- **Persona/preface rewrite**: superseded by Phase 1.5 if approved —
+  the preface then declares the native-track model instead of a
+  Windows-centric persona. If Phase 1.5 is declined, fall back to the
+  original item: declare the hybrid Windows-infrastructure persona on
+  page one.
 - **Coverage matrix honesty**: the Importance column is author judgment —
   label it as such or cite incident-cause data. Add a row note for the
   new domains once authored.
@@ -252,6 +307,8 @@ map's shape.
 | Work | Owner | Depends on |
 |------|-------|-----------|
 | Phase 0 (migration, gate, repairs) | done — agent, 2026-07-09 | — |
+| D6 editorial demotion (v0.25) | done — agent, 2026-07-09 | — |
+| Phase 1.5 (platform parity) | team, once owner confirms scope | Phase 0 |
 | Domain 15 (Directing AI Agents) | team | Phase 0 |
 | Domain 16 (Observability) | team | Phase 0 |
 | Domain 17 (MV DevOps) | team | Phase 0 |

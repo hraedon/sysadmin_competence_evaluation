@@ -326,6 +326,47 @@ specs. The curriculum/ layout was chosen so this split is a file move,
 not a rewrite. Do not start until Domains 15–18 have stabilized the
 map's shape.
 
+## Pre-kickoff execution notes (added 2026-07-09, before team start)
+
+These reorder or constrain the phases above; they are cheap before
+authoring begins and expensive after.
+
+1. **Conventions before content.** Two Phase 2 items move to the front
+   of the queue, before any new-domain authoring: (a) the L4 taxonomy
+   reconciliation — global taxonomy text says L4 is the
+   domain-appropriate expert level and levels are described as work
+   products; (b) the R3 rubric style — rubrics reward tradeoff
+   articulation, never conclusion-matching. Each is a half-day of
+   writing; skipping them means reconciling four more domains and
+   ~40–60 scenarios afterward.
+2. **Domain 15 content ownership.** The map chapter (this repo) becomes
+   canonical; agentic-onboarding syncs *from* it. Document the sync
+   direction in both repos before authoring — two sources of truth with
+   an undocumented sync direction is the README/map drift pattern again.
+3. **Calibration first-contact.** Pilot one scenario from each new
+   domain through the calibration harness *early* (before the domain's
+   full scenario set is authored) — the judgment-heavy new domains will
+   surface rubric variance (cf. breadcrumbs eval-05, eval-06) and it is
+   cheaper to fix the rubric pattern on one scenario than on ten. Also:
+   decide an evaluator model-pinning policy; "calibrated on Sonnet 4.6"
+   silently recalibrates when the model underneath changes.
+4. **Don't burn new items.** Domains 15–18 are authored under the
+   Phase 4 convention from day one: chapters carry *worked examples*;
+   calibrated assessment variants go directly to the private item bank
+   and are never published with their Watch For rubrics.
+5. **Authoring guide for agents.** One page, added to the repo before
+   drafting starts: the chapter voice (taught / actually-for / misuse
+   cadence), R4's structural shape, and the D7 lesson as a standing
+   rule — *concepts stable across the transition; vendor specifics only
+   where load-bearing* (the Kubernetes and Okta content is where authors
+   will be most tempted to violate it). Every chapter gets an
+   adversarial review pass before merge.
+6. **Version stamping.** Capability profiles gain a `map_version`
+   field now (profiles scored against different map versions are not
+   comparable). Each domain's front matter gains a `reviewed:` date so
+   staleness is mechanically visible — a map claiming "modern" should
+   be able to show which parts recently were.
+
 ## Sequencing and ownership
 
 | Work | Owner | Depends on |

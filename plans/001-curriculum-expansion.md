@@ -171,11 +171,10 @@ to the MV Linux scale (3–4 exercises).
   workloads); D10 keeps restore-test discipline; this domain owns the
   database-specific semantics both of them currently gesture at.
 
-## Phase 1.5 — Platform parity (PROPOSED, pending owner decision 2026-07-09)
+## Phase 1.5 — Platform parity (CONFIRMED by owner 2026-07-09)
 
-The owner is leaning toward extending the map to genuinely fit the
-"Modern Systems Administration" title rather than declaring a
-Windows-centric persona. The organizing move: **the persona is not
+The map extends to genuinely fit the "Modern Systems Administration"
+title rather than declaring a Windows-centric persona. The organizing move: **the persona is not
 "Windows sysadmin" — it is "sysadmin with a declared native platform
 plus a functional floor on the other."** The reasoning layer (~80% of
 the map's content) is already platform-neutral; the platform-specific
@@ -200,6 +199,31 @@ Work items, sized:
   IdP / OIDC / SAML as the identity plane for SaaS-first shops, sudo/PAM
   as the tiering instrument on Linux hosts, workload/machine identity.
   The tiering-as-blast-radius framework already covers all of it.
+
+  **Non-Microsoft IdP requirement (owner, 2026-07-09):** include at
+  least one Entra/AD-alternative IdP chosen by actual usage, not vibes.
+  Research finding (July 2026): among *dedicated* workforce IdPs, Okta
+  leads by a wide margin — ~41% of the tracked IdP/SSO category and the
+  most-used vendor in spend-based trackers — and every vendor-neutral
+  roundup places it as the default non-Microsoft choice in the mid-size
+  segment this map targets. Google (Workspace/Cloud Identity) is the
+  clear second *pattern*: dominant as the incumbent IdP in
+  Google-estate shops (startup/SMB/education) rather than as a chosen
+  standalone IdP. The owner's "Google distant second" instinct is right
+  weighted by org count, but in the map's mid-size persona segment the
+  alternative IdP actually encountered is Okta. Decision: **Okta is the
+  primary alternative worked example** (audit-level exercise — e.g.
+  reading an Okta org's policy/assignment model against a stated
+  intent); **Google Workspace gets a literacy-level treatment** as the
+  incumbent-IdP pattern (what it provides, what it lacks vs. Entra
+  conditional access, when it is the pragmatic answer). Concepts stay
+  protocol-first (SAML/OIDC/SCIM) so Ping/OneLogin/JumpCloud estates
+  still map onto the chapter. Sources: ramp.com vendor category data
+  (Okta most-used IdP, June 2026); bluefletch.com market-share analysis
+  (~41% of IdP category); securityboulevard.com Fortune-2000 IdP
+  coverage list; askmeidentity.com / startwithidentity.com 2026
+  roundups. Re-verify share at authoring time; the segment nuance
+  matters more than the precise number.
 - **Domain 3 / Domain 11 example sweeps** (small). Dual-tool examples
   (dig/nslookup, traceroute/tracert, nftables/Windows Firewall); a
   syslog/journald credential-stuffing mirror of the Event 4625 exercise.
@@ -308,7 +332,7 @@ map's shape.
 |------|-------|-----------|
 | Phase 0 (migration, gate, repairs) | done — agent, 2026-07-09 | — |
 | D6 editorial demotion (v0.25) | done — agent, 2026-07-09 | — |
-| Phase 1.5 (platform parity) | team, once owner confirms scope | Phase 0 |
+| Phase 1.5 (platform parity) | team — confirmed 2026-07-09 | Phase 0 |
 | Domain 15 (Directing AI Agents) | team | Phase 0 |
 | Domain 16 (Observability) | team | Phase 0 |
 | Domain 17 (MV DevOps) | team | Phase 0 |

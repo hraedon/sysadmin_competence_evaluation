@@ -1,0 +1,19 @@
+name: Competency map cross-reference gate
+
+on:
+  push:
+    paths:
+      - "curriculum/**"
+      - "scripts/check_map_refs.py"
+  pull_request:
+    paths:
+      - "curriculum/**"
+      - "scripts/check_map_refs.py"
+
+jobs:
+  map-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check domain cross-references
+        run: python3 scripts/check_map_refs.py

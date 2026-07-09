@@ -8,14 +8,16 @@ An interactive assessment platform built around the Modern Systems Administratio
 
 ## What it tests
 
-The competency map divides sysadmin work into 14 domains. Each domain has exercises at Levels 1–4:
+The competency map divides sysadmin work into 14 domains. Each domain has exercises at Levels 1–4 (labels below are the map's canonical taxonomy; each domain names its own variant, e.g. "Script Audit", "Change Commission"):
 
 | Level | Label | What it means |
 |-------|-------|---------------|
-| 1 | Awareness | Read the artifact and describe what it is doing |
-| 2 | Application | Identify risks, gaps, and violations |
-| 3 | Analysis | Specify what should be done — write the change plan, escalation, or spec |
-| 4 | Adaptation | Reason under uncertainty, calibrate severity, handle novel edge cases |
+| 1 | Literacy | Can read and describe — given a config, script, or log, explain what it does and what state it implies |
+| 2 | Audit | Can identify risks, gaps, and failure modes, and assess severity accurately |
+| 3 | Commission | Can specify requirements well enough to direct production work and evaluate what comes back |
+| 4 | Adaptation | Can make targeted, understood modifications — or exercise the domain's expert judgment (arbitration/design) |
+
+**Canonical source:** the map lives in [`curriculum/`](curriculum/) as markdown, one file per domain — the `.docx` is a rendered artifact (`scripts/build_map.sh` → `dist/`). Domain cross-references are checked by `scripts/check_map_refs.py` in CI. Domain numbers are stable IDs: new domains append, renumbering is prohibited (see `plans/001`).
 
 The exercises test reasoning, not recall. A candidate who has memorized the right answer to a known scenario can still fail if they cannot identify *why* the evidence points that direction.
 

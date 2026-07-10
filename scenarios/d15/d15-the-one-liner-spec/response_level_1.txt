@@ -1,0 +1,2 @@
+Looks pretty clear. I'd maybe ask them what format they want the report in —
+CSV or a table — and then let the agent build it. It's a simple enough tool.

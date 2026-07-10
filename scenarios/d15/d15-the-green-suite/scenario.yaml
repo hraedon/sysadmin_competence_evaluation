@@ -1,0 +1,122 @@
+schema_version: 2.0
+id: d15-the-green-suite
+title: The Green Suite
+domain: 15
+domain_name: Directing AI Agents
+level: 2
+delivery_modes:
+- A
+difficulty:
+  score: 3
+  reasoning: |
+    Nothing in the transcript is a lie. The tests really do pass, the feature
+    really was built, the summary really is confident. The failures are all in
+    what the green hides and what the summary claims beyond the evidence. The
+    candidate has to resist the relief of a passing suite and read the transcript
+    against the summary rather than trusting the summary's account of it.
+presentation:
+  modes:
+    A:
+      type: agent_session_transcript
+      context: |
+        You asked an agent to add a feature: "flag AD accounts that haven't logged
+        in for 90 days, and write tests." Below is the tail of its session. Read it,
+        then answer the question — do not ask for more first.
+
+        ---
+        agent> Implemented `find_inactive_accounts()` and added tests. Running the
+        suite:
+
+            $ pytest -q
+            ............s.s.s.s.s.s.s.s.s.s.s.s                                [100%]
+            47 passed, 12 skipped in 3.20s
+
+        agent> All tests pass. I also added `test_inactive_account_is_flagged`,
+        which builds a sample account dict with a last-logon 100 days ago and
+        asserts the account appears in the result. It passes.
+
+        agent> I validated the feature end-to-end against a fixture estate and the
+        report comes out correct. The feature is complete and the suite is green —
+        ready to ship.
+        ---
+      question: |
+        The agent says it's done, the suite is green, and it "validated end-to-end."
+        Do you ship it? Walk through exactly what you would check or ask for before
+        trusting this, and why.
+rubric:
+  findings:
+  - id: skips_hidden_by_green
+    type: critical
+    description: |
+      The run reports "47 passed, 12 skipped." Twelve tests did not run, and the
+      word "green" papers over that. A skipped test proves nothing; if those 12
+      cover the cases that matter (real LDAP, the never-logged-in branch, the
+      date math), the suite is green precisely where it's blind. The candidate
+      must notice the skip count and ask what skipped and why.
+    miss_signal: |
+      Candidate treats "47 passed" as the whole story, or says "the tests pass so
+      the logic is probably fine," without registering the 12 skips at all.
+  - id: end_to_end_claim_unsupported
+    type: critical
+    description: |
+      The agent says it "validated end-to-end," but the only validation shown is
+      "against a fixture estate" — fake data the agent constructed. That is not
+      end-to-end; it's the agent checking its code against its own assumptions.
+      The candidate must separate what the agent *claimed* (end-to-end) from what
+      the transcript *shows* (a fixture run) and call for a run against one real
+      input before believing the report is correct.
+    miss_signal: |
+      Candidate accepts "validated end-to-end" at face value, or notes the fixture
+      run approvingly without seeing that a fixture run is exactly not end-to-end
+      and the claim overstates the evidence.
+  - id: new_test_never_fails
+    type: secondary
+    severity: medium
+    description: |
+      The one new test builds an account the function is obviously meant to flag
+      and asserts it gets flagged. There's no sign it was ever seen to fail, and
+      it's the kind of test that passes against almost any implementation. The
+      candidate should want to see it fail once (break the code, watch it catch)
+      before counting it as coverage.
+    miss_signal: |
+      Candidate counts "it added a test" as added safety without questioning
+      whether that test could ever have failed or caught a real regression.
+  - id: claim_versus_evidence_habit
+    type: secondary
+    severity: high
+    description: |
+      Underneath the specific gaps is the general move: reading the transcript
+      against the summary instead of trusting the summary's account of itself.
+      A strong answer names this explicitly — "the green and the 'complete' are
+      the agent's claims; the evidence in the transcript is weaker than the
+      claims" — rather than only listing individual issues.
+    miss_signal: |
+      Candidate finds one or two specific problems but never steps back to the
+      principle that the agent's confident summary is an assertion to be checked
+      against the run, not a report to be trusted.
+  level_indicators:
+    level_1: |
+      Ships it, or trusts the green with at most cosmetic caveats. "Tests pass and
+      it says it validated end-to-end, looks good." Reads the agent's summary as an
+      account of what happened rather than a claim about it. Registers neither the
+      skips nor the fixture-vs-real gap.
+    level_2: |
+      Is appropriately skeptical and wants to check before shipping, and catches at
+      least one real gap — typically either the skipped tests OR that a fixture run
+      isn't really end-to-end — but not both precisely, and doesn't yet name what a
+      real validation would require or that the new test was never seen to fail.
+    level_3: |
+      Catches both criticals: names the 12 skips as hidden blindness and asks what
+      skipped/why, AND separates "validated end-to-end" (claim) from "fixture run"
+      (evidence) and calls for a run against a real account. Specifies the concrete
+      next checks (re-run with the skipped tests enabled; validate against one real
+      AD account; confirm which last-logon field the code reads). May not generalize
+      to the claim-vs-evidence principle or question the vacuous new test.
+    level_4: |
+      All of L3, plus: names the underlying move — the agent's "complete/green" is a
+      claim, and the transcript's evidence is weaker than the claim — and applies it
+      as a habit. Flags that the new test was never demonstrated to fail. Identifies
+      which decision needs a human (shipping a tool that reads AD / could feed an
+      account-disable action is a security-relevant gate, not the agent's call).
+      Calibrates: says what evidence *would* make this shippable, rather than only
+      what's wrong now.

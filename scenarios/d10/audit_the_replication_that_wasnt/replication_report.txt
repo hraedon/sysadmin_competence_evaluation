@@ -1,0 +1,162 @@
+================================================================================
+SQL SERVER REPLICATION HEALTH REPORT
+Generated: 2026-07-10 08:00:00
+Server: SQL-PROD-01.corp.local (Publisher / Distributor)
+Database: SalesDB
+Replication type: Transactional replication with push subscriptions
+Replica: SQL-DR-01.corp.local (Subscriber)
+Reporting tool: Replication Monitor (SQL Server Management Studio)
+================================================================================
+
+EXECUTIVE SUMMARY
+-----------------
+All replication agents report Success.
+No failed jobs in the last 7 days.
+No agent retries or error conditions.
+
+Status: HEALTHY
+
+---
+
+PUBLICATION CONFIGURATION
+-------------------------
+Publication name:        SalesDB_Publication
+Publisher database:      SalesDB
+Distributor:             SQL-PROD-01
+Distribution database: distribution
+Retention:             0 hours (minimum), 72 hours (maximum)
+Subscription type:       Push
+Synchronization type:    Continuous
+
+---
+
+SUBSCRIPTION STATUS
+-------------------
+Subscriber            Database        Status    Last Synchronized   Latency
+--------------------  --------------  --------  ------------------  --------
+SQL-DR-01             SalesDB_Replica  Running   2026-07-05 03:17    5 days
+
+Note: "Last Synchronized" reflects the last time the Distribution Agent
+successfully applied commands to the subscriber.
+
+---
+
+AGENT HISTORY — DISTRIBUTION AGENT (SQL-PROD-01 to SQL-DR-01)
+---------------------------------------------------------------
+Date        Start     End       Status   Delivered Cmds   Duration   Message
+----------  --------  --------  -------  ---------------  ---------  -------
+2026-07-09  00:00:02  00:02:14  Success             0       00:02:12  No transactions replicated
+2026-07-08  00:00:02  00:02:09  Success             0       00:02:07  No transactions replicated
+2026-07-07  00:00:02  00:02:11  Success             0       00:02:09  No transactions replicated
+2026-07-06  00:00:02  00:02:15  Success             0       00:02:13  No transactions replicated
+2026-07-05  00:00:02  00:04:33  Success       1,247,891       00:04:31  1,247,891 transaction(s) delivered
+2026-07-04  00:00:02  00:02:08  Success             0       00:02:06  No transactions replicated
+2026-07-03  00:00:02  00:02:10  Success             0       00:02:08  No transactions replicated
+
+---
+
+AGENT HISTORY — LOG READER AGENT (SalesDB)
+------------------------------------------
+Date        Start     End       Status   Scanned Cmds   Duration   Message
+----------  --------  --------  -------  -------------  ---------  -------
+2026-07-09  23:58:00  23:59:42  Success        0         00:01:42  No replicated transactions found
+2026-07-08  23:58:00  23:59:38  Success        0         00:01:38  No replicated transactions found
+2026-07-07  23:58:00  23:59:44  Success        0         00:01:44  No replicated transactions found
+2026-07-07  02:14:00  02:15:22  Success        0         00:01:22  No replicated transactions found
+2026-07-06  23:58:00  23:59:40  Success        0         00:01:40  No replicated transactions found
+2026-07-05  23:58:00  23:59:45  Success        0         00:01:45  No replicated transactions found
+2026-07-05  02:14:00  02:18:12  Success    1,251,004         00:04:12  1,251,004 command(s) scanned
+2026-07-04  23:58:00  23:59:43  Success        0         00:01:43  No replicated transactions found
+
+---
+
+DISTRIBUTION DATABASE CLEANUP JOB
+---------------------------------
+Job name:        Distribution clean up: distribution
+Schedule:        Every 10 minutes
+Last run:        2026-07-10 07:55:02
+Status:          Success
+Rows deleted:    0
+
+Configuration (sp_MSdistribution_cleanup):
+  @max_distretention = 72 hours
+  @history_retention = 48 hours
+
+Description:
+  Removes replicated transactions from the distribution database that have
+  already been delivered to all subscribers. Transactions older than
+  @max_distretention are also removed regardless of delivery status.
+
+---
+
+UNDELIVERED COMMANDS AS OF 2026-07-10 08:00
+--------------------------------------------
+Undelivered commands:  0
+Reason:                No pending commands in distribution database.
+
+Last undelivered command timestamp: N/A
+
+---
+
+REPLICATION LATENCY TREND (7 days)
+----------------------------------
+Date        Avg Latency   Max Latency   Status
+----------  ------------  ------------  ------
+2026-07-09          0 ms          0 ms  Green
+2026-07-08          0 ms          0 ms  Green
+2026-07-07          0 ms          0 ms  Green
+2026-07-06          0 ms          0 ms  Green
+2026-07-05          0 ms          0 ms  Green
+2026-07-04          0 ms          0 ms  Green
+2026-07-03          0 ms          0 ms  Green
+
+---
+
+DISASTER RECOVERY NOTE
+----------------------
+SalesDB_Replica on SQL-DR-01 is the designated failover target for SalesDB.
+The business RPO for the sales platform is 4 hours. Recovery of SalesDB_Replica
+is tested quarterly; last successful test: 2026-04-15.
+
+---
+
+RECENT INCIDENT CONTEXT
+-----------------------
+2026-07-02 22:30  Network maintenance window: WAN link to DR site flapped
+                   multiple times between 22:30 and 23:45.
+2026-07-03 00:00  Monitoring alert: Replication latency > 30 minutes.
+2026-07-03 00:15  Network engineer: "WAN link stable now; latency should
+                   recover. Will monitor."
+2026-07-03 02:00  Replication latency alert auto-cleared.
+2026-07-03 06:00  All replication agent statuses returned to Success.
+2026-07-05 03:17  Last recorded successful synchronization to subscriber.
+
+Post-maintenance note (DBA team):
+  "Agent jobs show green since the network event. No further action required."
+
+---
+
+MONITORING CONFIGURATION
+------------------------
+Alert source:     SQL Server Agent job status
+Monitored jobs:   Log Reader Agent, Distribution Agent, Snapshot Agent
+Alert condition:  Any job reports Failure or Retry
+
+No custom alerts configured for:
+  - Subscriber-side data freshness
+  - Replication latency threshold
+  - Undelivered command age
+  - Distribution database cleanup volume
+
+---
+
+KNOWN GAPS (documented in runbook, not yet remediated)
+-------------------------------------------------------
+- Latency monitoring relies on manual Replication Monitor checks.
+- No automated validation queries compare publisher and subscriber tables.
+- Distribution cleanup retention not reviewed against business RPO.
+- Failover decision relies on agent job status, not data freshness.
+
+================================================================================
+END OF REPORT
+================================================================================

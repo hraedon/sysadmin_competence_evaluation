@@ -4,7 +4,7 @@
 Medium — evaluation quality / credibility
 
 ## Location
-`scenarios/d14/` — all four scenarios: audit_the_stressed_stakeholder, audit_the_siloed_upgrade, audit_the_baseline_assumption, audit_the_messenger
+`scenarios/d14/` — all five scenarios
 
 ## Description
 D14 scenarios ask the evaluator to assess social reasoning, stakeholder communication, and organizational dynamics. These are exactly the areas where LLM evaluation is least reliable, for two reasons:

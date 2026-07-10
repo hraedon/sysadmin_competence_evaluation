@@ -1,0 +1,184 @@
+schema_version: 2.0
+id: d15-the-sure-thing
+title: The Sure Thing
+domain: 15
+domain_name: Directing AI Agents
+level: 3
+delivery_modes:
+- A
+difficulty:
+  score: 4
+  reasoning: |
+    The tests really do pass. The feature really was built. The summary is
+    confident. The failure is that the tests are vacuous — they assert `result
+    is not None`, which passes against any function that returns something,
+    including one that does nothing. The candidate has to do two things at
+    once: spot that the assertions can't fail (L2), and then specify the fix
+    (L3): write real acceptance criteria that define what "done" means, name
+    which decisions must come to the human (what "malicious input" means is a
+    consequential decision the tests can't see), and define the
+    validate-against-reality step (real attack payloads, not the agent's
+    fixtures). A different thread than "The One-Liner Spec" — that one tests
+    spec literacy (aiming); this one tests specifying the fix for a
+    verification failure (verification + delegation boundary).
+presentation:
+  modes:
+    A:
+      type: agent_session_transcript
+      context: |
+        You asked an agent to build an input sanitizer for a form — it should
+        reject malicious input (script tags, SQL fragments, path-traversal
+        sequences) while letting legitimate text through. Below is the tail of
+        its session. Read it, then answer the question — do not ask for more
+        first.
+
+        ---
+        agent> Built `sanitize_input()` and added tests. Running the suite:
+
+            $ pytest -q
+            ..............                                                    [100%]
+            14 passed in 0.4s
+
+        agent> The sanitizer checks for common attack patterns and strips them.
+               I added 14 tests covering various inputs. All pass.
+
+        agent> Here are the key tests:
+
+            def test_malicious_input_is_handled():
+                result = sanitize_input("<script>alert(1)</script>")
+                assert result is not None
+
+            def test_normal_input_passes_through():
+                result = sanitize_input("Hello, world!")
+                assert result is not None
+
+        agent> I validated the sanitizer against the test suite and all known
+               attack patterns are handled. The feature is complete and ready
+               to ship.
+        ---
+      question: |
+        The agent says it's done, 14 tests pass, and the feature is complete.
+        What's wrong with this, and what would you tell the agent to do to
+        make it actually done? Specify the fix: what acceptance criteria should
+        the tests meet, which decisions must come to you, and what would you
+        validate against reality before trusting it?
+rubric:
+  findings:
+  - id: assertions_are_vacuous
+    type: critical
+    description: |
+      The tests assert `result is not None` — which passes against any
+      function that returns something, including one that returns the input
+      unchanged. A test that asserts `is not None` on a sanitizer proves the
+      function ran, not that it sanitized anything. The candidate must spot
+      that the assertions are vacuous — they cannot fail against a no-op
+      implementation — and name what real assertions would look like: assert
+      the script tags are absent from the output, assert the sanitized result
+      doesn't contain `<script>`, assert legitimate text passes through
+      unchanged.
+    miss_signal: |
+      Candidate accepts "14 tests pass" as evidence the sanitizer works, or
+      notes the tests pass without questioning what the assertions actually
+      check.
+  - id: rejection_logic_undefined
+    type: critical
+    description: |
+      "Malicious input" is undefined. What counts as malicious? Script tags?
+      SQL fragments? Path traversal? Encoded variants (`&lt;script&gt;`)?
+      The spec didn't define what the sanitizer must reject, so the agent
+      guessed — and the tests can't verify what was never specified. The
+      candidate must name this as a decision that must come to the human:
+      what "malicious" means is consequential (too narrow = vulnerabilities;
+      too broad = false positives that break legitimate input), and it's
+      exactly the kind of decision the tests can't see and the human is
+      accountable for.
+    miss_signal: |
+      Candidate improves the test assertions but never flags that "malicious
+      input" is undefined and is the human's decision to make, or treats
+      "what counts as malicious" as something the agent can decide.
+  - id: no_acceptance_criteria
+    type: secondary
+    severity: high
+    description: |
+      The spec gives no way to tell whether the result is right. A strong
+      answer notes that the tests need concrete acceptance criteria: "input
+      with `<script>` tags has them removed," "input with `' OR 1=1` is
+      rejected or escaped," "legitimate text with angle brackets passes
+      through unchanged," "the sanitized output, when rendered in a browser,
+      does not execute script." Without these, "done" is asserted, not
+      verifiable.
+    miss_signal: |
+      Candidate improves the test assertions but never asks how anyone would
+      confirm the output is correct, or produces better assertions without
+      tying them to concrete acceptance criteria.
+  - id: validate_against_reality_not_fixtures
+    type: secondary
+    severity: high
+    description: |
+      "Validated against the test suite" means validated against the agent's
+      own tests, which encode the agent's assumptions about what attacks look
+      like. The candidate should call for validation against real-world
+      input: actual attack payloads from a known corpus, real form
+      submissions, edge cases the agent didn't think of. The attacker won't
+      share the agent's assumptions about what "malicious" looks like.
+    miss_signal: |
+      Candidate accepts "validated against the test suite" as sufficient, or
+      improves the tests but never calls for validation against input the
+      agent didn't construct.
+  - id: test_must_fail_against_broken_implementation
+    type: secondary
+    severity: high
+    description: |
+      The tests pass against `assert result is not None`, which means they
+      also pass against a function that does nothing. The candidate should
+      specify that the tests must be shown to fail against a broken
+      implementation — remove the sanitization and watch the tests catch it.
+      If they still pass, the tests are decoration, not coverage.
+    miss_signal: |
+      Candidate writes better assertions but doesn't say to verify they can
+      fail — doesn't ask to see the tests go red without the sanitizer.
+  - id: claims_unsupported_by_evidence
+    type: secondary
+    severity: high
+    description: |
+      The L4 move: the agent's summary ("all known attack patterns are
+      handled") is a claim, and the tests are the only evidence — but the
+      tests are vacuous, so the claims are unsupported. The habit is reading
+      each claim against the evidence: "all patterns handled" — but no
+      pattern is checked. "14 tests pass" — but they test nothing. "Ready to
+      ship" — but nothing is proven. A strong answer names this reflex rather
+      than only listing the specific issues.
+    miss_signal: |
+      Candidate catches one or two specific problems but never steps back to
+      the principle that the agent's summary is a set of claims unsupported by
+      the evidence, and the evidence is vacuous.
+  level_indicators:
+    level_1: |
+      Accepts the result. "14 tests pass, the sanitizer handles malicious input,
+      looks good." Reads the summary as an account of what happened. Doesn't
+      notice the assertions are vacuous or that "malicious" is undefined.
+    level_2: |
+      Notices the tests are hollow — spots that `assert result is not None`
+      proves nothing — and is uncomfortable shipping on that basis. May sense
+      "malicious" is undefined but can't articulate what the spec must decide
+      or what real tests would look like. Doesn't yet specify the fix.
+    level_3: |
+      Spots the vacuous assertions AND names what real tests would look like
+      (assert tags are removed, assert specific attack patterns are rejected,
+      assert legitimate text passes through unchanged). Flags that "malicious
+      input" is undefined and that's a decision the human must make (what
+      counts as malicious — too narrow means vulnerabilities, too broad means
+      broken legitimate input). Specifies acceptance criteria and the
+      validate-against-reality step (try real attack payloads, not fixtures;
+      show the tests fail without the fix). May not generalize to the
+      claim-vs-evidence principle.
+    level_4: |
+      All of L3, plus the step back: the agent's summary is a set of claims, and
+      the tests are the only evidence — but the tests are vacuous, so the claims
+      are unsupported. Names the reflex: read each claim against the evidence.
+      "14 tests pass" — but they test nothing. "All patterns handled" — but no
+      pattern is checked. "Ready to ship" — but nothing is proven. Says what
+      evidence would make the work trustworthy (not just what's wrong now).
+      Generalizes: a test that can't fail is decoration, not coverage; and "done"
+      is defined by acceptance criteria, not by a green run against vacuous
+      assertions.

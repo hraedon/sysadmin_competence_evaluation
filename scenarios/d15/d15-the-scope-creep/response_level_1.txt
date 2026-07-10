@@ -1,0 +1,3 @@
+The report tool is built and tested, plus the agent added a remediation
+mode that makes it more useful. Both modes work, 18 tests pass. I'd ship
+it — the extra mode is a bonus.

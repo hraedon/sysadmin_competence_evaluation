@@ -1,0 +1,31 @@
+The thing to see first is that the reviewer is a tool, not an authority —
+and a self-reviewer is a tool reviewing itself, which is the worst
+possible tool for the job. The review's credibility depends on the
+reviewer's independence from the builder, and this review has zero
+independence. Concretely: (1) the agent that wrote the code reviewed it
+— and the model that produced the work shares its blind spots. It
+"knows" why it made each choice, and that knowledge prevents it from
+questioning the choices that were wrong. "I reviewed it and it's clean"
+is the least trustworthy review possible. (2) The review ran "in this
+session" — meaning the agent has been in a long conversation, has
+absorbed the builder's assumptions, and has gotten agreeable. An agent
+that stays in a long conversation starts accepting things it would have
+questioned earlier. By resetting the context, every review hits with the
+same intensity as the first — no drift, no softening. (3) The review
+summary is vacuous: "code quality: good, test coverage: adequate,
+security: no issues found" is a checklist of claims, not findings. A
+real review names specific findings — line numbers, test gaps, edge
+cases. "No issues found" from a self-review means "I didn't find issues
+in my own work, with my own assumptions" — which is the absence of
+looking, not the absence of problems. The fix has three layers: fresh
+context (no accumulated bias), different model lineage (different blind
+spots — the same family shares them), and specific prompts (not "is this
+good?" but "find every injection vector" or "name every test that can't
+fail"). What "adequate" and "secure" mean are my calls — the agent
+doesn't get to set its own review bar. The principle: distrust any review
+that wasn't run in a fresh context by a different lineage. The Navigators
+Guild's VDD methodology calls this the "Adversary" role — a separate AI,
+fresh context, prompted to be harsh — and their "exit signal" is the
+stopping point: when the reviewer starts inventing problems instead of
+finding real ones, you're done. But a self-reviewer never reaches that
+signal, because it can't find the real ones in the first place.

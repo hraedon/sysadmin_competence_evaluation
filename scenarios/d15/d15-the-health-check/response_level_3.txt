@@ -1,0 +1,13 @@
+No, not yet. The health check returns "healthy" whenever the process is
+alive — but the process can be alive while the background worker has
+crashed. The check tests the wrong thing: it answers "is the process up?"
+not "is the worker running?" And the test only proves the endpoint exists
+and returns a response — it doesn't prove the worker is healthy, because
+it would also pass if the worker were dead. What I'd want: the health check
+should test something about the worker itself — last-poll-time (when did
+the worker last check for tasks?), or a heartbeat timestamp that the
+worker updates each loop. If last-poll-time is older than 60 seconds, the
+worker is stuck and the endpoint should return "unhealthy." And the test
+should fail when the worker is down — stop the worker, hit the endpoint,
+and assert it returns "unhealthy." Until the check tests worker health, not
+process-alive, "health monitoring is complete" is just the agent's word.

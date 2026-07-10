@@ -1,0 +1,9 @@
+No, not yet, for two reasons. First, "47 passed, 12 skipped" — twelve tests
+didn't run, and those are often the ones that need a real dependency like actual
+LDAP, which is exactly where this could be wrong. I'd ask what skipped and why,
+and re-run with them enabled. Second, "validated end-to-end" is overstated: the
+only validation shown is against a fixture estate the agent made up, which is
+not end-to-end. I'd want it run against one real AD account and I'd confirm which
+last-logon field it's actually reading, since that's an easy thing to get
+subtly wrong. Until I see a real run and the skipped tests pass, "complete" is
+just the agent's word for it.

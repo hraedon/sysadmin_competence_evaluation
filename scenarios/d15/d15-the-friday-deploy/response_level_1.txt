@@ -1,0 +1,4 @@
+The agent got the report from 45 seconds down to 2 seconds — that's a big
+improvement and you can see the timing. Tests pass and it says the output
+matches the old version. I'd deploy it for Monday. The speedup is the main
+thing and it's done.

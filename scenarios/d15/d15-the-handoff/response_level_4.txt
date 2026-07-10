@@ -1,0 +1,17 @@
+The thing to see first is that the handoff is a set of claims, and the
+headline ("ready to merge, 342 pass, clean") is contradicted by the agent's
+own admissions in the same artifact. The skill is reading the whole
+handoff, not just the headline — the claims and the caveats are side by
+side, and the headline papers over the caveats. Concretely: (1) "ready to
+merge" is contradicted by three unverified items in the same note; (2) "342
+pass" is local — CI wasn't confirmed on the final commit, so the pass count
+is a local result, not a CI result; (3) the header-injection fix has no
+regression test — that's a security-relevant fix with no evidence it works,
+and "the fix is in place" is not the same as "the fix is proven." (4) The
+e2e suite wasn't run after a UI change, which the project's own rules
+require. What would make "ready to merge" true: write the regression test
+for the injection fix and see it fail without the fix, run the e2e suite,
+and confirm CI green on the final commit. The principle: an agent's handoff
+is its account of its own work — the headline is a claim, and the body may
+contain the evidence that contradicts it. Read the whole thing, and where
+the claims and the caveats conflict, the caveats are the evidence.

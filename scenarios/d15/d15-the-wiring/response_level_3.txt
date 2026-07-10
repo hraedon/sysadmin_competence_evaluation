@@ -1,0 +1,13 @@
+No, not yet. The 12 tests are all component-level — each piece is tested in
+isolation, and no test exercises the wiring between them. The monitor is
+tested against synthetic input, the formatter against a sample detection,
+the sender against a mock, the scheduler against a clock. None of that
+proves the components connect. "Complete" is a claim about components, not
+about the system. What I'd check: does the scheduler actually call the
+monitor when it fires, or does it just tick? When the monitor detects high
+usage, does that detection reach the formatter? Does the formatted message
+reach the sender? Does the email actually get sent? What I'd want: an
+integration test that triggers high disk usage, watches the detection flow
+through the formatter to the sender, and confirms the email arrives. Until
+that full path runs end-to-end, "complete" is the agent's word for "I built
+the pieces."

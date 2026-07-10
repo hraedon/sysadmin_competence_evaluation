@@ -1,0 +1,153 @@
+schema_version: 2.0
+id: d15-the-health-check
+title: The Health Check
+domain: 15
+domain_name: Directing AI Agents
+level: 2
+delivery_modes:
+- A
+difficulty:
+  score: 3
+  reasoning: |
+    Nothing in the transcript is a lie — the endpoint really does return
+    "healthy," the test really does pass, and the worker really does start on
+    boot. The failure is in what "healthy" means: the health check tests
+    whether the process is alive, not whether the background worker is running.
+    A process can be alive while its worker has crashed — and nothing in the
+    output tells you that. The candidate has to resist the relief of a green
+    health check and read what the check actually tests, not just what it
+    returns. A different hollow-green shape than "The Green Suite" (skipped
+    tests) or "The Zero Findings" (silence as cleanliness): there, the tests
+    didn't run or the checker couldn't read; here, the check runs and returns
+    green, but it's checking the wrong thing — process alive ≠ worker working.
+presentation:
+  modes:
+    A:
+      type: agent_session_transcript
+      context: |
+        You asked an agent to add a health endpoint to a background worker
+        service. The worker polls for new tasks every 30 seconds. You wanted to
+        know if the worker is actually running — not just if the process is
+        alive.
+
+        Below is the tail of the agent's session. Read it, then answer the
+        question — do not ask for more first.
+
+        ---
+        agent> Built the /health endpoint. It returns {"status": "healthy"}
+               when the process is running. Added a test:
+
+            def test_health_returns_healthy():
+                response = client.get("/health")
+                assert response.json() == {"status": "healthy"}
+
+            $ pytest -q
+            ....                                                                  [100%]
+            4 passed in 0.2s
+
+        agent> The health check is implemented and tested. The background worker
+               starts on boot and runs in a loop inside the process. Health
+               monitoring is complete — ready to deploy.
+        ---
+      question: |
+        The agent says health monitoring is implemented and tested, and it's
+        ready to deploy. Do you trust this? Walk through exactly what you would
+        check or ask for before deploying, and why.
+rubric:
+  findings:
+  - id: healthy_means_process_alive_not_worker_running
+    type: critical
+    description: |
+      The health check returns "healthy" when the process is running — but
+      the process can be alive while the background worker has crashed. The
+      candidate must spot that "healthy" tests the wrong thing: it answers
+      "is the process alive," not "is the worker doing its job." A process
+      whose worker has exited will still serve /health and return "healthy,"
+      because the health check doesn't check the worker — it checks the
+      process. The question the endpoint answers (is the process alive?) is
+      not the question the candidate asked it to answer (is the worker
+      running?).
+    miss_signal: |
+      Candidate accepts "healthy" as evidence the worker is running, or
+      says "the health check passes so the system is probably fine" without
+      registering that the check tests process-alive, not worker-running.
+  - id: test_proves_endpoint_exists_not_worker_health
+    type: critical
+    description: |
+      The test asserts that /health returns `{"status": "healthy"}` — which
+      proves the endpoint exists and returns a response, not that the worker
+      is running. The test passes because the process is alive during the
+      test, but it would also pass if the worker had crashed. The candidate
+      must separate "the endpoint works" (the test proves this) from "the
+      worker is healthy" (the test proves nothing about this) and call for a
+      test that actually checks worker health — e.g., last-poll-time, task
+      throughput, or a heartbeat.
+    miss_signal: |
+      Candidate treats "4 passed" as evidence the health check works, or
+      notes the test passes without questioning what it actually tests.
+  - id: what_would_worker_health_look_like
+    type: secondary
+    severity: high
+    description: |
+      A strong answer specifies what a real health check would test: last
+      poll time (when did the worker last successfully checked for tasks?),
+      a heartbeat (does the worker update a timestamp each loop?), or task
+      throughput (is the worker actually processing?). The candidate should
+      name concretely what "worker is healthy" means and what the endpoint
+      should check to mean it — not just "it should check the worker."
+    miss_signal: |
+      Candidate spots that the health check is wrong but can't say what a
+      real one would check, or says "it should check the worker" without
+      naming what that means concretely.
+  - id: false_confidence_worse_than_no_check
+    type: secondary
+    severity: high
+    description: |
+      A health check that returns "healthy" when the worker is dead is worse
+      than no health check at all, because it gives false confidence: you
+      stop checking manually because the monitor says "healthy," and the
+      monitor is lying. The candidate should name this principle — a
+      misleading green is more dangerous than no green, because it suppresses
+      the vigilance that would otherwise catch the failure.
+    miss_signal: |
+      Candidate spots the health check is wrong but doesn't register that a
+      misleading health check is worse than none — that false confidence
+      suppresses the vigilance that would catch the failure.
+  - id: claim_versus_evidence_habit
+    type: secondary
+    severity: high
+    description: |
+      Underneath the specific gaps is the general move: the agent's summary
+      ("health monitoring is complete, ready to deploy") is a set of claims,
+      and the transcript's evidence (a check that tests process-alive, a test
+      that proves the endpoint exists) is weaker than the claims. A strong
+      answer names this explicitly — "the 'complete' and the 'ready to
+      deploy' are the agent's claims; the evidence checks the wrong thing" —
+      rather than only listing individual issues.
+  level_indicators:
+    level_1: |
+      Ships it. "Health check returns healthy, tests pass, it says it's ready
+      to deploy." Reads the agent's summary as an account of what happened.
+      Doesn't question what "healthy" actually means or what the test actually
+      checks.
+    level_2: |
+      Is appropriately skeptical and wants to check before deploying, and
+      catches that "healthy" only means the process is alive — not that the
+      worker is running. But may not specify what a real health check would
+      test (last-poll-time, heartbeat) or name that a misleading green is worse
+      than none.
+    level_3: |
+      Catches both criticals: "healthy" tests process-alive not worker-running,
+      AND the test proves the endpoint exists, not that the worker is healthy.
+      Specifies what a real health check would test concretely (last-poll-time,
+      heartbeat, throughput). May not generalize to the false-confidence
+      principle or name that a misleading green is worse than no check.
+    level_4: |
+      All of L3, plus: names the principle — a health check that returns
+      "healthy" when the worker is dead is worse than no health check, because
+      it gives false confidence and suppresses the vigilance that would catch
+      the failure. The agent's "health monitoring is complete" is a claim, and
+      the evidence checks the wrong thing. Calibrates: says what evidence would
+      make "healthy" trustworthy (the check tests worker health, not process
+      alive; the test fails when the worker is down). Generalizes: read what
+      the check tests, not just what it returns.

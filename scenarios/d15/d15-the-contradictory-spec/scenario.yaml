@@ -1,0 +1,180 @@
+schema_version: 2.0
+id: d15-the-contradictory-spec
+title: The Contradictory Spec
+domain: 15
+domain_name: Directing AI Agents
+level: 3
+delivery_modes:
+- A
+difficulty:
+  score: 4
+  reasoning: |
+    The spec reads as complete because every section says something true — and
+    no section is underspecified the way "The One-Liner Spec" is. The failure
+    is internal: two sections contradict each other, and neither flags the
+    contradiction. Section 2 says "read-only, hard requirement." Section 5
+    describes a write operation ("moves resources to an archive") and calls it
+    "the primary use case." The candidate has to read the spec as a whole —
+    not section by section — to spot the contradiction, and then specify the
+    fix: surface it as a blocking open question before building, and name
+    read-vs-act as the decision the human must own. A different L3 failure
+    mode than "The One-Liner Spec" (underspecification → the agent guesses):
+    here the spec says enough in each section, but the sections disagree, and
+    the agent will pick one silently.
+presentation:
+  modes:
+    A:
+      type: spec_review
+      context: |
+        A colleague wants a tool and has written this spec for an agent to
+        build:
+
+        ---
+        SPEC
+
+        1. Goal: A tool that lists resources in a directory and flags any
+           that haven't been accessed in 90 days.
+
+        2. Safety: The tool is read-only. It never modifies, moves, or
+           deletes any resource in the directory. This is a hard
+           requirement.
+
+        3. Output: A report listing flagged resources, written to a file
+           path given on the command line.
+
+        4. Scope: All resources in the target directory, including
+           subdirectories.
+
+        5. Remediation mode: When run with the --remediate flag, the tool
+           moves flagged resources to an archive directory and logs the
+           action. This is the primary use case — the colleague expects to
+           run it weekly with --remediate.
+        ---
+
+        You're about to hand this spec to an agent. Read it as the agent
+        will — literally, with no access to what the colleague meant.
+      question: |
+        Where does this spec contradict itself, and what must happen before
+        it's safe to hand to an agent? Of the decisions that need resolving,
+        which are the human's to make rather than the agent's — and why?
+rubric:
+  findings:
+  - id: section_2_contradicts_section_5
+    type: critical
+    description: |
+      Section 2 says "read-only, never modifies, moves, or deletes — hard
+      requirement." Section 5 says "run with --remediate, the tool moves
+      flagged resources to an archive." These directly contradict each other:
+      one says the tool never moves anything, the other describes moving as
+      the primary use case. Neither section flags the contradiction. The
+      candidate must spot that the spec disagrees with itself — not that
+      something is missing (underspecification), but that two stated
+      requirements are mutually exclusive. An agent handed this spec will
+      pick one silently — either build a read-only tool and ignore Section 5,
+      or build a tool that moves resources and violate Section 2 — and
+      nothing in the spec tells it which to choose.
+    miss_signal: |
+      Candidate reads each section individually and doesn't notice the
+      contradiction, or notices that Section 5 mentions moving but doesn't
+      connect it to Section 2's "never moves" requirement.
+  - id: read_vs_act_is_the_human_gate
+    type: critical
+    description: |
+      Whether the tool only reads and reports, or can move resources to an
+      archive, is the single most consequential undecided thing in this spec
+      — and it is a decision the human must own. A tool that moves resources
+      can cause data loss, break workflows, or delete things that shouldn't
+      be moved. The candidate must both (a) surface the contradiction as a
+      blocking question and (b) identify read-vs-act as the human's call, not
+      the agent's, because the consequence is one the tests can't see and the
+      human is accountable for. "This is the primary use case" in Section 5
+      makes the contradiction sharper — the colleague seems to want the write
+      mode, but Section 2 says read-only is a hard requirement. The human
+      must decide which is real before the agent starts.
+    miss_signal: |
+      Candidate spots the contradiction but doesn't isolate read-vs-act as
+      the decision the human must own, or treats it as something the agent
+      can resolve by picking one.
+  - id: primary_use_case_sharpens_contradiction
+    type: secondary
+    severity: high
+    description: |
+      Section 5 says "--remediate is the primary use case — the colleague
+      expects to run it weekly." This makes the contradiction with Section 2's
+      "hard requirement" even more acute: the colleague seems to want the
+      write mode as the main thing the tool does, but Section 2 forbids it.
+      The candidate should notice that "primary use case" isn't a casual
+      aside — it means the read-only mode (Section 2) is the secondary path,
+      which makes the "hard requirement" labeling in Section 2 suspicious.
+      Did the colleague change their mind between sections? Did they copy a
+      template? The spec doesn't say, and the agent won't ask.
+    miss_signal: |
+      Candidate notes the contradiction but doesn't register that "primary
+      use case" makes it sharper — that the colleague seems to want the
+      write mode as the main thing, which directly conflicts with "hard
+      requirement" read-only.
+  - id: no_acceptance_criteria_for_remediation
+    type: secondary
+    severity: high
+    description: |
+      If the remediation mode is real, it has no acceptance criteria. What
+      happens if the archive directory doesn't exist? What if a resource is
+      locked or in use? What if the move fails halfway? Does the tool roll
+      back? The spec gives no way to tell whether remediation is correct. A
+      strong answer notes that the spec needs concrete checks for the write
+      mode: a flagged resource is moved, a non-flagged resource is not, a
+      missing archive directory is handled, a failed move is reported not
+      swallowed.
+    miss_signal: |
+      Candidate focuses on the contradiction but doesn't notice that the
+      remediation mode, if real, has no acceptance criteria.
+  - id: contradiction_is_silent_delegation
+    type: secondary
+    severity: high
+    description: |
+      The L4 move: stepping back to why this matters. An internal
+      contradiction in a spec is silent delegation to the agent — the agent
+      will pick one path and the human won't know which until the tool is
+      built. This is worse than underspecification (where the agent guesses
+      at a gap) because the spec explicitly says two things and the agent
+      must choose which to ignore. A strong answer names this: the fix is
+      not just "resolve the contradiction" — it's "the spec review process
+      must catch contradictions before handing to the agent, because the
+      agent won't ask." The habit is reading the spec as a whole, not section
+      by section, and flagging any place where two sections disagree.
+    miss_signal: |
+      Candidate resolves the contradiction (picks read-only or remediation)
+      but doesn't step back to the principle that contradictions are silent
+      delegation, or that the spec review process must catch them.
+  level_indicators:
+    level_1: |
+      Reads the spec as basically fine, or only asks for cosmetic additions.
+      Doesn't notice the contradiction between Section 2 and Section 5. May
+      register that the tool can move resources (Section 5) without connecting
+      it to the "read-only, hard requirement" in Section 2.
+    level_2: |
+      Senses the spec has a problem and may notice the contradiction between
+      Section 2 and Section 5, but doesn't isolate read-vs-act as the decision
+      the human must own, or treats it as something the agent can resolve.
+      Doesn't yet specify what the fix looks like (surface as blocking open
+      question) or name the acceptance criteria gap.
+    level_3: |
+      Spots the contradiction: Section 2 says "read-only, hard requirement,"
+      Section 5 describes moving resources as "the primary use case." Names
+      read-vs-act as the decision the human must own — the tool either moves
+      resources or it doesn't, and that's the human's call because the
+      consequence is one the tests can't see. Specifies the fix: surface the
+      contradiction as a blocking open question before building. Flags the
+      missing acceptance criteria for the remediation mode. May not generalize
+      to "contradiction is silent delegation" or the spec-as-a-whole principle.
+    level_4: |
+      All of L3, plus the step back: an internal contradiction is silent
+      delegation — the agent will pick one path and the human won't know which
+      until the tool is built. This is worse than underspecification because
+      the spec explicitly says two things and the agent must choose which to
+      ignore. Names the principle: read the spec as a whole, not section by
+      section, because contradictions live between sections. Distinguishes this
+      failure mode from "The One-Liner Spec" (underspecification → agent
+      guesses) — here the spec says enough, but the sections disagree. Frames
+      the fix as a spec-review discipline: catch contradictions before handing
+      to the agent, because the agent won't ask.

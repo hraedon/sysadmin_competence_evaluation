@@ -1,0 +1,2 @@
+The sanitizer is built, 14 tests pass, and the agent says it handles all
+known attack patterns. Looks complete to me — I'd ship it.

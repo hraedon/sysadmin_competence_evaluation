@@ -1,0 +1,21 @@
+This environment has a failed certificate lifecycle programme that produced a preventable outage and is continuing to accumulate risk.
+
+The primary incident, INC-2026-0314, was caused by the expired customer-portal.corp.local certificate on the F5 primary data centre. The evidence is direct: the certificate expired on 2026-07-05; the outage began on 2026-07-07; the F5 sent TCP RSTs; switch counters were clean; failover to the secondary DC restored service; and the F5 SSL profile for customer-portal still binds the expired certificate with an incomplete intermediate chain. The network team's conclusion of "transient network event" is wrong and should be corrected. The outage is a certificate incident, not a network incident.
+
+The root cause is systemic. CertWatch alerts only at 14 days, so the expired certificate would have crossed the threshold during a period when the security team was already overloaded and would have had no realistic chance to procure, validate, deploy, and test a replacement. More subtly, the monitoring was set to 14 days in March 2026 to reduce alert volume, which institutionalised the blind spot. The spreadsheet source of truth, manual reconciliation with the F5, and absence of trust-chain validation all compound the problem.
+
+The deeper architectural gaps are:
+
+1. False confidence from job-status monitoring. CertWatch reports CLEAR and only validates expiry dates from a spreadsheet. It does not verify whether the certificate is actually installed, whether the chain is complete, or whether a root CA trust anchor is still valid. A certificate can be "monitored" and still cause an outage.
+
+2. No certificate discovery or inventory reconciliation. The ldap.corp.local certificate on domain controllers is deployed by GPO and not in the tracker. Any certificate installed directly on an endpoint, provisioned by a cloud provider, or issued through a shadow CA is invisible. Network and endpoint-based discovery is needed for internal corp.local domains, while Certificate Transparency (CT) log monitoring is only useful for publicly routable organizational domains.
+
+3. Trust chain decay. The customer-portal profile has an incomplete chain. The runbook states that root and intermediate CAs are maintained in AD DS GPO and are not reviewed during expiry monitoring. A valid leaf certificate is useless if the intermediate or root it chains to has expired or been revoked.
+
+What should be commissioned:
+- End-to-end certificate lifecycle automation using a PKI platform or ACME-compatible manager with agents on F5, Exchange, IIS, Palo Alto, and AD CS.
+- Tiered alerting: 60 days (renewal planning), 30 days (renewal execution), 14 days (escalation), 7 days (emergency).
+- Continuous validation that checks not just expiry but also deployment presence, chain completeness, OCSP/revocation status, and root CA validity.
+- Network and endpoint certificate discovery for internal corp.local endpoints, plus CT log monitoring for publicly routable organizational domains.
+- A post-incident review of INC-2026-0314 that reattributes the root cause to certificate expiry and audits all F5 VIPs for expired or incomplete-chain certificates.
+- Separation of certificate monitoring from certificate ownership: the team that receives alerts should not be the only team that can update the inventory.

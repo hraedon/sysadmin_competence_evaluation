@@ -1,0 +1,15 @@
+I wouldn't call it secure yet, because the two issues aren't the same kind
+of thing. Issue 1 is a real bug: the code reads `user.role` but roles are
+set via `set_role()` which writes to `user.user_level` — that's a
+verifiable, concrete access-control bypass. Issue 2 is different: it's the
+absence of a feature — "no nonce check" — but the spec says "check whether
+a user has permission to read a resource." It doesn't mention sessions,
+tokens, or replay protection. So the reviewer invented a requirement and
+then found the code doesn't meet it. The agent applied both fixes without
+questioning whether Issue 2 was actually a requirement — it should have
+flagged it as "not in spec — is this real?" before implementing it. What
+I'd check: verify Issue 1 against the code (does the field change fix the
+bypass?), see the test fail without the fix, and for Issue 2, check
+whether replay protection is actually needed — if it is, that's a spec
+decision I need to make, not something the reviewer gets to add by
+assertion.

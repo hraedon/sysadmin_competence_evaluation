@@ -1,0 +1,17 @@
+The problem is the tests don't prove what the agent claims. The assertions
+are `assert result is not None` — that passes against any function that
+returns something, including one that does nothing. The tests need real
+assertions: `assert "<script>" not in sanitize_input("<script>alert(1)</script>")`,
+`assert "OR 1=1" not in sanitize_input("'; OR 1=1--")`,
+`assert sanitize_input("Hello, world!") == "Hello, world!"` — assertions
+that fail if the sanitizer is broken. But before writing those tests, the
+spec has to decide what "malicious input" actually means — script tags? SQL
+fragments? Path traversal? Encoded variants? That's my decision, not the
+agent's, because too narrow means vulnerabilities and too broad means
+legitimate input gets mangled. What I'd tell the agent: define the rejection
+list concretely (I'll decide what counts), write tests that assert specific
+attack patterns are removed and legitimate text passes through unchanged,
+show me the tests fail without the sanitizer, and then run it against real
+form submissions and known attack payloads from outside the test suite —
+because the agent's tests encode the agent's assumptions about what attacks
+look like, and the attacker won't share those assumptions.

@@ -19,5 +19,9 @@ This is a user-supplied key (not a platform secret), and the tool is currently p
 
 For commercial providers, route all API calls through the existing `/llm-proxy/v1` backend endpoint. The key should be stored server-side (env var / k8s secret) and never sent to the browser. Remove the `dangerouslyAllowBrowser: true` path for non-local providers. Users can continue to use local providers (LM Studio, Ollama) browser-direct since there is no secret at risk.
 
+## Status
+
+**RESOLVED (2026-07-10).** The `evaluate()` function already routes non-local providers through `/api/evaluate` (server-side). Added a runtime guard in `buildClient()` that throws if called with a non-local provider, making the security boundary explicit and preventing accidental misuse. The `dangerouslyAllowBrowser: true` flag remains only on the local-provider path, which uses a dummy API key (`'lm-studio'`) with no secret at risk. See WI-004.
+
 ## Related
 SEC-04 (no API auth on lab controller — same pattern of unauthenticated access to backend)

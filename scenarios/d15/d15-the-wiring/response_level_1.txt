@@ -1,0 +1,2 @@
+All four components are built and tested, 12 tests pass, and the agent
+says it's complete. I'd ship it — the system is done.

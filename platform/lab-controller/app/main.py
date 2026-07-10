@@ -9,6 +9,7 @@ from slowapi.errors import RateLimitExceeded
 
 from .database import init_db, get_db, LabHeartbeat
 from .schemas import settings
+from .deps import orchestrator
 from .middleware.rate_limit import limiter
 from .services.lab_service import (
     load_environments,
@@ -41,6 +42,7 @@ async def lifespan(app: FastAPI):
     
     # Shutdown
     scheduler.shutdown()
+    await orchestrator.close()
 
 app = FastAPI(title="Sysadmin Competency Lab Controller", lifespan=lifespan)
 app.state.limiter = limiter

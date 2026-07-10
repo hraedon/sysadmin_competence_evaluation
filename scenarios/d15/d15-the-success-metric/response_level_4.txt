@@ -1,0 +1,26 @@
+The headline says "success" and the fine print says "failure" — and the
+over-claim is in the metric itself, not in a specific artifact. "100%
+locked, 847 tests pass, working well" is the claim. "0% first-attempt, 4.2
+mean attempts" is the counter-evidence, and it's in the same artifact. The
+calibration: 100% lock rate with 0% first-attempt pass is a failure signal,
+not a success signal. The lock rate is the trailing indicator (did it
+eventually pass?); the first-attempt pass rate is the leading indicator
+(did it produce correct output the first time?). When the trailing is 100%
+and the leading is 0%, the pipeline is succeeding by brute force —
+retrying until the gates pass — and the retries are masking a quality
+problem. "Working well" is the agent reading the headline (100% locked)
+and ignoring the fine print (0% first-attempt, 4.2 retries). What I'd
+check: what's failing on the first attempt? If it's the same failure each
+time, the retries are papering over a systematic defect — the pipeline
+produces broken output and retries until the gates happen to pass. If
+it's different failures, the pipeline is flaky, and flakiness doesn't
+scale. Either way, "847 tests pass" at the end doesn't tell you whether
+the output is correct or just eventually-gate-passing. The fix is not
+"stop retrying" — retries are a recovery mechanism. The fix is "stop
+calling 100% lock rate 'success' when 0% first-attempt means the pipeline
+is broken." Gate on first-attempt pass rate, not lock rate. If
+first-attempt is above 80%, the pipeline is producing quality output; if
+it's 0%, the pipeline is broken and the retries are hiding it. The
+principle: any metric that reports success without reporting how the
+success was achieved is a claim to verify against its own fine print —
+and the fine print is where the over-claim lives.

@@ -1,0 +1,147 @@
+schema_version: 2.0
+id: d15-the-one-liner-spec
+title: The One-Liner Spec
+domain: 15
+domain_name: Directing AI Agents
+level: 3
+delivery_modes:
+- A
+difficulty:
+  score: 4
+  reasoning: |
+    The spec reads as complete because every word is true and the reader supplies
+    the missing intent from their own head. The candidate has to do the opposite of
+    what feels natural — instead of imagining the tool working, enumerate every
+    point where the agent is forced to invent a decision, and then separate the
+    decisions that are the human's to make (consequential, security-relevant) from
+    the ones that are the agent's. L3 is finding the guesses and naming what the
+    spec must decide; L4 is generalizing to why and knowing which gaps are safe to
+    leave open.
+presentation:
+  modes:
+    A:
+      type: spec_review
+      context: |
+        A colleague wants a tool and has written this for an agent to build:
+
+        ---
+        REQUEST (said out loud first):
+        "I need something that flags AD accounts nobody's logged into in 90 days."
+
+        SPEC (what they wrote down to hand the agent):
+        "Build a tool that lists Active Directory accounts that haven't logged in
+        for 90 days. Output a report."
+        ---
+
+        You're about to hand this spec to an agent. Read it as the agent will —
+        literally, with no access to what the colleague meant.
+      question: |
+        Where will the agent be forced to guess, and what must the spec decide
+        before it's safe to hand over? Of those decisions, which are the human's to
+        make rather than the agent's — and why?
+rubric:
+  findings:
+  - id: inactive_is_undefined
+    type: critical
+    description: |
+      "Logged in" / "inactive" has no definition, and in AD that is a correctness
+      trap, not a detail. There are two different last-logon notions (an exact
+      per-server one that's wrong the moment an account logs in elsewhere, and a
+      replicated-but-fuzzy one). The candidate doesn't need to know the field
+      names — they need to see that "hasn't logged in" is ambiguous enough that
+      the agent could build something that confidently reports the wrong accounts,
+      and that the spec must pin what "inactive" means and how exact it must be.
+    miss_signal: |
+      Candidate treats "haven't logged in for 90 days" as self-explanatory and
+      never flags that the definition of inactivity is itself undecided and
+      load-bearing for correctness.
+  - id: read_versus_act_is_a_human_gate
+    type: critical
+    description: |
+      The spec says "lists" and "report," but nothing forbids the tool from
+      *acting* — and "flags accounts nobody's using" is one short step from
+      "disables them." Whether the tool only reads and reports, or can modify
+      AD, is the single most consequential undecided thing here, and it is a
+      decision the human must own: a tool that can disable accounts can lock
+      people out. The candidate must both (a) surface read-vs-act as undecided
+      and (b) identify it as the human's call, not the agent's, because the
+      consequence is one the tests can't see and the human is accountable for.
+    miss_signal: |
+      Candidate lists missing details but never isolates read-only-vs-modify as
+      the decision that matters most, or treats "which the human decides" as
+      applying to everything equally rather than naming this as the security gate.
+  - id: scope_undefined
+    type: secondary
+    severity: high
+    description: |
+      Which accounts count is wide open: users only, or also service accounts and
+      computer accounts? Already-disabled accounts? The break-glass admin account
+      that is *supposed* to sit idle? Each is a place the agent will pick
+      something and the colleague may not notice it picked wrong.
+    miss_signal: |
+      Candidate doesn't question the population at all, or assumes "accounts"
+      unambiguously means what they personally pictured.
+  - id: edge_cases_and_origin
+    type: secondary
+    severity: medium
+    description: |
+      Accounts that have *never* logged in (no value at all) — in or out? And "90
+      days" measured from when — now, or the last time data was collected? Smaller
+      than the criticals but still real forks the agent will resolve silently.
+    miss_signal: |
+      Candidate names only the headline gaps and misses the never-logged-in branch
+      and the measurement origin.
+  - id: no_acceptance_criteria
+    type: secondary
+    severity: high
+    description: |
+      The spec gives no way to tell whether the result is right. A strong answer
+      notes that the spec needs concrete checks — e.g. an account 100 days idle
+      appears, one 80 days idle does not, a disabled account never appears — so
+      that "done" is verifiable rather than asserted.
+    miss_signal: |
+      Candidate improves the description of the work but never asks how anyone
+      would confirm the output is correct.
+  - id: spec_is_the_prompt_for_the_build
+    type: secondary
+    severity: high
+    description: |
+      The L4 move: stepping back to why this matters. The spec is the prompt for
+      the *entire* build, so every undecided point is a decision delegated to the
+      agent by omission. The strong candidate also distinguishes which gaps are
+      safe to leave open (cheap-to-change or genuinely indifferent — e.g. CSV
+      column order) from those that must be closed before building (the
+      inactivity definition, read-vs-act), and recognizes that the human's job is
+      to steer and judge the spec, not hand-write it.
+    miss_signal: |
+      Candidate produces a flat list of everything missing without ranking it,
+      treating "exact output format" as equal in weight to "can it disable
+      accounts," and never articulates that omission = silent delegation.
+  level_indicators:
+    level_1: |
+      Reads the spec as basically fine, or only asks for cosmetic additions ("say
+      what format the report is"). Imagines the tool working rather than enumerating
+      where the agent must invent. Misses that "inactive" is ambiguous and that the
+      tool might modify AD.
+    level_2: |
+      Senses the spec is underspecified and names one or two real gaps — usually
+      scope ("which accounts?") or output format — but misses at least one critical:
+      either does not see that "inactive" is a correctness-level ambiguity, or does
+      not isolate read-vs-act as the decision the human must own. Lists gaps without
+      ranking them or tying them to who decides.
+    level_3: |
+      Finds the cluster of real guesses including both criticals: flags that
+      "inactive/logged in" is undefined and could make the tool measure the wrong
+      thing, AND surfaces read-only-vs-modify as undecided and names it as the
+      human's decision because it's the one with consequences the tests can't see.
+      Identifies scope and acceptance criteria as things the spec must decide. May
+      not generalize to "the spec is the prompt for the whole build" or rank which
+      gaps are safe to leave open.
+    level_4: |
+      All of L3, plus the step back: omission in a spec is silent delegation to the
+      agent, because the spec is the prompt for the entire build. Distinguishes gaps
+      that must be closed before handing over (the inactivity definition, read-vs-
+      act) from gaps that are safe to leave open as cheap-to-change or indifferent.
+      Frames the fix as steering an elicitation and judging the result rather than
+      hand-authoring a spec, and expresses "done" as concrete acceptance criteria.
+      Does not merely produce a longer list — ranks it and says why.

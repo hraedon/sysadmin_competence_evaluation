@@ -1,0 +1,19 @@
+The spec is complete: it defines the required fields (host, port, timeout),
+the range constraints (port 1–65535, timeout 1–300), the type requirements,
+and the output format (list of error strings or empty list). The tests
+verify each criterion with specific expected values and can fail. The
+boundary tests confirm the range edges (port 1 and 65535, timeout 1 and
+300) pass — that is the test that catches off-by-one errors in the range
+check. The spec already made the load-bearing decisions: what is required,
+what ranges are valid, what types are accepted. Those are the consequential
+decisions the delegation-boundary thread teaches you to gate, and the spec
+gated them. There are no decisions left for the agent to escalate. The
+approach is if-checks instead of a schema library — suboptimal for 50
+fields, correct for 3. Calling it a defect would be confusing suboptimal
+with wrong. The principle: not every spec is underspecified. The skill is
+checking whether the implementation meets the specified criteria, which
+means sometimes the answer is "it does, ship it." Manufacturing new
+criteria would be the false-positive failure mode — inventing requirements
+the spec never set and then flagging their absence as a gap. The exit
+signal: the spec is complete, the tests are real, the decisions are made,
+the implementation meets all criteria. Ship it.

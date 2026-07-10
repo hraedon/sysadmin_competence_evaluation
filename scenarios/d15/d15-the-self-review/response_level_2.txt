@@ -1,0 +1,6 @@
+I'm a bit uncomfortable. The agent says it ran an adversarial review, but
+it reviewed its own work — can it really catch its own mistakes? The
+review summary is also pretty vague: "code quality: good, test coverage:
+adequate, security: no issues found." Good by what standard? Adequate
+against what? I'd want someone else to look at it, but I'm not sure who
+or how.

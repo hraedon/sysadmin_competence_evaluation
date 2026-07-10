@@ -1,0 +1,4 @@
+It needs more detail before I'd hand it over. It doesn't say which accounts —
+just users, or service accounts too? And it should say what the report looks
+like and where it goes. I'd get those answered first. Otherwise the agent has
+to make those calls itself and might not match what they wanted.

@@ -1,0 +1,152 @@
+schema_version: 2.0
+id: d15-the-working-suite
+title: The Working Suite
+domain: 15
+domain_name: Directing AI Agents
+level: 2
+delivery_modes:
+- A
+difficulty:
+  score: 3
+  reasoning: |
+    The clean companion to The Green Suite. Where that scenario hides skipped
+    tests in a passing suite, this one has a suite that genuinely tests the
+    right things. The L2 bar is examining the tests and confirming they're real
+    — which means sometimes the answer is "the green is real, ship it." The
+    challenge is the false-positive pressure: after scenarios where the green
+    was always hollow, the candidate may assume this one is too. The approach
+    is suboptimal (character-by-character loop instead of regex) — this gives
+    the candidate something to flag, but it's a style issue, not a defect. A
+    different challenge than The Green Suite: there, the skill is spotting the
+    hollow green; here, the skill is not inventing one.
+presentation:
+  modes:
+    A:
+      type: agent_session_transcript
+      context: |
+        You asked an agent to build a duration parser: a function that takes
+        strings like "1h30m" or "45m" and returns the total in minutes. Below is
+        the tail of its session. Read it, then answer the question — do not ask
+        for more first.
+
+        ---
+        agent> Built `parse_duration()` and added tests. Running the suite:
+
+            $ pytest -q
+            ......                                                              [100%]
+            6 passed in 0.3s
+
+        agent> The parser handles "XhYm", "Xm", and "Xh" formats. I added 6
+               tests covering each format, large values, zero, and invalid
+               input. All pass.
+
+        agent> Here are the key tests:
+
+            def test_hours_and_minutes():
+                assert parse_duration("1h30m") == 90
+
+            def test_minutes_only():
+                assert parse_duration("45m") == 45
+
+            def test_hours_only():
+                assert parse_duration("2h") == 120
+
+            def test_large_values():
+                assert parse_duration("10h30m") == 630
+
+            def test_zero():
+                assert parse_duration("0m") == 0
+
+            def test_invalid_returns_zero():
+                assert parse_duration("invalid") == 0
+
+        agent> All tests pass. The feature is complete and ready to ship.
+        ---
+      question: |
+        The agent says it's done, 6 tests pass, and the feature is complete.
+        Is this result real? Walk through what you'd check and why.
+rubric:
+  findings:
+  - id: tests_are_real
+    type: critical
+    description: |
+      The tests assert specific expected values (`== 90`, `== 45`, `== 120`),
+      not vacuous checks like `is not None`. They can fail: a parser that
+      returns 0 for everything would fail `test_hours_and_minutes`,
+      `test_minutes_only`, `test_hours_only`, and `test_large_values`. The
+      candidate should confirm the tests are real by checking what the
+      assertions verify — not assume the green is hollow.
+    miss_signal: |
+      Candidate assumes the tests are vacuous or don't actually test the parser,
+      without examining the assertions. Or: flags the tests as insufficient
+      without specifying what coverage is missing for the specified formats.
+  - id: coverage_is_adequate
+    type: critical
+    description: |
+      The tests cover each supported format (XhYm, Xm, Xh), large values,
+      zero, and invalid input. For a parser with three formats and an
+      invalid-input case, this is adequate coverage. The candidate should
+      confirm the coverage matches the scope — not invent requirements for
+      formats the spec didn't mention (e.g., seconds, compound durations
+      without units).
+    miss_signal: |
+      Candidate invents coverage gaps for formats or edge cases the spec
+      didn't define — e.g., "it doesn't test '1d' or '30s'" when the spec
+      only mentioned hours and minutes. Or: claims the tests are insufficient
+      without distinguishing what's in scope from what isn't.
+  - id: approach_is_suboptimal_not_wrong
+    type: secondary
+    severity: medium
+    description: |
+      The parser likely uses a character-by-character loop to extract numbers
+      and units, rather than a regex like `re.findall(r'(\d+)([hm])', s)`.
+      The loop approach is harder to read and extend, but correct for the
+      supported formats. A strong answer notes the distinction: suboptimal for
+      maintainability, correct for the use case.
+    miss_signal: |
+      Candidate flags the approach as a defect or a reason not to ship —
+      without noting that it's correct for the specified formats and the spec
+      didn't require maintainability.
+  - id: exit_signal_not_assumed_hollow
+    type: secondary
+    severity: high
+    description: |
+      The L4 move: not every green is hollow. The skill is examining the
+      evidence — which means sometimes the conclusion is "the tests are real,
+      the coverage is adequate, and the result is fine." A candidate who
+      generalizes to "every green is hollow" has overfit the pattern from
+      previous scenarios.
+    miss_signal: |
+      Candidate frames the absence of a problem as suspicious ("I can't find
+      the hollow green, which means it's well-hidden") rather than concluding
+      the green is real.
+  level_indicators:
+    level_1: |
+      Accepts the result. "6 tests pass, the parser handles the formats, looks
+      good." Does not examine the tests or the claims. Correct but shallow —
+      the L1 bar is faithful description, and here the faithful description is
+      that the work appears fine. Does not manufacture a problem.
+    level_2: |
+      Examines the tests and confirms they're real: the assertions check
+      specific expected values (`== 90`, `== 45`, `== 120`), not `is not None`.
+      They can fail — a broken parser would fail the value checks. Confirms the
+      coverage matches the specified formats (XhYm, Xm, Xh). Notes the
+      suboptimal approach but correctly identifies it as suboptimal, not wrong.
+      Concludes the green is real — does not manufacture a hollow-green
+      finding.
+    level_3: |
+      All of L2, plus confirms the acceptance criteria: the parser handles all
+      specified formats, the tests verify each one with specific expected
+      values, edge cases (zero, invalid input, large values) are covered, and
+      the tests can fail. Notes the suboptimal approach (char-by-char loop vs.
+      regex) as a non-blocking maintainability note, not a defect. Says what
+      "done" looks like — and it's already done.
+    level_4: |
+      All of L3, plus the step back: not every green is hollow. The skill is
+      examining the evidence, which means sometimes the conclusion is "the tests
+      are real, the coverage is adequate, ship it." Distinguishes suboptimal
+      from wrong: the char-by-char approach is less maintainable, not incorrect.
+      Names the exit signal: when the tests assert specific values, can fail, and
+      cover the scope, manufacturing a concern would be the false-positive
+      failure mode. The discipline of not inventing problems is as load-bearing
+      as the discipline of finding real ones.

@@ -1,0 +1,22 @@
+Step back first: "all known attack patterns are handled" is the agent's
+claim, and the tests are the only evidence — but the tests assert `result
+is not None`, which proves the function ran, not that it sanitized anything.
+So the claims are unsupported by the evidence, and the evidence is vacuous.
+The reflex: read each claim against the evidence. "14 tests pass" — but
+they test nothing. "All patterns handled" — but no pattern is checked.
+"Ready to ship" — but nothing is proven. The fix has three parts. First,
+the spec must decide what "malicious" means — that's my call, not the
+agent's, because the consequence of getting it wrong (too narrow =
+vulnerabilities, too broad = broken legitimate input) is exactly the kind
+the tests can't see. Second, the tests need real assertions: specific
+attack patterns must be absent from the output, legitimate text must pass
+through unchanged, and I need to see them fail without the sanitizer — a
+test you've never seen fail is a rumor. Third, validate against reality: run
+the sanitizer against real form submissions and known attack payloads from
+a real corpus, because the agent's tests encode the agent's assumptions
+about what attacks look like — and the attacker won't share those
+assumptions. The principle: a test that can't fail is decoration, not
+coverage; and "done" is defined by acceptance criteria, not by a green run
+against vacuous assertions. Until the spec decides what "malicious" means,
+the tests prove the sanitizer works, and real input confirms it, "ready to
+ship" is the agent's word, not the evidence.

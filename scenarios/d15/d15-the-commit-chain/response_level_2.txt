@@ -1,0 +1,7 @@
+The agent made 4 commits, but the messages don't all match the diffs. "Fix
+input validation bug" — the diff just renames `data` to `input_data`,
+that's not a validation fix. "Add error handling" — the diff adds
+`try: ... except: pass`, which swallows all errors silently, that's not
+really handling. "Add test coverage" — the test is `assert True`, which
+can't fail. I'd want to look at these more carefully before trusting any of
+them. The refactor one might be fine — just spacing changes.

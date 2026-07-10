@@ -1,0 +1,171 @@
+schema_version: 2.0
+id: d15-the-wiring
+title: The Wiring
+domain: 15
+domain_name: Directing AI Agents
+level: 2
+delivery_modes:
+- A
+difficulty:
+  score: 3
+  reasoning: |
+    Nothing in the transcript is a lie — the components really are built, the
+    tests really do pass, and the summary is confident. The failure is that
+    every test passes because every component is tested in isolation, and
+    nobody tested whether the components connect. This is "locally complete,
+    globally disconnected" — a different hollow-green shape than skipped tests
+    (The Green Suite), silence-as-cleanliness (The Zero Findings), or checking-
+    the-wrong-thing (The Health Check). There, individual tests are hollow; here,
+    every test is real and the system is still broken because the wiring is
+    missing. The candidate has to resist the relief of 12 passing tests and
+    ask: tested against what?
+presentation:
+  modes:
+    A:
+      type: agent_session_transcript
+      context: |
+        You asked an agent to build a notification system with four
+        components: a monitor that detects when disk usage exceeds 90%, a
+        formatter that turns a detection into an alert message, a sender that
+        delivers the alert via email, and a scheduler that runs the monitor
+        every 60 seconds. Below is the tail of its session. Read it, then
+        answer the question — do not ask for more first.
+
+        ---
+        agent> Built all four components, each with tests:
+
+          1. monitor.py — detects when disk usage exceeds 90%
+             Tests: 4 passed (test_detects_high_usage,
+             test_ignores_low_usage, test_returns_percentage,
+             test_handles_missing_disk)
+
+          2. formatter.py — turns a detection into an alert message
+             Tests: 3 passed (test_formats_alert_message,
+             test_includes_threshold, test_includes_hostname)
+
+          3. sender.py — delivers an alert via email
+             Tests: 3 passed (test_sends_email,
+             test_handles_smtp_error, test_retries_on_timeout)
+
+          4. scheduler.py — runs the monitor every 60 seconds
+             Tests: 2 passed (test_schedules_60s_interval,
+             test_starts_on_init)
+
+            $ pytest -q
+            ............                                                           [100%]
+            12 passed in 0.6s
+
+        agent> All components built and tested. The notification system is
+               complete and ready to ship.
+        ---
+      question: |
+        The agent says the system is complete, 12 tests pass, and it's ready
+        to ship. Do you ship it? Walk through exactly what you would check or
+        ask for before trusting this, and why.
+rubric:
+  findings:
+  - id: components_tested_in_isolation
+    type: critical
+    description: |
+      Every test passes, but every test exercises a single component in
+      isolation. The monitor is tested against synthetic input, the formatter
+      against a sample detection, the sender against a mock SMTP server, the
+      scheduler against a clock. None of these tests checks whether the
+      components connect — whether the scheduler actually calls the monitor,
+      whether the monitor's output reaches the formatter, whether the
+      formatter's message reaches the sender. The candidate must spot that
+      12 passing tests is component-level coverage, not system-level coverage,
+      and that "complete" is a claim about components, not about the system.
+    miss_signal: |
+      Candidate treats "12 passed" as evidence the system works, or says
+      "the components are tested so the system is probably fine" without
+      registering that no test exercises the wiring between them.
+  - id: never_run_end_to_end
+    type: critical
+    description: |
+      The agent says "the notification system is complete," but the system
+      was never run end-to-end. No test triggers the monitor, watches the
+      detection flow through the formatter, and verifies the alert reaches
+      the sender. The candidate must separate what the agent claimed
+      ("complete") from what the transcript shows (12 component-level tests)
+      and call for a run of the full path — trigger high disk usage, verify
+      the alert is formatted, verify the email is sent — before believing the
+      system works.
+    miss_signal: |
+      Candidate accepts "complete" at face value, or notes the tests pass
+      without asking whether any test exercises the full path from monitor
+      to sender.
+  - id: specify_integration_test
+    type: secondary
+    severity: high
+    description: |
+      A strong answer specifies what a real integration test would look like:
+      trigger the monitor with high disk usage, verify the detection reaches
+      the formatter, verify the formatted message reaches the sender, verify
+      the email is sent. The candidate should name concretely what "the
+      wiring works" means — not just "test the integration" but "trigger the
+      monitor, watch the alert flow through formatter to sender, confirm the
+      email arrives."
+    miss_signal: |
+      Candidate spots the composition gap but can't say what an integration
+      test would look like, or says "test the integration" without naming
+      what that means concretely.
+  - id: scheduler_wired_to_monitor
+    type: secondary
+    severity: medium
+    description: |
+      The scheduler is tested in isolation — it sets a 60-second interval
+      and starts on init. But does it actually call the monitor? The test
+      proves the scheduler runs; it doesn't prove the scheduler runs the
+      monitor. The candidate should ask: when the scheduler fires, what
+      happens? Does it call monitor.check()? Or does it just tick? A
+      scheduler that ticks without calling the monitor is a clock, not a
+      notification system.
+    miss_signal: |
+      Candidate doesn't question whether the scheduler actually calls the
+      monitor, or assumes "scheduler tested" means "scheduler calls monitor."
+  - id: locally_complete_globally_disconnected
+    type: secondary
+    severity: high
+    description: |
+      The L4 move: stepping back from the individual components to the
+      principle. Every component is locally complete — built, tested, passing.
+      The system is globally disconnected — the components don't connect, and
+      no test checks the connections. The habit that scales is the reflex to
+      ask "tested against what?" whenever an agent says "all components
+      tested" — because component-level green is not system-level green, and
+      the most convincing hollow green is the one where every test is real
+      and the system is still broken.
+    miss_signal: |
+      Candidate catches that the system wasn't run end-to-end but doesn't
+      step back to the principle that component-level green is not
+      system-level green — that "locally complete, globally disconnected" is
+      a recurring failure mode, not a one-off.
+  level_indicators:
+    level_1: |
+      Ships it. "12 tests pass, all components built, ready to ship." Reads
+      the summary as an account of what happened. Doesn't question whether
+      the components connect.
+    level_2: |
+      Is appropriately skeptical and catches that the tests are all
+      component-level — no test exercises the full path from monitor to
+      sender. But may not specify what an integration test would look like,
+      or may say "I'd want to see it run end-to-end" without naming what that
+      means concretely.
+    level_3: |
+      Catches both criticals: 12 tests are component-level, not system-level,
+      AND the system was never run end-to-end. Specifies what a real
+      integration test would look like: trigger high disk usage, verify the
+        detection flows through the formatter, verify the email is sent.
+      Questions whether the scheduler actually calls the monitor (not just
+      whether it ticks). May not generalize to the composition principle.
+    level_4: |
+      All of L3, plus the principle: every component is locally complete and
+      the system is globally disconnected — "locally complete, globally
+      disconnected" is a recurring failure mode, not a one-off. Component-
+      level green is not system-level green; the most convincing hollow green
+      is the one where every test is real and the system is still broken.
+      Generalizes: when an agent says "all components built and tested," ask
+      "tested against what?" — and the answer must include the seams, not just
+      the pieces. Says what evidence would make this shippable: the full path
+      runs end-to-end, the alert arrives, the scheduler calls the monitor.

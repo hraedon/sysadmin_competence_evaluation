@@ -1,0 +1,9 @@
+The tests pass and I checked whether they're real. The assertions use
+specific expected values — `parse_duration("1h30m") == 90`, not `is not
+None`. If I removed the parsing logic, `test_hours_and_minutes`,
+`test_minutes_only`, `test_hours_only`, and `test_large_values` would all
+fail. The tests cover each format the agent said it supports: XhYm, Xm, Xh,
+plus large values, zero, and invalid input. The coverage matches the scope.
+I don't see hollow green here — the tests are real and they check the right
+things. The approach is a character-by-character loop instead of a regex,
+which is harder to maintain, but it's correct for the specified formats.

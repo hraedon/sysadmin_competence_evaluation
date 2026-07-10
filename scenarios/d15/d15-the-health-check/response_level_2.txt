@@ -1,0 +1,7 @@
+I wouldn't deploy yet. The health check returns "healthy" when the process
+is running — but that only tells me the process is alive, not that the
+background worker is actually doing its job. The worker could have crashed
+and the process would still be alive, so the health check would still say
+"healthy." I'd want the health check to actually check whether the worker
+is running before I trusted it. But I'm not sure exactly what it should
+check.

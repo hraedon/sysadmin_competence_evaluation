@@ -1,0 +1,11 @@
+The spec asked for a simple rate limiter: N requests per minute per IP. The
+tests verify the limit (5 requests allowed, 6th rejected), the boundary at
+exactly N (5th request allowed, 6th rejected), window expiry (after the
+window passes, requests allowed again), and IP independence (one IP's limit
+doesn't affect another's). The tests can fail — an always-True limiter fails
+the over-limit tests. The spec is short but sufficient: it defines the
+behavior (limit, window, per-IP), the scope (simple), and the interface
+(allow or reject). The approach uses a timestamp list per IP with O(n)
+filtering per request — a token bucket would be O(1) — but the spec says
+"simple rate limiter" with no performance requirement, so the approach is
+correct for the use case. The acceptance criteria are met. I'd ship it.

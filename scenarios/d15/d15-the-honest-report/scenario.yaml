@@ -1,0 +1,154 @@
+schema_version: 2.0
+id: d15-the-honest-report
+title: The Honest Report
+domain: 15
+domain_name: Directing AI Agents
+level: 1
+delivery_modes:
+- A
+difficulty:
+  score: 2
+  reasoning: |
+    The clean companion to The Fix Summary. Where that scenario gives a
+    candidate a diff and a summary where the summary overclaims, this one
+    gives a diff and a summary where they match. The L1 bar is faithful
+    description — reading the diff and the summary as two different things and
+    saying back what each shows. The trap is the false positive: after
+    scenarios where the summary always overclaimed, the candidate may
+    manufacture a discrepancy that isn't there. The approach is suboptimal
+    (O(n²) list lookup instead of a set) — this gives the candidate something
+    to latch onto, but it's a style issue, not a defect. A different challenge
+    than The Fix Summary: there, the skill is spotting the gap; here, the skill
+    is not inventing one.
+presentation:
+  modes:
+    A:
+      type: agent_diff_and_summary
+      context: |
+        You asked an agent to fix a bug in a small utility function. The
+        function, `remove_duplicates()`, was supposed to return a list with
+        duplicates removed while preserving insertion order — but it was using
+        `list(set(items))`, which doesn't preserve order. You asked the agent to
+        fix that and add a test.
+
+        Below is the diff the agent produced, followed by its summary. Read
+        both, then answer the question — do not ask for more first.
+
+        ---
+        DIFF:
+
+        --- a/dedupe.py
+        +++ b/dedupe.py
+        @@ -3,7 +3,12 @@ def remove_duplicates(items):
+             """Return a new list with duplicates removed, preserving order."""
+        -    return list(set(items))
+        +    result = []
+        +    for item in items:
+        +        if item not in result:
+        +            result.append(item)
+        +    return result
+        +def test_removes_duplicates():
+        +    assert remove_duplicates(["a", "b", "a", "c", "b"]) == ["a", "b", "c"]
+        +    assert remove_duplicates([]) == []
+        +    assert remove_duplicates(["x", "x", "x"]) == ["x"]
+
+        AGENT SUMMARY:
+        Fixed the bug — the function now preserves insertion order while removing
+        duplicates, using a seen-list to track items already added. Added tests
+        covering duplicates, empty input, and all-same input. All tests pass.
+        ---
+      question: |
+        What did the agent change, and what did it claim about its work? Describe
+        what happened as accurately as you can — what the diff shows, and what the
+        agent's summary says about it.
+rubric:
+  findings:
+  - id: claims_match_evidence
+    type: critical
+    description: |
+      The summary's claims are backed by the diff. "Fixed the bug — preserves
+      insertion order" matches the `if item not in result` guard, which skips
+      items already in the result, preserving first-occurrence order.
+      "Using a seen-list to track items already added" accurately describes the
+      approach. "Added tests covering duplicates, empty input, and all-same
+      input" matches the three test cases. "All tests pass" is a claim, but a
+      reasonable one given the visible test. The candidate should recognize
+      that the claims match the evidence — not manufacture a discrepancy.
+    miss_signal: |
+      Candidate claims the summary overstates the diff (e.g., "'fixed' is too
+      strong for just adding a guard"), or invents a discrepancy that isn't
+      there. After scenarios where the summary always overclaimed, the pattern
+      match is "find the overclaim" — here, there isn't one.
+  - id: tests_are_real
+    type: critical
+    description: |
+      The tests assert specific expected values (`["a", "b", "c"]`), not
+      vacuous checks like `is not None`. They can fail: remove the `if item
+      not in result` guard and `remove_duplicates(["a", "b", "a", "c", "b"])`
+      returns `["a", "b", "a", "c", "b"]`, not `["a", "b", "c"]`. The candidate
+      should confirm the tests are real — not assume they're hollow.
+    miss_signal: |
+      Candidate assumes the tests are vacuous or don't actually test the fix,
+      without examining what the assertions check. Or: flags the tests as
+      insufficient without specifying what coverage is missing (there isn't
+      a coverage gap for this fix).
+  - id: approach_is_suboptimal_not_wrong
+    type: secondary
+    severity: medium
+    description: |
+      The agent used `if item not in result` (O(n) lookup per item, O(n²)
+      overall) instead of a set for deduplication (`seen = set(); if item not
+      in seen`). The approach is less efficient for large lists, but correct
+      for the use case. A strong answer notes the distinction: suboptimal for
+      large inputs, correct for the specified use case. Flagging it as a "bug"
+      or blocking issue confuses suboptimal with wrong.
+    miss_signal: |
+      Candidate flags the O(n²) approach as a defect, a bug, or a reason not
+      to ship — without noting that it's correct for the use case and the spec
+      didn't require performance.
+  - id: no_manufactured_discrepancy
+    type: secondary
+    severity: high
+    description: |
+      The L4 move: the generalized reflex is reading claims against evidence
+      — which means sometimes the answer is "the claims match the evidence."
+      A candidate who generalizes to "every summary overclaims" has overfit
+      the pattern from previous scenarios. The principle is: check each claim
+      against the evidence, every time. The conclusion varies; the discipline
+      doesn't.
+    miss_signal: |
+      Candidate steps back to a generalized distrust ("agents always overclaim
+      in their summaries") rather than the principle ("read each claim against
+      the evidence"). Or: frames the absence of a problem as a problem ("I
+      can't find the overclaim, which means it's well-hidden").
+  level_indicators:
+    level_1: |
+      Faithfully describes the diff (added a seen-list check to skip duplicates
+      while preserving order; added three tests) and the summary (fixed the bug,
+      preserves order, added tests, all pass). Accepts the result without deeper
+      evaluation. Does not manufacture a discrepancy. Correct but shallow — the
+      L1 bar is faithful description, and here the faithful description is that
+      the work is fine.
+    level_2: |
+      Faithful description, plus examines the claims against the evidence.
+      Confirms the tests assert specific expected values and would fail without
+      the fix. Notes the summary's claims match the diff. May note the suboptimal
+      O(n²) approach but correctly identifies it as suboptimal, not wrong.
+      Concludes the result is real — does not manufacture a problem.
+    level_3: |
+      All of L2, plus confirms the acceptance criteria are met: the function
+      removes duplicates, preserves order, and handles edge cases (empty list,
+      all-same). The tests verify each criterion with specific expected values.
+      Notes the suboptimal approach as a non-blocking improvement (a set would
+      be more efficient), not a defect. Says what "done" looks like — and it's
+      already done.
+    level_4: |
+      All of L3, plus the step back: not every summary overclaims, and not every
+      green is hollow. The skill is reading claims against evidence — which
+      means sometimes the answer is "they match, ship it." Distinguishes
+      suboptimal from wrong: the O(n²) approach is a style limitation, not a
+      correctness issue, and flagging it as a defect would be manufacturing a
+      nitpick. Names the exit signal: when the tests are real, the claims hold,
+      and the work meets the spec, the disciplined call is "ship it." The
+      adversary who keeps digging after finding nothing is the adversary who
+      starts inventing problems.

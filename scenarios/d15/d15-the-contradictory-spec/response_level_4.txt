@@ -1,0 +1,23 @@
+The thing to see first is that this spec contradicts itself, and an
+internal contradiction is worse than an omission — it's silent delegation.
+An underspecified section (like "The One-Liner Spec") leaves a gap the
+agent guesses at; a contradiction gives the agent two mutually exclusive
+instructions and no way to know which is real. The agent will pick one —
+and the spec gives it no basis for choosing. Concretely: Section 2 says
+"read-only, never moves, hard requirement." Section 5 says "moves
+resources to an archive, primary use case." These directly contradict.
+And "primary use case" makes it sharper — the colleague seems to want the
+write mode as the main thing, which directly conflicts with "hard
+requirement" read-only. Did they change their mind between sections? Copy a
+template? The spec doesn't say, and the agent won't ask. Of the decisions
+that need resolving, read-vs-act is the human's gate: whether this tool
+moves resources or just reports is the single most consequential undecided
+thing, and it's the human's call because a tool that moves resources can
+cause data loss — that's the consequence the tests can't see and the human
+is accountable for. The fix: surface the contradiction as a blocking open
+question before building. If remediation is real, add acceptance criteria
+(what happens when the archive is missing, when a resource is locked, when
+a move fails). The principle: read the spec as a whole, not section by
+section, because contradictions live between sections — and a spec that
+contradicts itself is a prompt that silently delegates the most
+consequential decision to the agent by conflict.

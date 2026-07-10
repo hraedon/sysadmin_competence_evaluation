@@ -1,0 +1,76 @@
+schema_version: 2.0
+id: d10-audit-the-replication-that-wasnt
+title: The Replication That Wasn't
+domain: 10
+domain_name: Backup & Recovery
+level: 2
+delivery_modes:
+  - A
+difficulty: 3
+presentation:
+  modes:
+    A:
+      type: log_extract
+      artifact_file: scenarios/d10/audit_the_replication_that_wasnt/replication_report.txt
+      context: |
+        The DBA team has provided a SQL Server Replication Monitor report for
+        the SalesDB transactional replication pair. All agent jobs report
+        Success and there are no failures in the last seven days.
+
+        Assess whether this replication environment is truly healthy and
+        whether it would meet the business RPO in a failover.
+
+        Provide your findings and recommendations.
+rubric:
+  findings:
+    - id: subscriber_is_five_days_stale
+      description: |
+        The Subscription Status section states that the last successful synchronization to SQL-DR-01 was 2026-07-05 03:17. The report is dated 2026-07-10 08:00, so the subscriber is approximately 5 days behind the publisher. The business RPO is 4 hours. A failover to SQL-DR-01 would therefore restore SalesDB to its state as of 2026-07-05, resulting in roughly 5 days of data loss. This is a critical DR failure despite every agent job showing Success.
+      severity: critical
+      miss_signal: |
+        Candidate reads the executive summary, agent history, or latency trend table and concludes replication is healthy because all jobs show Success. Does not check the Subscription Status "Last Synchronized" or Latency columns, or assumes that "No transactions replicated" means there was no write activity. Misses that the replica is 5 days stale.
+      learning_note: |
+        In transactional replication, a Distribution Agent job can complete successfully while delivering zero commands. Success means the agent started, checked for work, and exited cleanly — it does not mean the subscriber is current. The authoritative freshness signal is the timestamp of the last applied transaction at the subscriber, not the job status or the latency of delivered commands.
+      type: critical
+    - id: distribution_cleanup_purged_undelivered_commands
+      description: |
+        The Distribution clean up job is configured with @max_distretention = 72 hours. This removes commands from the distribution database after 72 hours regardless of whether they have been delivered to the subscriber. The report shows undelivered commands as 0 and no last undelivered command timestamp. After 2026-07-05, the subscriber stopped applying commands. By 2026-07-08, any undelivered commands older than 72 hours became eligible for cleanup. The cleanup job has therefore permanently removed the backlog that would have been needed for the subscriber to catch up. This transforms a recoverable replication lag into permanent data loss from the DR perspective.
+      severity: critical
+      miss_signal: |
+        Candidate identifies the stale subscriber but does not explain why it cannot simply catch up once replication resumes. Treats the cleanup job as a routine maintenance success because it shows Success and deletes rows. Does not connect the 72-hour retention to the 5-day gap and the resulting permanent loss of the intermediate commands.
+      learning_note: |
+        The distribution database is a buffer, not an archive. Its cleanup retention determines how long commands remain available for delivery. If retention is shorter than the time needed to detect and recover from a subscriber failure, the commands are deleted before they can be applied. DR recovery then requires restoring the subscriber from a publisher backup, not merely resuming replication. Retention must be sized to exceed the RPO plus the time to detect, diagnose, and recover.
+      type: critical
+    - id: monitoring_only_on_job_status
+      description: |
+        The Monitoring Configuration section shows alerts only on SQL Server Agent job status: Failure or Retry. No alerts are configured for subscriber data freshness, replication latency against the RPO, undelivered command age, or cleanup job volume. This is why a 5-day stale subscriber can coexist with a completely green status page. Job status is a liveness signal, not a correctness or freshness signal.
+      severity: high
+      learning_note: |
+        Job-status monitoring is necessary but insufficient for data protection. A backup, replica, or log-shipping target can be structurally failed while the job that touches it reports Success. Health monitoring must include data-freshness metrics: last applied transaction timestamp, subscriber-publisher comparison queries, and age of oldest undelivered command relative to the RPO.
+      type: secondary
+    - id: latency_alert_auto_cleared_without_recovery
+      description: |
+        A latency alert triggered on 2026-07-03 00:00 during the WAN maintenance window, then auto-cleared at 02:00. The DBA team note says agent jobs returned to Success and no further action was required. The Distribution Agent did deliver 1,247,891 commands to the subscriber on 2026-07-05, showing a temporary recovery, but the alert cleared without verifying that the subscriber had caught up within the 4-hour RPO. After that delivery the stream stopped applying commands again, and by 2026-07-08 the 72-hour distribution cleanup retention began removing the remaining backlog. The auto-clear created false confidence because a transient signal was treated as full recovery.
+      severity: moderate
+      learning_note: |
+        Alerts that clear automatically on transient signals can hide persistent degradation. A latency alert should remain active or require manual verification that the subscriber has caught up to within RPO before clearing. Correlating job status with subscriber freshness prevents premature closure.
+      type: secondary
+    - id: failover_readiness_not_validated
+      description: |
+        The DR note states that SalesDB_Replica is the designated failover target and that the last successful DR test was 2026-04-15, more than two months before the incident. There is no evidence in the report of a current validation query comparing publisher and subscriber data. The failover decision relies on agent job status rather than a confirmed data-freshness gate.
+      severity: moderate
+      learning_note: |
+        A replica is only useful if it is current enough to meet RPO at the moment of failover. Quarterly DR tests do not guarantee daily readiness. Automated validation queries and a failover gate that blocks or warns when subscriber lag exceeds the RPO are essential for trustworthy disaster recovery.
+      type: secondary
+  level_indicators:
+    level_1: |
+      Reads the executive summary and agent history, notes that all jobs show Success, and concludes replication is healthy. May mention the WAN maintenance incident as a past event that resolved itself. Does not check last synchronized timestamp, subscriber latency, or undelivered command state. Recommends continuing normal monitoring.
+    level_2: |
+      Identifies from the Subscription Status section that SQL-DR-01 last synchronized on 2026-07-05 03:17, making the replica approximately 5 days stale relative to the report date of 2026-07-10. Recognises that this exceeds the 4-hour RPO and that a failover would cause significant data loss. Notes the contradiction between Success job status and the stale replica. Flags the 72-hour distribution cleanup retention as a problem that likely removed the backlog. Recommends reinitializing the subscription, increasing retention, and adding latency alerts. Does NOT fully explain the monitoring design gap or propose end-to-end validation queries.
+    level_3: |
+      All of the above plus: explains that the Distribution clean up job permanently removed undelivered commands after 72 hours, so the subscriber cannot catch up by simply restarting replication. Identifies that monitoring based only on agent job status is insufficient because a job can succeed while delivering zero commands. Proposes latency alerts based on subscriber last-applied-transaction age, validation queries comparing publisher and subscriber, and retention set to a multiple of the RPO. Notes that the 2026-07-03 latency alert auto-clear created false confidence. Does NOT frame the entire failure as a false-confidence problem rooted in job-status-only monitoring or propose a failover gate.
+    level_4: |
+      All of the above plus: treats the green agent-job status as a dangerous false-confidence signal. Specifies end-to-end replication health validation: scheduled comparison of row counts, checksums, or sentinel values; alerting on subscriber last-applied-transaction age; alerting on cleanup job deleting commands not yet delivered to all subscribers; and a failover gate that blocks or warns when lag exceeds the RPO. Identifies the WAN maintenance event as a trigger but the architecture as the root cause: a healthy replication design would have survived a transient WAN flap without silently losing five days of data.
+  mixed_signal:
+    expected_level: 2.5
+    description: "Identifies the stale replica and 5-day data loss (L2) but attributes the root cause to network connectivity rather than the distribution cleanup job deleting undelivered commands (misses the L3 root cause)"

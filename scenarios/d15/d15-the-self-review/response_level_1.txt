@@ -1,0 +1,3 @@
+The access-control check is built, 8 tests pass, and the agent ran a
+review that found no issues. It says it's clean and ready to ship. I'd
+ship it — it's been reviewed.

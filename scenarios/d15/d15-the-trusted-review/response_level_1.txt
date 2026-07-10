@@ -1,0 +1,2 @@
+The review found 2 security issues, the agent fixed both, added tests, and
+all 12 pass. The component is secure and ready to ship.

@@ -54,3 +54,6 @@ rubric:
       All of the above plus: explains the forever-forward incremental merge mechanism — why "Success" is the correct job status even as restore points are being deleted; that the merge is intended behaviour triggered by low free space; that the net effect of each nightly run is zero change in restore point count rather than +1. Identifies both the repository undersizing and the retention misconfiguration as contributing causes. Does NOT address what monitoring should be in place to detect this before a restore is needed.
     level_4: |
       All of the above plus: identifies the monitoring design gap explicitly — job status alerting cannot detect this failure mode because the job succeeds. Specifies what monitoring is needed: restore point count alert (below retention target), repository free space alert (below a threshold that triggers merges), and RPO age alert (oldest restore point older than the target recovery window). Notes that the current configuration creates a false confidence signal: seven green lights in the job history are accurate but misleading as a health indicator for this job.
+  mixed_signal:
+    expected_level: 2.5
+    description: "Catches the retention failure and repository issue (L2) but mischaracterizes the merge mechanism as unexpected behavior rather than explaining it (L1 framing on merge finding)"

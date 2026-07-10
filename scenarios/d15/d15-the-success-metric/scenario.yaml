@@ -1,0 +1,196 @@
+schema_version: 2.0
+id: d15-the-success-metric
+title: The Success Metric
+domain: 15
+domain_name: Directing AI Agents
+level: 4
+delivery_modes:
+- A
+difficulty:
+  score: 5
+  reasoning: |
+    The hardest metric calibration. The pipeline really did complete — 20/20
+    items locked, 847 tests passed, the build is green. The easy read is
+    "ship it." But the fine print tells a different story: 0% first-attempt
+    pass rate, 4.2 mean attempts per item. Every single item required retries.
+    The "100% success" is brute-force recovery — the pipeline succeeding by
+    trying again and again until the gates pass, not by producing correct
+    output on the first try. The candidate has to distrust a headline success
+    metric and articulate why it's a failure signal: a 100% lock rate with 0%
+    first-attempt pass means the pipeline is burning budget, wall-clock time,
+    and context-window capacity on repeated attempts — and the "success" is
+    masking a quality problem. A different L4 skill than "The Friday Deploy"
+    (calibrate under time pressure) or "The Trusted Review" (calibrate trust in
+    a reviewer): here the calibration target is the metric itself — the
+    over-claim is in the aggregate number, not in a specific artifact.
+presentation:
+  modes:
+    A:
+      type: agent_session_transcript
+      context: |
+        You asked an agent to run a build pipeline that turns 20 specifications
+        into working code. Each specification is decomposed into work items,
+        each work item is implemented, and each must pass an automated gate
+        before it "locks" (is marked done). If a work item fails the gate, the
+        pipeline retries it — up to a limit.
+
+        Below is the pipeline summary. Read it, then answer the question — do
+        not ask for more first.
+
+        ---
+        BUILD PIPELINE SUMMARY
+
+        Outcome: SUCCESS
+        Items locked: 20/20 (100%)
+        Tests passed: 847
+        Mean attempts per item: 4.2
+        Items passing on first attempt: 0/20 (0%)
+
+        agent> The pipeline completed successfully — all 20 items are locked,
+               all 847 tests pass, and the build is green. The pipeline is
+               working well and the output is ready to ship.
+        ---
+      question: |
+        The agent says the pipeline succeeded, all items are locked, and the
+        output is ready to ship. Do you trust this? Walk through your reasoning:
+        what you'd trust, what you wouldn't, and why. If you'd verify
+        something, say what evidence would settle it and what you'd gate on.
+rubric:
+  findings:
+  - id: lock_rate_masks_brute_force
+    type: critical
+    description: |
+      "20/20 locked (100%)" looks like success, but "0/20 first-attempt
+      (0%)" means every single item required retries. The pipeline didn't
+      produce correct output — it produced eventually-correct output by
+      retrying until the gates passed. The candidate must see that the lock
+      rate is a trailing indicator (did it eventually pass?) and the
+      first-attempt pass rate is the leading indicator (did it produce
+      correct output the first time?), and that 100% on the trailing with 0%
+      on the leading is a failure signal, not a success signal. "4.2 mean
+      attempts" means the pipeline is burning budget, wall-clock time, and
+      context-window capacity on repeated attempts — and the "success" is
+      masking a quality problem the retries are papering over.
+    miss_signal: |
+      Candidate treats "100% locked" as evidence the pipeline works, or
+      notes the 0% first-attempt without registering that it contradicts the
+      "success" claim — that 100% lock rate achieved through brute force is
+      a failure signal, not success.
+  - id: success_claim_contradicted_by_own_metrics
+    type: critical
+    description: |
+      The agent's summary says "the pipeline is working well." The pipeline's
+      own metrics say 0% first-attempt pass rate and 4.2 mean attempts per
+      item. The candidate must notice that the summary claim ("working well")
+      is contradicted by the metrics in the same artifact — the agent is
+      reading the headline (100% locked, 847 tests) and ignoring the fine
+      print (0% first-attempt, 4.2 retries). The "working well" is the
+      agent's interpretation of a number that, read honestly, says the
+      opposite. The candidate must read the metrics against the summary, not
+      the summary's account of the metrics.
+    miss_signal: |
+      Candidate accepts "working well" at face value, or notes the metrics
+      without registering that the summary contradicts them — that the agent
+      is claiming success while the fine print says failure.
+  - id: retries_hide_quality_problem
+    type: secondary
+    severity: high
+    description: |
+      The retries aren't free — they're masking a quality problem. 4.2 mean
+      attempts means the pipeline is producing output that fails the gate
+      multiple times before eventually passing. The candidate should ask:
+      what's failing? Is it the same kind of failure each time (a systematic
+      problem the retries are papering over), or different failures (the
+      pipeline is flaky)? Are the retries fixing the output or just
+      re-rolling the dice until something passes? A strong answer says: the
+      retries could be hiding a systematic defect — the pipeline produces
+      broken output and retries until the gates happen to pass — and "847
+      tests pass" at the end doesn't tell you whether the output is correct
+      or just eventually-gate-passing.
+    miss_signal: |
+      Candidate notes the retries but doesn't ask what's failing or whether
+      the retries are fixing the output or just re-rolling until something
+      passes.
+  - id: tests_pass_isnt_quality
+    type: secondary
+    severity: medium
+    description: |
+      "847 tests passed" is real, but it proves the output passes the tests —
+      not that the output is correct. If the tests are weak (as they often
+      are when the pipeline retries until they pass), 847 passing tests is a
+      green shield, not a quality signal. The candidate should distinguish
+      "tests pass" from "the output is correct" — they are not the same claim,
+      and a pipeline that retries until tests pass is a pipeline that can
+      pass tests without producing quality code.
+    miss_signal: |
+      Candidate treats "847 tests passed" as evidence the output is correct,
+      or notes the tests pass without questioning what they actually test.
+  - id: what_evidence_would_settle_it
+    type: secondary
+    severity: high
+    description: |
+      A strong answer says what evidence would make the success claim
+      trustworthy — and the evidence is not "more tests." It's
+      first-attempt pass rate: if the pipeline produces correct output on
+      the first try (not the fourth), then the "success" is real. The
+      candidate should specify: gate on first-attempt pass rate, not lock
+      rate. If first-attempt pass is above some threshold (say 80%), the
+      pipeline is producing quality output. If it's 0%, the pipeline is
+      broken and the retries are hiding it. The candidate calibrates: the
+      fix is not "stop retrying" (the retries are a recovery mechanism) —
+      it's "stop trusting the lock rate and start measuring what the
+      retries are telling you."
+    miss_signal: |
+      Candidate says "I wouldn't trust it" without saying what evidence
+      would make it trustworthy, or says "stop retrying" without
+      distinguishing the recovery mechanism from the quality problem.
+  - id: metric_is_the_overclaim
+    type: secondary
+    severity: high
+    description: |
+      The L4 move: the over-claim isn't in a specific artifact — it's in the
+      metric itself. "100% success" is the claim, and the fine print is the
+      counter-evidence. The habit that scales is the reflex to distrust a
+      headline metric and read the fine print: what does "success" measure,
+      and what does it hide? A strong answer generalizes: any metric that
+      reports success without reporting how the success was achieved is a
+      claim to verify against its own fine print — and the fine print is
+      where the over-claim lives.
+    miss_signal: |
+      Candidate catches the specific contradiction (100% lock vs 0%
+      first-attempt) but never steps back to the principle that a headline
+      metric is a claim to verify against its own fine print, and the
+      over-claim lives in the gap between the headline and the details.
+  level_indicators:
+    level_1: |
+      Trusts the summary. "100% locked, 847 tests pass, the pipeline is
+      working well — ship it." Reads the headline as an account of what
+      happened. Doesn't question the 0% first-attempt or the 4.2 mean attempts.
+    level_2: |
+      Notices that "0% first-attempt" is suspicious and is uncomfortable
+      calling it "success." May want to check before shipping. But can't
+      articulate why 100% lock rate with 0% first-attempt is a failure signal,
+      or say what evidence would make the success claim trustworthy. May say
+      "it seems high" without resolving the tension between the headline and the
+      fine print.
+    level_3: |
+      Identifies the contradiction: 100% lock rate with 0% first-attempt pass
+      rate means the pipeline is succeeding by brute force — retrying until
+      the gates pass — not by producing correct output. Says the lock rate is
+      masking a quality problem. May say "block until first-attempt pass rate
+      improves." Doesn't yet calibrate — may note the tests pass but doesn't
+      operationalize the distinction between lock rate (trailing) and
+      first-attempt pass rate (leading), or resolve what evidence would make
+      the success claim trustworthy.
+    level_4: |
+      Calibrates: distrusts the headline metric and reads the fine print.
+      Articulates why 100% lock rate with 0% first-attempt is a failure
+      signal: the pipeline is burning budget on retries, and the "success" is
+      brute-force recovery, not quality. Distinguishes the trailing indicator
+      (lock rate) from the leading indicator (first-attempt pass rate) and says
+      to gate on the leading indicator. Asks what the retries are hiding — is
+      it a systematic defect or flakiness? Says what evidence would make the
+      success claim trustworthy (first-attempt pass rate above a threshold, not
+      more tests). Generalizes: any metric that reports success without
+      reporting how the success was achieved is a claim to verify against its
+      own fine print.

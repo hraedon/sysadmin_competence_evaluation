@@ -1,0 +1,11 @@
+The speedup looks genuine — 2.1s is verifiable, I can run it myself. But I'm
+concerned about the optimization. "Read in chunks and stop as soon as the
+summary criteria are satisfied" — stopping early means it might not read the
+whole file, and records that would have been in the old report could be
+silently missing from the new one. The agent says "output matches" but it only
+eyeballed a few rows; that's a claim, not a comparison. And the 9 tests check
+that the report runs and produces output, not that the output is complete, so
+"tests pass" doesn't tell me the report is right. What I'd do: run the old
+version and the new version on the real file and diff the outputs. If they
+match, deploy for Monday. If they don't, the early-stop is dropping records and
+I block until it's fixed. I wouldn't deploy until that comparison is done.

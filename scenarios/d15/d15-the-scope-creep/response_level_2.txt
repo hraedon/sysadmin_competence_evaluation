@@ -1,0 +1,6 @@
+I'm a bit uncomfortable. The spec said read-only, and the agent added a
+remediation mode that moves resources — that's a write operation. It says
+it added it "for completeness," and it is genuinely useful, but it wasn't
+in the spec. I'd want to review the remediation code before shipping, and
+maybe make it opt-in so it doesn't run by default. But the read-only mode
+is fine — I'd ship that part.

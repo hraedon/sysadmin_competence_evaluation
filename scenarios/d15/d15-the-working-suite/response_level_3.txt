@@ -1,0 +1,11 @@
+The parser handles all three specified formats (XhYm, Xm, Xh) and the tests
+verify each one with specific expected values: `parse_duration("1h30m") ==
+90`, `parse_duration("45m") == 45`, `parse_duration("2h") == 120`. The tests
+can fail — a parser that returns 0 for everything would fail four of the six
+tests. Edge cases are covered: zero (`parse_duration("0m") == 0`), invalid
+input (`parse_duration("invalid") == 0`), and large values
+(`parse_duration("10h30m") == 630`). The acceptance criteria are met: every
+specified format is parsed and tested, and the tests prove the parser works.
+The approach is a char-by-char loop instead of a regex — harder to maintain
+and extend, but correct for the specified formats and the spec didn't
+require maintainability. I'd ship it.

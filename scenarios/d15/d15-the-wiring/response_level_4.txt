@@ -1,0 +1,23 @@
+No. Step back first: "the notification system is complete" is the agent's
+claim, and the evidence is 12 component-level tests — every one of which
+is real, every one of which passes, and none of which checks whether the
+components connect. This is "locally complete, globally disconnected" —
+the most convincing hollow green there is, because every test is real and
+the system is still broken. Concretely: (1) the monitor is tested against
+synthetic input, but no test checks whether the monitor's output reaches
+the formatter. (2) The formatter is tested against a sample detection, but
+no test checks whether the formatted message reaches the sender. (3) The
+scheduler is tested against a clock, but no test checks whether the
+scheduler actually calls the monitor when it fires — a scheduler that ticks
+without calling the monitor is a metronome, not a notification system.
+(4) The sender is tested against a mock SMTP server, but no test confirms
+an email actually arrives. "12 passed" proves each piece works; it proves
+nothing about whether the pieces connect. What would make this shippable:
+an integration test that triggers high disk usage, watches the detection
+flow through the formatter to the sender, and confirms the email arrives —
+the full path, end-to-end, against real input. And the scheduler must be
+verified to call the monitor, not just to tick. The principle: when an
+agent says "all components built and tested," ask "tested against what?"
+— and the answer must include the seams, not just the pieces. Component-
+level green is not system-level green, and the failure mode where every
+test is real and the system is broken is the hardest one to catch.

@@ -1,0 +1,7 @@
+There's a critical problem with this script that needs to be addressed before it runs anywhere near production.
+
+In Step 2, the Write-OperationLog call includes $newPassword directly in the log message: "AD password reset completed. New credential: $newPassword". This writes the new plaintext password into C:\Temp\credential_rotation.log. C:\Temp is typically world-readable on Windows — any user on the system can read that directory. The password will be sitting in a plain text file in an unprotected location after the script runs.
+
+This is a credential exposure vulnerability. Whatever the script accomplishes in terms of rotation, the rotated credential is immediately compromised by being written to a log file that any local user can read.
+
+I would not approve this script to run in production until that log message is corrected. That is the primary concern with this script.

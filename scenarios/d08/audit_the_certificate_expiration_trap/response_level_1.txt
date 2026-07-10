@@ -1,0 +1,5 @@
+The certificate inventory shows the estate is mostly in good shape. 38 of 47 certificates are active and bound to production, and only one certificate is currently expired. That expired cert is for customer-portal.corp.local, but the incident note says the outage was resolved by failing over and cycling switch ports, so the network issue has already been handled.
+
+I can see several certificates expiring soon: api-gateway in 19 days, sso in 22 days, mail in 24 days, sharepoint in 27 days, and vpn in 30 days. These should be renewed in the next week or two so they don't become a problem. The code-signing cert expires in 34 days so it can wait a bit longer.
+
+The main risk is the expired customer-portal certificate. Even though the incident is closed, the certificate still needs to be renewed and reinstalled on the F5 before the primary DC takes traffic again. I recommend opening ServiceNow tickets for the expiring certificates and checking that customer-portal has a valid cert in production.

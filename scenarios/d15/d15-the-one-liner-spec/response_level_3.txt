@@ -1,0 +1,12 @@
+I wouldn't hand this over yet — there are a few places the agent has to guess,
+and a couple of them matter a lot. First, "haven't logged in" isn't actually
+defined; in AD that's ambiguous enough that the tool could end up reporting the
+wrong accounts and still look right, so the spec has to pin down what "inactive"
+means and how precise it needs to be. Second, and most important, it says
+"report" but nothing stops it from *disabling* accounts — whether this tool can
+change anything in AD is the colleague's decision to make, not the agent's,
+because getting that wrong locks people out. Then the smaller ones: which
+accounts count (users, service accounts, the spare admin that's meant to sit
+idle, already-disabled ones), and how we'd even tell the output is correct —
+the spec should say something like "an account 100 days idle shows up, one 80
+days idle doesn't." I'd get those decided before the agent starts.

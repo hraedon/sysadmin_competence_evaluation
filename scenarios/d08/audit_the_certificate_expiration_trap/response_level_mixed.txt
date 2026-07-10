@@ -1,0 +1,12 @@
+The certificate situation has some immediate operational issues but is not fundamentally broken.
+
+The expired customer-portal certificate on 2026-07-05 clearly needs urgent renewal. More importantly, the CertWatch alert threshold is set to 14 days, which is too short for the certificates expiring in the next 19-30 days. api-gateway, sso, mail, sharepoint, and vpn are all inside a window where a procurement or change-control delay could cause an outage. I would raise the threshold back to 30 days and open renewal tickets for everything inside 30 days.
+
+The process relies on CertTracker_v3.xlsx as the source of truth, with manual reconciliation for the F5 and no automated discovery. For a 200-machine estate this is still acceptable: the spreadsheet gives the Security team a single place to track requests, and the volume is small enough that manual updates are manageable. The main thing is to make sure the tracker is kept current.
+
+I do not see any reason to treat INC-2026-0314 as anything more than a certificate-related outage that happened to coincide with the network event, but the immediate priority is renewing customer-portal and the 19-30 day certificates.
+
+Recommendations:
+- Renew customer-portal immediately.
+- Raise the alert threshold from 14 days back to 30 days.
+- Keep the spreadsheet process but add a weekly manual reconciliation checklist for the F5 and Exchange bindings.

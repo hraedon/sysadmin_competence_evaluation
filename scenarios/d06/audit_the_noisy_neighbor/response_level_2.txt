@@ -1,0 +1,25 @@
+The root cause is host-level CPU contention from a noisy neighbor. Looking at the
+host-side metrics, during the degradation windows:
+
+- Host CPU (% Total Run Time) jumps from 29% to 93%, with idle time dropping
+  to 7%. The host is saturated.
+- srv-build02's % Guest Run Time spikes from 4% to 91% — it is consuming nearly
+  all available physical CPU during these windows.
+- srv-app01's % Guest Run Time stays flat at 34-35%. The guest is not CPU-bound
+  from its own perspective.
+
+The guest-side metrics explain the symptoms: srv-app01's disk read latency jumps
+from 3.2 ms to 19.4 ms and write latency from 3.5 ms to 23.5 ms during the same
+windows. But the guest CPU is flat at 35%. This pattern — low guest CPU, high disk
+latency, saturated host CPU — means the VM is I/O-blocked because the hypervisor
+can't process its I/O requests promptly when the host is CPU-saturated. The disk
+latency is a symptom of host CPU starvation, not a storage problem.
+
+The intermittent pattern correlates exactly with srv-build02's scheduled build task
+(Build-All-Projects, runs every 60 minutes at :40, duration ~18-20 min). The
+degradation windows at 08:40-09:00 and 09:40-09:55 match the build run times.
+
+Recommendation: Relocate srv-app01 to a different Hyper-V host, or limit
+srv-build02's CPU allocation so it cannot monopolise the host during builds.
+The immediate fix is to live-migrate srv-app01 to a host without high-CPU
+batch workloads.

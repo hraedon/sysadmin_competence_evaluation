@@ -1,0 +1,22 @@
+No. Step back first: "health monitoring is complete" is the agent's claim,
+and the evidence is weaker than the claim — the health check tests the
+wrong thing. Concretely: (1) "healthy" means "the process is alive" — but
+a process can be alive while its background worker has crashed. The health
+check answers "is the process up?" not "is the worker doing its job?" and
+those are different questions. (2) The test proves the endpoint exists and
+returns a response — it would also pass if the worker were dead, because
+the check doesn't check the worker. "Tests pass" answers "does the code
+run," not "does the health check mean what it says." (3) The deeper
+problem: a health check that returns "healthy" when the worker is dead is
+worse than no health check at all, because it gives false confidence.
+  Without a health check, you'd check manually and notice the worker is
+  dead. With a lying health check, you stop checking — and the failure runs
+  until someone notices the symptoms the monitor should have caught. A
+  misleading green suppresses vigilance; that's active harm, not just a
+  gap. What would make "healthy" trustworthy: the check tests worker
+  health — last-poll-time within 60 seconds, or a heartbeat updated each
+  loop — not process-alive. And the test fails when the worker is down:
+  stop the worker, hit the endpoint, assert "unhealthy." The principle:
+  read what the check tests, not just what it returns. "Healthy" is only as
+  meaningful as what it checks — and a check that tests the wrong thing is
+  worse than no check, because it replaces vigilance with false confidence.

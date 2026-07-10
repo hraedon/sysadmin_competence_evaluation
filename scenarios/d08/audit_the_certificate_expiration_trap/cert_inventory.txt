@@ -1,0 +1,149 @@
+================================================================================
+ENTERPRISE CERTIFICATE INVENTORY EXPORT
+Generated: 2026-07-09 09:15:33
+Source: ITSM-ADCS-01.corp.local
+Scope: Production TLS certificates and code-signing certificates tracked by
+       the Security team in CertTracker_v3.xlsx
+Monitoring system: CertWatch (internal cert monitoring service)
+================================================================================
+
+INVENTORY SUMMARY
+-----------------
+Total certificates tracked:          47
+Active / bound to production:        38
+Expiring within 30 days:              9
+Expired:                              1
+Monitoring alert threshold:          14 days before expiration
+Certificate tracker source:          \\fileserver\security\CertTracker_v3.xlsx
+Last manual update:                  2026-06-29
+
+NOTE: CertWatch pulls expiration dates from the certificate tracker
+spreadsheet maintained by the Security team. Certificates installed directly
+on endpoints without tracker rows are not monitored.
+
+---
+
+RECENT OUTAGE CONTEXT
+---------------------
+Incident INC-2026-0314 — 2026-07-07 02:47
+Affecting service: customer-portal.corp.local (F5 LTM VIP)
+Duration: 2 hours 17 minutes
+Initial diagnosis: "Network instability / upstream latency"
+Resolution: Failed over to secondary data centre; primary DC service restored
+after network team cycled switch ports on DMZ-AGG-03/04.
+
+Post-incident note (Network team, 2026-07-08):
+  Packet captures showed TCP RSTs from the F5 itself, not the upstream
+  servers. Switch port counters on DMZ-AGG-03 were clean. Root cause
+  remains inconclusive; monitoring enhanced with additional interface graphs.
+
+---
+
+CERTIFICATE INVENTORY
+---------------------
+
+CN / SAN                            Service / Binding               Expiry      Days Left  Source        Monitored  Notes
+----------------------------------  ------------------------------  ----------  ---------  ------------  ---------  -----
+customer-portal.corp.local          F5 LTM VIP (primary DC)          2026-07-05  EXPIRED    spreadsheet   YES        Used by public customer portal
+api-gateway.corp.local              F5 LTM VIP / Nginx               2026-07-28         19  spreadsheet   YES        Public API gateway
+sso.corp.local                      F5 LTM VIP / ADFS                2026-07-31         22  spreadsheet   YES        SAML/OIDC identity provider
+mail.corp.local                     Exchange 2019 SMTP/IIS           2026-08-02         24  spreadsheet   YES        Hybrid Exchange certificate
+sharepoint.corp.local               SharePoint 2019 / IIS            2026-08-05         27  spreadsheet   YES        Internal collaboration
+vpn.corp.local                      Palo Alto GlobalProtect          2026-08-08         30  spreadsheet   YES        Remote access VPN
+code-sign.corp.local                Internal code-signing CA cert    2026-08-12         34  spreadsheet   YES        Application deployment signing
+sql-ag.corp.local                   SQL Server AG listener           2026-10-14        127  spreadsheet   YES        Encrypted SQL connections
+ldap.corp.local                     Domain Controller LDAPS          2026-11-30        174  GPO-deployed  NO         Auto-enrolled by AD CS
+automation.corp.local               Ansible Tower / AWX              2026-12-20        194  manual entry  YES        CI/CD automation UI
+internal-wildcard.corp.local        Internal apps wildcard           2027-01-15        220  spreadsheet   YES        Covers 12 internal services
+
+[Additional 36 certificates omitted for brevity — all expiry dates > 90 days]
+
+---
+
+CERTWATCH MONITORING CONFIGURATION
+----------------------------------
+Service name:            CertWatch
+Alert threshold:         14 days before expiration
+Notification channels: Security-team DL (security@corp.local)
+                         PagerDuty high-priority rotation
+Scan cadence:            Daily at 06:00
+Certificate source:    \\fileserver\security\CertTracker_v3.xlsx
+Validation:              None (trust chain not verified)
+
+Current alert status:    CLEAR
+                         Last alert: 2026-06-25 (expiry 2026-07-09)
+
+---
+
+CERTWATCH ALERT HISTORY (last 30 days)
+--------------------------------------
+Date        Certificate              Days Until Expiry   Alert Severity   Action Taken
+----------  -----------------------  ------------------  ---------------  ---------------------------
+2026-06-25  intranet.corp.local                       9  CRITICAL         Renewed, deployed 2026-06-26
+2026-06-10  dev-api.corp.local                       13  WARNING          Scheduled for renewal
+2026-06-05  test-vpn.corp.local                      17  (none)           Below threshold; no alert
+
+---
+
+LOAD BALANCER SSL PROFILES (F5 BIG-IP)
+--------------------------------------
+Profile: customer-portal-ssl
+  VIP:                 203.0.113.15
+  Server SSL:          Enabled
+  Client SSL cert:     customer-portal.corp.local (expires 2026-07-05)
+  Certificate chain:   Incomplete — intermediate cert customer-portal-int
+                       missing from F5 profile
+  OCSP stapling:       Not configured
+
+Profile: api-gateway-ssl
+  VIP:                 203.0.113.16
+  Client SSL cert:     api-gateway.corp.local (expires 2026-07-28)
+  Certificate chain:   Complete
+  OCSP stapling:       Not configured
+
+---
+
+INCIDENT TIMELINE — INC-2026-0314
+----------------------------------
+2026-07-07 02:47  Monitoring alerts: customer-portal unreachable
+2026-07-07 02:51  TCP/443 probes timeout from external monitor
+2026-07-07 03:05  Network team engaged: suspected DMZ switch issue
+2026-07-07 03:22  RST packets observed from F5 self-IP
+2026-07-07 03:30  Failover to secondary DC initiated
+2026-07-07 04:12  Secondary DC customer-portal VIP serving traffic
+2026-07-07 05:04  Primary DC switch ports cycled; service restored
+
+Network team closeout note:
+  "No definitive Layer 2/3 fault found. RSTs from F5 suggest possible
+   application-side connection reset. Monitoring graphs show brief
+   latency spike at 02:46. Closing as transient network event pending
+   recurrence."
+
+---
+
+CERTIFICATE MANAGEMENT PROCESS NOTES
+------------------------------------
+1. Certificate requests are logged in CertTracker_v3.xlsx.
+2. Security team updates the tracker manually after installation.
+3. CertWatch reads the spreadsheet daily and alerts 14 days before expiry.
+4. Renewal requests are opened via ServiceNow at 10 days before expiry.
+5. Load balancer certificates are updated by the Network team from a
+   separate certificate store on F5; tracker row is updated manually
+   by Security after Network confirms deployment.
+6. Root and intermediate CA trust chains are maintained in AD DS Group
+   Policy and are not reviewed during certificate expiry monitoring.
+
+---
+
+KNOWN GAPS (documented in runbook, not yet remediated)
+-------------------------------------------------------
+- No automated discovery of certificates installed outside the tracker.
+- CertWatch does not verify certificate chains or root CA validity.
+- Load balancer certificate deployments are not reconciled automatically
+  with the spreadsheet.
+- Alert threshold was reduced from 30 days to 14 days in March 2026 to
+  reduce alert volume.
+
+================================================================================
+END OF INVENTORY
+================================================================================

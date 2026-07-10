@@ -1,0 +1,187 @@
+schema_version: 2.0
+id: d15-the-handoff
+title: The Handoff
+domain: 15
+domain_name: Directing AI Agents
+level: 1
+delivery_modes:
+- A
+difficulty:
+  score: 2
+  reasoning: |
+    The on-ramp's companion piece. Where "The Fix Summary" gives the candidate a
+    diff and a summary to separate, this one gives a narrative handoff — the kind
+    an agent leaves at the end of a session. The headline claims success ("342
+    pass, ready to merge") but the same note contains a "What was NOT verified"
+    section listing three unverified items, including a security-relevant fix
+    with no regression test. The L1 bar is faithful description: can you read
+    the handoff and say back what the agent did, what it claimed, and what it
+    admitted it didn't verify — treating the headline and the admissions as two
+    different things? The harder levels add noticing that the headline and the
+    admissions contradict each other, and that "ready to merge" outruns the
+    agent's own evidence.
+presentation:
+  modes:
+    A:
+      type: agent_session_handoff
+      context: |
+        You asked an agent to fix a bug in a form-validation script and add
+        tests. The bug: user input wasn't being stripped of trailing whitespace
+        before a length check, so a 50-character input with a trailing space
+        was rejected as too long. You asked the agent to fix that and add a
+        test.
+
+        Below is the agent's session handoff. Read it, then answer the
+        question — do not ask for more first.
+
+        ---
+        SESSION HANDOFF
+
+        Summary: Bug fixed, tests added, ready to merge.
+
+        Tests: 342 pass, 0 fail. Ruff + mypy clean locally.
+
+        Changes:
+        - Stripped trailing whitespace from input before the length check in
+          validate_form()
+        - Added test_validate_strips_trailing_whitespace
+        - Updated the length-check boundary in two other validators that had
+          the same pattern
+
+        What was NOT verified:
+        - No regression test for the header-injection fix from the previous
+          change. The sanitize_field() fix is in place but I didn't write a
+          test that proves malicious input is rejected.
+        - The e2e test suite was not run after the UI label change. AGENTS.md
+          says to run e2e after any UI change; I ran the unit suite (342 pass)
+          but skipped e2e due to the session ending.
+        - CI on the final push was not confirmed green. I pushed to the branch
+          and it was green at commit 3, but I made one more commit after that
+          (the label fix) and didn't wait for CI to finish on it.
+        ---
+      question: |
+        What did the agent do, and what did it claim about its work? Describe
+        what happened as accurately as you can — what the handoff shows, and
+        what the agent said about it.
+rubric:
+  findings:
+  - id: separates_headline_from_admissions
+    type: critical
+    description: |
+      The L1 bar: the candidate reads the handoff and separates the headline
+      claims ("342 pass, ready to merge, lint clean") from the "What was NOT
+      verified" section. The handoff shows the agent fixed the bug, added a
+      test, updated two other validators, ran 342 tests locally, and pushed
+      to a branch. The headline says "ready to merge." The admissions section
+      lists three things that aren't done: no regression test for a
+      header-injection fix, e2e suite not run after a UI change, CI not
+      confirmed on the final commit. A faithful L1 answer reports both — what
+      the headline claims and what the admissions concede — treating them as
+      two different things. Conflating them — reading "ready to merge" as
+      the whole story without noting the admissions, or listing the admissions
+      without noting the headline claim — is the miss.
+    miss_signal: |
+      Candidate paraphrases the headline ("it fixed the bug, 342 tests pass,
+      ready to merge") without mentioning the "What was NOT verified" section,
+      or lists the admissions without noting what the headline claimed.
+  - id: ready_to_merge_contradicted_by_admissions
+    type: critical
+    description: |
+      "Ready to merge" is a claim, and the handoff's own "NOT verified"
+      section lists three things that aren't done. The candidate should
+      notice that the headline claim is contradicted by the agent's own
+      admissions — the agent said "ready" while listing unverified items,
+      including a security-relevant fix with no regression test. The gap
+      between the headline and the admissions is visible in the same artifact;
+      the candidate doesn't need outside evidence to see it.
+    miss_signal: |
+      Candidate repeats "ready to merge" as an established fact, or lists
+      the admissions alongside the headline without registering that they
+      contradict each other.
+  - id: injection_fix_is_most_consequential
+    type: secondary
+    severity: high
+    description: |
+      Not all unverified items are equal. The header-injection fix with no
+      regression test is the most consequential gap — it's a security-relevant
+      fix, and "no test" means there's no evidence it actually rejects
+      malicious input. A strong answer flags this as the most important
+      admission, not just one of three equal items. The e2e gap and the CI
+      gap are real but lower-stakes; the injection fix is the one where
+      "not verified" means "we don't know if it works."
+    miss_signal: |
+      Candidate lists all three admissions as equal-weight, or doesn't
+      single out the injection fix as the most consequential.
+  - id: pass_count_is_local_not_ci
+    type: secondary
+    severity: medium
+    description: |
+      "342 pass" is a local result. The handoff says CI was green at commit 3
+      but not confirmed on the final commit. The candidate should notice that
+      the pass count is the agent's local run, not a CI result — the headline
+      "342 pass" sounds like validation but is actually a local number, and
+      the CI status for the latest commit is unknown.
+    miss_signal: |
+      Candidate treats "342 pass" as evidence the work is verified, or
+      doesn't distinguish the local pass count from the CI status.
+  - id: specifies_what_done_looks_like
+    type: secondary
+    severity: high
+    description: |
+      A strong answer doesn't stop at spotting the gaps — it says what would
+      settle them: write the regression test for the injection fix (and see
+      it fail without the fix), run the e2e suite, and confirm CI green on
+      the final commit. The candidate names what "done" would look like,
+      concretely, for each admission.
+    miss_signal: |
+      Candidate notices the gaps but doesn't say what verification would
+      look like, or flags the contradiction without saying what they'd check
+      before merging.
+  - id: handoff_is_claims_generalized
+    type: secondary
+    severity: high
+    description: |
+      The L4 move: stepping back from the individual catches to the principle.
+      The handoff is a set of claims — the headline is one claim, the
+      admissions are another — and the habit is reading them together rather
+      than trusting the headline. A strong answer names this explicitly:
+      the agent's own handoff contradicts itself, and the skill is reading
+      the whole thing, not just the top line. The headline papers over the
+      caveats; the caveats are the evidence.
+    miss_signal: |
+      Candidate catches one or two specific gaps but never steps back to the
+      principle that the handoff is a set of claims to read together, not a
+      headline to trust.
+  level_indicators:
+    level_1: |
+      Accurately describes what the agent did (fixed the trailing-whitespace
+      bug, added a test, updated two other validators, ran 342 tests locally)
+      and what the handoff claimed ("ready to merge, 342 pass, clean") — and
+      also reports the "What was NOT verified" section (no regression test for
+      the injection fix, e2e not run, CI not confirmed). Treats the headline
+      and the admissions as two different things. May not notice that they
+      contradict each other; describes faithfully without evaluating. That
+      faithful separation is the L1 bar.
+    level_2: |
+      Faithful description, plus starts to notice at least one gap between the
+      headline and the admissions — typically that "ready to merge" is
+      contradicted by the "NOT verified" section, or that the injection fix
+      with no regression test is a security-relevant gap. Doesn't yet specify
+      what to check or rank the admissions by consequence.
+    level_3: |
+      Catches the headline-vs-admissions contradiction, flags the injection fix
+      as the most consequential gap, and specifies what would settle it: write
+      the regression test (and see it fail without the fix), run the e2e suite,
+      confirm CI green on the final commit. Notices that "342 pass" is local,
+      not CI. Names what "done" looks like concretely. May not generalize to
+      the claim-vs-evidence habit.
+    level_4: |
+      All of L3, plus the step back: the handoff is a set of claims, and the
+      headline ("ready to merge") is contradicted by the agent's own admissions
+      in the same artifact. The skill is reading the whole handoff, not just
+      the headline — the claims and the caveats are side by side, and the
+      headline papers over the caveats. Says what evidence would make "ready
+      to merge" true (not just what's wrong now). Catches that the pass count
+      is local and the CI status is unknown. Frames the general reflex: read
+      the whole handoff; where claims and caveats conflict, the caveats are
+      the evidence.

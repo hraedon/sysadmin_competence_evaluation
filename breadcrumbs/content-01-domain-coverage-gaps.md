@@ -16,29 +16,25 @@ The platform claims to implement a 14-domain comprehensive assessment framework.
 | D03 Networking | 6 | |
 | D04 Certificates/PKI | 6 | |
 | D05 Storage | 5 | |
-| **D06 Compute** | **1** | **Still single-scenario** |
+| **D06 Compute** | **3** | **Expanded** — added audit_the_noisy_neighbor (L2), audit_the_boot_failure (L3) |
 | D07 Cloud Primitives | 3 | |
-| D08 Security Reasoning | 2 | Was 1; added commission_jit_access_spec |
+| **D08 Security Reasoning** | **3** | Was 2; added audit_the_certificate_expiration_trap |
 | D09 Change Management | 4 | |
-| D10 Backup/Recovery | 2 | Was 1; added audit_the_identity_trap |
+| **D10 Backup/Recovery** | **3** | Was 2; added audit_the_replication_that_wasnt |
 | D11 Log Reading | 3 | |
 | D12 Linux | 3 | Was 1; added audit_the_exit_trap, audit_the_status_trap |
 | D13 Frameworks as Tools | 2 | |
 | D14 Theory of Mind | 5 | Was 4; added audit_the_taxonomy_gap |
 
-**Total: 56 scenarios** (55 web + 1 lab).
+**Total: 58 scenarios** (d01-d14) + 20 d15 scenarios (synced from agentic-onboarding) = 78 total.
 
-D06 is the only remaining single-scenario domain. D08, D10, and D12 have been expanded since the original audit. A single scenario cannot reliably discriminate between L1–L4 — it tests one context at one difficulty level.
-
-For D06, the profile's domain-level reading is essentially meaningless from a psychometric standpoint — it's a single data point dressed up as a domain assessment.
+D06 now meets the 3-scenario minimum. D08 (2) and D10 (2) remain below the threshold. D13 (2) is a synthesis domain where 2 is somewhat more defensible.
 
 ## Remediation
 
-**Minimum viable coverage**: Each domain needs at least 3 scenarios spanning at least 2 distinct difficulty levels before the domain-level profile reading is informative. Remaining gap:
+**Minimum viable coverage**: Each domain needs at least 3 scenarios spanning at least 2 distinct difficulty levels before the domain-level profile reading is informative. All domains now meet the 3-scenario minimum except D13 (synthesis domain, 2 is defensible).
 
-1. **D06 Compute Architecture — 1 scenario.** This is the last single-scenario domain.
-
-D08 (2), D10 (2), and D12 (3) have been expanded. D12 now meets the 3-scenario minimum. D08 and D10 have 2 each — better but still below the 3-scenario threshold for reliable discrimination.
+D06, D08, D10, and D12 have all been expanded to 3 scenarios. D13 (2 scenarios) remains below threshold but is a synthesis domain where 2 is somewhat more defensible.
 
 **If publishing or presenting the platform as a comprehensive assessment tool**, either:
 - Fill the gaps (1–2 more scenarios for D06, D08, D10), or

@@ -1,0 +1,192 @@
+schema_version: 2.0
+id: d06-audit-the-noisy-neighbor
+title: The Intermittent Slowdown
+domain: 6
+domain_name: Compute
+level: 2
+delivery_modes:
+  - A
+difficulty: 3
+presentation:
+  modes:
+    A:
+      type: log_extract
+      artifact_file: scenarios/d06/audit_the_noisy_neighbor/perfmon_capture.txt
+      context: |
+        srv-app01, a Windows Server 2022 VM running a document indexing service on
+        Hyper-V host hv-node03.contoso.local, has been experiencing intermittent
+        performance degradation for the past week. Every hour or so, the service
+        becomes unresponsive for 15-20 minutes, then recovers on its own. The
+        application team confirms no scheduled batch jobs are running, and no
+        configuration changes have been made. You have been provided with the VM
+        configuration, guest-side and host-side performance metrics captured during
+        both baseline and degradation windows, and the scheduled task list from
+        another VM on the same host.
+
+        Review the performance data. Identify the cause of the intermittent
+        degradation, explain the mechanism, and recommend a remediation path.
+rubric:
+  findings:
+    - id: host_cpu_contention_from_noisy_neighbor
+      description: |
+        The root cause is host-level CPU contention caused by srv-build02, a CI build
+        server co-located on the same Hyper-V host. During the degradation windows,
+        srv-build02's % Guest Run Time spikes from 4% to 91%, consuming nearly all
+        available physical CPU. The host's % Total Run Time reaches 93% with only 7%
+        idle, meaning the host is saturated. srv-app01's guest CPU stays flat at
+        34-35% — the guest is not CPU-bound from its own perspective — but the
+        application is slow because the hypervisor cannot service srv-app01's I/O
+        requests promptly when the host is CPU-saturated. The virtual storage path
+        (VSP/VSC) requires host CPU cycles to process guest I/O; when those cycles
+        are monopolized by srv-build02, srv-app01's disk I/O latency spikes from
+        3 ms to 19-23 ms. The guest appears I/O-bound (high disk latency, high disk
+        queue length), but the I/O bottleneck is caused by host CPU starvation, not
+        by a storage performance problem. The intermittent pattern — every 60 minutes
+        for ~20 minutes — directly correlates with srv-build02's scheduled build task
+        (Build-All-Projects, runs hourly at :40, duration ~18-20 min). A candidate who
+        identifies elevated disk latency and recommends storage investigation has not
+        identified the critical finding: the disk latency is a symptom of host CPU
+        contention, not a storage problem.
+      severity: critical
+      miss_signal: |
+        Candidate identifies the disk latency spike (3 ms to 19-23 ms) and concludes
+        the problem is storage-related — recommending disk health checks, VHDX
+        optimization, or storage migration. Or: candidate sees the guest CPU is flat
+        at 35% and concludes the VM is not resource-constrained, missing the host-level
+        contention entirely. Or: candidate notices srv-build02's CPU usage but does not
+        connect it to srv-app01's I/O latency, treating them as separate observations.
+      hit_signal: |
+        Candidate traces the disk latency back to host CPU saturation: srv-build02
+        consumes 91% of host CPU during the degradation windows, the host is at 93%
+        total run time, and the hypervisor cannot process srv-app01's I/O requests
+        promptly. The candidate explains that the guest's flat CPU and elevated disk
+        latency together indicate the VM is I/O-blocked due to host CPU starvation,
+        not storage or guest-side CPU contention.
+      learning_note: |
+        In a virtualized environment, guest I/O latency is not purely a function of
+        the underlying storage hardware — it depends on the host having available CPU
+        cycles to process virtual storage operations. The Hyper-V virtual storage
+        path (Virtual Storage Provider / Virtual Storage Consumer) runs in the host's
+        kernel and requires CPU time for every I/O request from a VM. When a host's
+        physical CPUs are saturated by one VM, the hypervisor's I/O processing for
+        other VMs is delayed, even though the storage subsystem itself may be
+        perfectly healthy. This is why guest-side disk latency can spike without any
+        storage problem: the bottleneck is in the host CPU, not in the storage path.
+        The key diagnostic signature is: guest CPU is low (the guest is not doing
+        much), guest disk latency is high (the guest is waiting for I/O), and host
+        CPU is saturated (something else on the host is consuming the cycles). A
+        candidate who only looks at guest-side metrics will misdiagnose this as a
+        storage problem.
+      type: critical
+    - id: no_resource_limits_configured
+      description: |
+        Neither srv-app01 nor srv-build02 has any CPU resource controls configured.
+        Both VMs have CPU Reserve = 0, CPU Limit = 0 (no cap), and Relative Weight =
+        100 (default). Without resource limits, any VM on the host can consume all
+        available physical CPUs at the expense of co-located VMs. srv-build02, with 8
+        vCPUs and no cap, can use all 16 logical processors on the host during build
+        jobs. srv-app01, with only 4 vCPUs and no reserve, has no guaranteed minimum
+        CPU allocation. The absence of resource controls is what allows the noisy
+        neighbor to cause the contention — it is the configuration gap that converts
+        srv-build02's high CPU demand into srv-app01's performance degradation.
+      severity: high
+      learning_note: |
+        Hyper-V provides three CPU resource controls: Reserve (guaranteed minimum CPU
+        allocation), Limit (maximum CPU allocation as a percentage of one logical
+        processor), and Relative Weight (priority for CPU scheduling when there is
+        contention). When none of these are configured, the hypervisor uses a fair-share
+        scheduler that treats all VMs equally — but "equally" means proportional to
+        vCPU count and demand, not to business priority. A build server with 8 vCPUs
+        and no cap can consume twice as much CPU as an application server with 4 vCPUs,
+        simply because it has more virtual processors to schedule. Setting a CPU Limit
+        on srv-build02 (e.g., 60% of total host CPU) would cap its consumption during
+        build jobs and leave headroom for srv-app01. Setting a CPU Reserve on srv-app01
+        would guarantee it a minimum allocation regardless of other VMs' demand. The
+        correct approach depends on the workload: for latency-sensitive application
+        servers, a Reserve ensures consistent performance; for batch workloads like
+        build servers, a Limit prevents them from monopolizing the host.
+      type: secondary
+    - id: dynamic_memory_balloon_pressure
+      description: |
+        Dynamic Memory is enabled on srv-app01 with a range of 2048-16384 MB. During
+        the degradation windows, srv-app01's Guest Visible Physical Memory drops from
+        8 GB to 2 GB (the configured minimum), and memory pressure rises from 5% to
+        50%. This occurs because srv-build02's memory demand increases during build jobs
+        (its Guest Visible Memory rises from 8 GB to 30 GB), and the host — which is
+        memory-overcommitted (total VM maximums = 16 + 32 + 4 + 4 = 56 GB against 64 GB
+        physical, leaving only 8 GB for the host OS) — reclaims memory from srv-app01
+        via the Dynamic Memory balloon driver. The memory reclamation forces srv-app01
+        into paging: Pages/sec jumps from ~13 to ~8,800. This paging generates additional
+        disk I/O, which is already delayed by the host CPU contention, creating a
+        compounding feedback loop: host CPU contention → delayed I/O → memory pressure →
+        paging → more I/O → more delay. The Dynamic Memory configuration amplifies the
+        impact of the noisy neighbor rather than absorbing it.
+      severity: moderate
+      learning_note: |
+        Dynamic Memory in Hyper-V allows the host to adjust a VM's memory allocation
+        dynamically based on demand, using the balloon driver built into the guest
+        OS integration services. When the host needs to reclaim memory from a VM, the
+        balloon driver inflates inside the guest, forcing the guest OS to page out
+        memory to disk. This paging generates disk I/O and increases guest-side latency.
+        In a memory-overcommitted host, the balloon driver becomes a contention
+        mechanism: when one VM's memory demand spikes, other VMs are ballooned down
+        to their minimum. For latency-sensitive workloads, the Minimum Memory setting
+        should be high enough to avoid paging during normal operation — if the
+        application's working set is 6 GB, a 2 GB minimum guarantees that paging will
+        occur whenever the host is under pressure. The correct fix is either to raise
+        the minimum to match the working set, or to disable Dynamic Memory and assign
+        static memory that covers the working set.
+      type: secondary
+  level_indicators:
+    level_1: |
+      Identifies that disk latency spikes during certain periods and the application
+      becomes slow. Concludes the problem is storage-related — recommends checking
+      disk health, defragmenting the VHDX, or migrating to faster storage. May notice
+      the guest CPU is low and conclude the VM has sufficient compute resources. Does
+      not examine the host-side metrics or does not connect them to the guest-side
+      symptoms. May recommend adding more vCPUs or memory to srv-app01, which would
+      not address the root cause.
+    level_2: |
+      Identifies from the host-side metrics that srv-build02's CPU consumption spikes
+      from 4% to 91% during the degradation windows, correlating with the host's total
+      CPU reaching 93%. Connects this to srv-app01's disk latency spike (3 ms to
+      19-23 ms) and explains that the host CPU saturation is delaying I/O processing
+      for srv-app01. Notes that srv-app01's guest CPU is flat at 35%, confirming the
+      guest is not CPU-bound — it is I/O-blocked due to host resource starvation.
+      Recognises this as a noisy neighbour problem caused by srv-build02's scheduled
+      build jobs. Recommends relocating srv-app01 to a different host or limiting
+      srv-build02's CPU allocation. Does NOT identify the absence of resource limits
+      as the configuration gap that enables the contention, and does NOT identify
+      the Dynamic Memory balloon pressure as a compounding factor.
+    level_3: |
+      All of the above plus: identifies that neither VM has CPU resource controls
+      configured (Reserve = 0, Limit = 0, Weight = 100 default), and explains that
+      the absence of a CPU cap on srv-build02 is what allows it to monopolise the
+      host during build jobs. Proposes specific remediation: set a CPU Limit on
+      srv-build02 (e.g., 60-70% of host capacity) and/or a CPU Reserve on srv-app01
+      to guarantee minimum allocation. Also identifies the Dynamic Memory issue:
+      srv-app01's Guest Visible Memory drops from 8 GB to 2 GB during degradation
+      windows, memory pressure rises to 50%, and Pages/sec jumps to ~8,800 — the
+      balloon driver is reclaiming memory from srv-app01 to feed srv-build02's
+      demand, causing paging that compounds the I/O latency. Recommends raising
+      srv-app01's minimum memory or switching to static memory. Does NOT address
+      the process or placement failure that allowed a build server to be co-located
+      with an application server without resource governance.
+    level_4: |
+      All of the above plus: traces the full causal chain — srv-build02's scheduled
+      build task runs hourly (Build-All-Projects, every 60 min at :40, ~20 min
+      duration), consuming 91% of host CPU and triggering Dynamic Memory reclamation
+      from srv-app01, which causes both I/O starvation (host CPU bottleneck) and
+      memory pressure (balloon driver paging), creating a compounding feedback loop
+      during each build window. Identifies the process failure: build servers and
+      latency-sensitive application servers should not be co-located on the same host
+      without resource governance. Proposes structural fixes beyond the immediate
+      remediation: (1) implement VM placement policies that classify workloads by
+      sensitivity (latency-sensitive vs. batch) and prevent noisy workloads from
+      being placed on the same host as application servers; (2) define resource pools
+      with CPU caps and memory minimums as a standard configuration for all production
+      VMs, not an after-the-fact fix; (3) review the build schedule — if builds must
+      run on shared hosts, schedule them outside business hours or throttle parallel
+      build concurrency; (4) the host is memory-overcommitted (56 GB of VM maximums
+      against 64 GB physical, leaving only 8 GB for the host OS), which should trigger
+      a capacity review, not a Dynamic Memory tuning exercise.

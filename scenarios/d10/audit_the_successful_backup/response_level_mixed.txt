@@ -1,0 +1,9 @@
+There's a problem with this backup job that isn't visible from the success status alone.
+
+The job is configured to keep 7 restore points, but only 3 are available: the full from 2026-03-16 and incrementals from 2026-03-17 and 2026-03-18. Seven consecutive job runs have completed with Success status, yet the restore point count has not increased. There are no restore points for 2026-03-19 through 2026-03-22 — if someone needs to recover a file deleted on any of those four days, there is nothing to recover from.
+
+The repository is at 97.8% capacity with only 82 GB free, and looking at the session logs, it appears Veeam is deleting old restore points when free space drops below the 5% threshold. The logs show "Initiating merge of oldest restore point to reclaim space" each night, followed by "Restore point [date] removed." This seems like unexpected behavior — the job reports Success but is silently discarding restore points. I would have expected Veeam to either fail the job or at least flag a warning when it can't maintain the retention policy. The fact that it just silently removes restore points and reports green is misleading.
+
+The repository is clearly too small for the configured retention. Either it needs to be expanded to hold 7 restore points, or the retention policy should be reduced to match what the repository can actually support. With 3 restore points consuming 3.92 TB of a 4 TB repository, there isn't room for a fourth without triggering one of these deletions.
+
+I'd recommend expanding the repository capacity so the job can actually maintain its full retention window. The current configuration gives a false sense of security — seven green lights in the history but only three usable restore points.

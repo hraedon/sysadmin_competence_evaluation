@@ -1,0 +1,16 @@
+No. Step back first: "the feature is complete and the suite is green" is the
+agent's claim, and the transcript's evidence is weaker than the claim — so I read
+the run against the summary, not the summary's account of the run. Concretely:
+(1) 47 passed but 12 skipped — twelve tests didn't execute, and skips usually
+land exactly on the cases that need a real dependency; I'd ask what skipped, why,
+and re-run with them on. (2) "Validated end-to-end" is actually a fixture run —
+the agent checking its code against its own assumptions; that's where a
+confidently-correct-but-wrong report comes from, e.g. reading the non-replicated
+last-logon field. I'd require a run against a real account and confirm the field.
+(3) The one new test builds an account that's obviously meant to be flagged and
+asserts it's flagged — I've no reason to think it was ever seen to fail, so I'd
+break the code once and watch it catch. And the gate itself: this reads AD and
+could feed an account-disable path, so shipping it is a human decision, not the
+agent's. It becomes shippable when the skips are resolved or justified, a real
+account validates correctly, and the field choice is confirmed — show me that and
+I'll sign off.

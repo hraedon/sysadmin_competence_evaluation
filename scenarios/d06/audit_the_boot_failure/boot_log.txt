@@ -1,0 +1,214 @@
+================================================================================
+INCIDENT REPORT — INC-2026-2107
+================================================================================
+Priority:    High
+Status:      Open
+Opened:      2026-04-16 07:15
+VM:          srv-db01 (Ubuntu 22.04.4 LTS, KVM/QEMU, UEFI Secure Boot enabled)
+Host:        kvm-node07.contoso.local
+Assigned to: Infrastructure Team
+
+--------------------------------------------------------------------------------
+USER REPORT (submitted 2026-04-16 07:15 by DBA team)
+--------------------------------------------------------------------------------
+srv-db01 did not come back up after last night's maintenance window. The VM
+was rebooted as part of routine patching. The console shows an emergency
+shell. The database is down and the replication lag on the standby replica
+is growing. We need this recovered urgently.
+
+The kernel was updated from 5.15.0-91 to 5.15.0-125 as part of the patching.
+The update was applied via unattended-upgrades during the maintenance window.
+
+================================================================================
+BOOT LOG — srv-db01
+Source: Serial console capture (ttyS0), 2026-04-16 03:00–03:04
+Captured via: virsh console srv-db01 (host-side)
+================================================================================
+
+[    0.000000] Linux version 5.15.0-125-generic (buildd@lcy02-amd64-001) (gcc
+              (Ubuntu 11.4.0-1ubuntu1~22.04) 11.4.0, GNU ld (GNU Binutils for
+              Ubuntu) 2.38) #125-Ubuntu SMP PREEMPT Mon Apr 14 09:30:24 UTC 2026
+[    0.000000] Command line: BOOT_IMAGE=/BOOT/ubuntu@/boot/vmlinuz-5.15.0-125-generic
+              root=ZFS=rpool/ROOT/ubuntu ro
+[    0.000000] x86/fpu: Supporting XSAVE feature 0x001: 'x87 floating point registers'
+[    0.000000] x86/fpu: Supporting XSAVE feature 0x002: 'SSE registers'
+[    0.000000] x86/fpu: Supporting XSAVE feature 0x004: 'AVX registers'
+[    0.000000] BIOS-provided physical RAM map:
+[    0.000000] BIOS-e820: [mem 0x0000000000000000-0x000000000009fbff] usable
+[    0.000000] BIOS-e820: [mem 0x0000000000100000-0x00000000bfffffff] usable
+...
+[    0.001234] secureboot: Secure Boot enabled
+[    0.001235] Kernel is locked down from UEFI Secure Boot mode
+[    0.001236] Lockdown: swiotlb: DMA mapping is restricted
+...
+[    1.832104] ACPI: PCI Root Bridge [PCI0] (domain 0000 bus 0)
+[    1.845672] pci 0000:00:03.0:-Virtio block device detected
+[    1.846891] virtio_blk virtio0: [vda] 100.0 GB virtual disk
+[    1.847234] virtio_net virtio1: Setting up NIC as eth0
+...
+[    2.114398] systemd[1]: System Initialization (initramfs stage)
+[    2.114567] initramfs: Loading kernel modules from /lib/modules/5.15.0-125-generic
+[    2.118342] initramfs: Loading module: zcommon
+[    2.118891] zcommon: module verification failed: signature and/or required key
+                missing - tainting kernel
+[    2.118892] Lockdown: zcommon: module is not signed, rejecting
+[    2.118893] zcommon: module load rejected: Operation not permitted
+[    2.119012] initramfs: Loading module: znvpair
+[    2.119534] znvpair: module verification failed: signature and/or required key
+                missing - tainting kernel
+[    2.119535] Lockdown: znvpair: module is not signed, rejecting
+[    2.119536] znvpair: module load rejected: Operation not permitted
+[    2.119698] initramfs: Loading module: spl
+[    2.120012] spl: module verification failed: signature and/or required key
+                missing - tainting kernel
+[    2.120013] Lockdown: spl: module is not signed, rejecting
+[    2.120014] spl: module load rejected: Operation not permitted
+[    2.120234] initramfs: Loading module: zfs
+[    2.120845] zfs: module verification failed: signature and/or required key
+                missing - tainting kernel
+[    2.120846] Lockdown: zfs: module is not signed, rejecting
+[    2.120847] zfs: module load rejected: Operation not permitted
+[    2.121012] initramfs: WARNING: Failed to load zfs kernel module
+[    2.121013] initramfs: zfs module is required for root filesystem (root=ZFS=rpool/ROOT/ubuntu)
+[    2.121014] initramfs: Attempting to mount root filesystem without zfs module...
+[    2.121234] initramfs: ERROR: cannot mount 'rpool/ROOT/ubuntu': zfs module not loaded
+[    2.121235] initramfs: ERROR: cannot import pool 'rpool': zfs module not loaded
+[    2.121236] initramfs: FATAL: Failed to mount root filesystem via ZFS
+[    2.121237] initramfs: FATAL: Root filesystem could not be mounted.
+[    2.121238] initramfs: Dropping to emergency shell (initramfs-tools)
+[    2.121239] initramfs: Type 'exit' to retry, or investigate manually.
+
+BusyBox v1.30.1 (Ubuntu 1:1.30.1-6ubuntu3.1) built-in shell (ash)
+Enter 'help' for a list of built-in commands.
+
+(initramfs) _
+
+================================================================================
+DIAGNOSTIC DATA — Captured from recovery environment (live ISO)
+Source: Booted srv-db01 from ubuntu-22.04-live-server-amd64.iso
+Administrator: J. Okoro, Infrastructure Team
+Captured: 2026-04-16 07:45
+================================================================================
+
+--- Secure Boot status ---
+$ mokutil --sb-state
+SecureBoot enabled
+
+--- MOK (Machine Owner Key) list ---
+$ mokutil --list-enrolled
+[list shows only the built-in Microsoft/C canonical keys — no custom MOK enrolled]
+
+$ mokutil --list-new
+[empty — no pending MOK enrollment requests]
+
+--- Kernel versions installed ---
+$ dpkg -l | grep linux-image
+ii  linux-image-5.15.0-91-generic   5.15.0-91.101   amd64   [old kernel, still installed]
+ii  linux-image-5.15.0-125-generic  5.15.0-125.125  amd64   [new kernel, installed 2026-04-16 02:47]
+
+--- DKMS status ---
+$ dkms status
+zfs, 2.1.6, 5.15.0-91-generic, x86_64: installed (signed)
+zfs, 2.1.6, 5.15.0-125-generic, x86_64: installed
+
+NOTE: The ZFS DKMS module is marked "installed" for the new kernel (5.15.0-125)
+but is NOT marked "(signed)". Compare with the old kernel entry which is marked
+"(signed)".
+
+--- DKMS build log (from /var/lib/dkms/zfs/2.1.6/5.15.0-125-generic/x86_64/log) ---
+DKMS make.log
+zfs-2.1.6 module build for kernel 5.15.0-125-generic (x86_64)
+Build started: 2026-04-16 02:48:12
+
+[... compilation output ...]
+Build completed successfully.
+Module: /var/lib/dkms/zfs/2.1.6/5.15.0-125-generic/x86_64/module/zfs.ko
+
+NOTE: No signing step was performed. The DKMS configuration
+(/usr/src/zfs-2.1.6/dkms.conf) does not contain a sign_tool directive.
+The previous kernel's module was signed manually during the initial
+ZFS installation (mokutil enrollment was done interactively at that time).
+
+--- dkms.conf (relevant excerpt) ---
+$ cat /usr/src/zfs-2.1.6/dkms.conf
+PACKAGE_NAME="zfs"
+PACKAGE_VERSION="2.1.6"
+MAKE[0]="make"
+BUILT_MODULE_NAME[0]="zfs"
+BUILT_MODULE_NAME[1]="zcommon"
+BUILT_MODULE_NAME[2]="znvpair"
+BUILT_MODULE_NAME[3]="spl"
+DEST_MODULE_LOCATION[0]="/extra"
+POST_INSTALL="echo"
+# REMARK: No sign_tool or sign_hash configured.
+# The initial installation was signed manually via:
+#   /lib/modules/$kernel/build/scripts/sign-file sha256 /etc/keys/mok/MOK.priv \
+#     /etc/keys/mok/MOK.der zfs.ko
+# This manual step was not repeated for the new kernel build.
+
+--- MOK key files ---
+$ ls -la /etc/keys/mok/
+-rw-r--r-- 1 root root  1968 Apr  2  2026 MOK.der
+-rw------- 1 root root  3276 Apr  2  2026 MOK.priv
+
+The MOK private key and public certificate exist on the system. The MOK public
+key (MOK.der) is enrolled in the firmware (confirmed by mokutil --list-enrolled
+showing a custom key with subject "CN=DKMS Signing Authority"). The private key
+(MOK.priv) is available for signing. The signing step was simply not performed
+during the DKMS rebuild for the new kernel.
+
+--- initramfs status ---
+$ ls -la /boot/initrd.img-5.15.0-*
+-rw-r--r-- 1 root root 58432912 Apr  4  2026 /boot/initrd.img-5.15.0-91-generic
+-rw-r--r-- 1 root root 61247801 Apr 16  2026 /boot/initrd.img-5.15.0-125-generic
+
+The initramfs for the new kernel was regenerated (timestamp 2026-04-16 02:49,
+matching the kernel update time). The initramfs contains the unsigned ZFS
+module — the module is present but cannot be loaded under Secure Boot.
+
+--- ZFS boot environments ---
+$ zpool import -N rpool  (from live ISO, pool imported read-only)
+$ zfs list -r rpool/ROOT
+NAME                             USED  MOUNT  TYPE
+rpool/ROOT                       12.5G  -      filesystem
+rpool/ROOT/ubuntu               10.2G  /      filesystem
+rpool/ROOT/ubuntu_5.15.0-91     2.3G   -      filesystem  [previous BE, bootable]
+rpool/ROOT/ubuntu_5.15.0-125    0.5G   -      filesystem  [new BE, broken — no signed zfs module]
+
+The zsys boot environment for the old kernel (ubuntu_5.15.0-91) is available
+and should be bootable. However, it was created when the old kernel was
+installed (2026-04-04), not immediately before the update.
+
+--- VM snapshot status (host-side, kvm-node07) ---
+$ virsh snapshot-list srv-db01
+Name                 Creation Time          State
+----------------------------------------------------
+pre-patch-2026-0404  2026-04-04 12:00:00    shutoff
+pre-patch-2026-0416  [not present]
+
+The most recent VM snapshot (pre-patch-2026-0404) was taken 12 days before
+the kernel update. No snapshot was taken immediately before the 2026-04-16
+maintenance window.
+
+--- unattended-upgrades log (excerpt) ---
+$ tail -20 /var/log/unattended-upgrades/unattended-upgrades.log
+2026-04-16 02:45:00,000 INFO Starting unattended-upgrades
+2026-04-16 02:46:30,000 INFO Packages that will be upgraded: linux-image-5.15.0-125-generic
+                            linux-headers-5.15.0-125-generic linux-modules-5.15.0-125-generic
+2026-04-16 02:47:12,000 INFO Installing linux-image-5.15.0-125-generic
+2026-04-16 02:48:10,000 INFO DKMS: building zfs-2.1.6 for kernel 5.15.0-125-generic
+2026-04-16 02:48:45,000 INFO DKMS: build completed successfully
+2026-04-16 02:48:46,000 WARNING DKMS: module not signed (no sign_tool configured)
+                            [warning not acted upon — unattended upgrade continued]
+2026-04-16 02:49:00,000 INFO Running update-initramfs for 5.15.0-125-generic
+2026-04-16 02:49:15,000 INFO initramfs regenerated successfully
+2026-04-16 02:49:16,000 INFO Update complete. Rebooting.
+2026-04-16 03:00:00,000 INFO System reboot initiated
+
+The unattended-upgrades log explicitly records the DKMS signing warning at
+02:48:46, but the upgrade process continued without intervention — the
+warning was not treated as a blocking error.
+
+================================================================================
+END OF INCIDENT REPORT INC-2026-2107
+================================================================================

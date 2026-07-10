@@ -1,0 +1,15 @@
+The summary's claims all match the evidence: the fix preserves order, the
+tests cover the right cases, and the assertions are specific (not vacuous).
+Reading each claim against the diff: "fixed the bug" — yes, the guard
+prevents duplicates while preserving order. "Preserves insertion order" —
+yes, first-occurrence order is maintained. "Added tests covering duplicates,
+empty input, and all-same input" — yes, three test cases matching those
+descriptions. "All tests pass" — a claim, but the tests are visible and
+assert specific values that would fail without the fix. The approach is
+O(n²) — a set would be more efficient — but the spec didn't require
+performance and the function is correct. The principle: not every summary
+overclaims. The skill is reading claims against evidence, which means
+sometimes the answer is "they match, ship it." Calling the O(n²) approach a
+defect would be manufacturing a nitpick — it's suboptimal, not wrong, and
+the spec didn't ask for efficiency. The exit signal: the tests are real, the
+claims hold, the work meets the spec. Ship it.

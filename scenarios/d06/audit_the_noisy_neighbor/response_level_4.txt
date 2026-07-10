@@ -1,0 +1,52 @@
+Root cause: Host-level CPU contention from srv-build02, a CI build server co-located
+on hv-node03. During hourly build jobs (Build-All-Projects, every 60 min at :40,
+~20 min duration), srv-build02's % Guest Run Time spikes from 4% to 91%, pushing the
+host's % Total Run Time to 93%. srv-app01's guest CPU stays flat at 35% but its disk
+latency spikes from 3 ms to 19-23 ms — the hypervisor cannot process I/O requests
+promptly when the host is CPU-saturated. The guest is I/O-blocked, not CPU-bound.
+
+The full causal chain during each degradation window:
+1. srv-build02's scheduled build task starts → CPU demand spikes to 91% of host.
+2. Host CPU saturates (93% Total Run Time, 7% idle).
+3. Hypervisor cannot service srv-app01's I/O requests promptly → disk latency
+   spikes from 3 ms to 19-23 ms, disk queue length from 0.3 to 4.8.
+4. Simultaneously, srv-build02's memory demand rises from 8 GB to 30 GB.
+5. Host (memory-overcommitted: 56 GB of VM maximums against 64 GB physical) reclaims
+   memory from srv-app01 via Dynamic Memory balloon → Guest Visible Memory drops
+   from 8 GB to 2 GB, pressure rises to 50%.
+6. srv-app01 begins paging (Pages/sec: ~13 → ~8,800).
+7. Paging generates additional disk I/O, which is already delayed by host CPU
+   contention → compounding feedback loop until the build finishes.
+
+Configuration gaps:
+- No CPU resource controls on either VM (Reserve = 0, Limit = 0, Weight = 100
+  default). srv-build02 with 8 vCPUs and no cap can consume all 16 logical processors.
+- srv-app01's Dynamic Memory minimum (2048 MB) is well below the application's
+  working set (~6-8 GB), guaranteeing paging whenever the host reclaims memory.
+- The host is memory-overcommitted: 56 GB of VM maximums against 64 GB physical,
+  leaving only 8 GB for the host OS. This is a capacity planning failure.
+
+Immediate remediation:
+- Live-migrate srv-app01 to a host without batch workloads (fastest resolution).
+- Or: set CPU Limit on srv-build02 (cap at ~60% of host), CPU Reserve on srv-app01
+  (guarantee 2 logical processors), and raise srv-app01's memory minimum to 8 GB
+  or switch to static memory.
+
+Structural fixes (process and placement):
+- VM placement policy: classify workloads by sensitivity (latency-sensitive vs.
+  batch) and prevent noisy workloads from being co-located with application servers.
+  Build servers and application servers should not share a host without resource
+  governance.
+- Resource governance standard: all production VMs should have CPU caps and memory
+  minimums defined as part of provisioning, not added reactively after an incident.
+  This should be a deployment checklist item, not an incident response.
+- Build schedule review: if builds must run on shared hosts, schedule them outside
+  business hours or throttle parallel build concurrency to limit host impact.
+- Host capacity review: the memory overcommit (56 GB VM max vs 64 GB physical) should
+  trigger a capacity assessment, not a Dynamic Memory tuning exercise. Either add
+  physical RAM or reduce the number of co-located VMs.
+
+The process failure is that a CI build server was placed on the same host as a
+latency-sensitive application server with no resource controls. The technical fix
+(limits, reserves, migration) addresses the immediate symptom, but the structural
+fix (placement policy, resource governance, capacity planning) prevents recurrence.

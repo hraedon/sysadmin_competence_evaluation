@@ -1,0 +1,10 @@
+The diff replaced `list(set(items))` — which doesn't preserve order — with a
+loop that appends items only if they're not already in the result list. That
+fixes the order-preservation bug. The summary says it "fixed the bug,
+preserves insertion order, added tests covering duplicates, empty input, and
+all-same input, all tests pass." I checked the claims against the diff: the
+fix does preserve order, the tests do cover those cases, and the test
+asserts a specific expected value (`["a", "b", "c"]`) that would fail if the
+guard were removed. The summary's claims match the evidence — I don't see a
+problem here. The approach uses `if item not in result` which is O(n²)
+rather than using a set, but it's correct for the use case.

@@ -1,0 +1,2 @@
+The agent built the parser and 6 tests pass. It handles "1h30m", "45m", and
+"2h" formats, plus zero and invalid input. The feature looks complete to me.

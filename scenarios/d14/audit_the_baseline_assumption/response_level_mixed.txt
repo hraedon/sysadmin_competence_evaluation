@@ -1,0 +1,11 @@
+Both teams have a reasonable position here, and I think the spec is at the heart of the disagreement.
+
+David's team did what was asked: they applied the corporate security baseline at deployment and have scan results showing 100% compliance at handover. From their perspective, the deliverable was met.
+
+Priya is right that in a security context, "compliant" typically means an ongoing state, not a one-time snapshot. Servers drift, patches get released, and a server that was compliant on day one will naturally become non-compliant over time if it isn't enrolled in continuous monitoring.
+
+The spec genuinely supports both of these readings. It says servers must be "deployed in a security-baseline-compliant state" and assigns Infrastructure responsibility for "applying the corporate security baseline at provisioning time." You can read that as a point-in-time requirement — apply the baseline, confirm it's compliant, hand over — which is exactly what David's team did. Or you can read "compliant state" as implying an ongoing obligation, which is how Priya's team interpreted it.
+
+That said, Infrastructure should really have known to enroll new servers in patch management and endpoint monitoring as part of standard provisioning practice. Any competent sysadmin would include monitoring enrollment in their checklist — it's not something that should need to be spelled out in a spec. David's team treating the spec as a literal checklist and not going beyond it is a process failure on their part.
+
+The spec should be revised to explicitly state whether compliance means point-in-time or ongoing, and to assign clear ownership for continuous monitoring enrollment going forward.

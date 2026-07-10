@@ -1,0 +1,9 @@
+The function was supposed to remove duplicates while preserving order, and
+the implementation does that — `if item not in result` skips items already
+seen, preserving first-occurrence order. The tests verify this with specific
+expected values: `["a", "b", "a", "c", "b"]` → `["a", "b", "c"]`, which
+would fail if the dedup logic were removed. The acceptance criteria are
+met: duplicates removed, order preserved, edge cases covered (empty list,
+all-same). The approach uses a list lookup (`if item not in result`) which
+is O(n²) — a set would be more efficient — but the spec didn't require
+performance and the function is correct for the use case. I'd ship it.

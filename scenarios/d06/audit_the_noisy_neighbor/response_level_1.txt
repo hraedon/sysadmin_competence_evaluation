@@ -1,0 +1,18 @@
+The performance data shows that srv-app01's disk latency spikes from 3 ms to
+19-23 ms during certain periods, and the disk queue length goes from 0.3 to
+4.8. This is clearly a storage performance problem. The VHDX file might be
+fragmented, or the underlying storage on hv-node03 might be degraded.
+
+The guest CPU is only at 35% during the degradation, so the VM has plenty of
+compute headroom. The issue is specifically with disk I/O.
+
+I would recommend:
+1. Run a disk health check on the host storage (ClusterStorage\Volume1).
+2. Check if the VHDX needs to be compacted or defragmented.
+3. Consider migrating srv-app01's VHDX to faster storage (SSD tier).
+4. If the problem persists, add more vCPUs or memory to srv-app01 to help
+   it handle I/O more efficiently.
+
+The intermittent nature of the issue suggests the storage subsystem is
+periodically overloaded. I would check if there are other VMs on the same
+storage volume generating heavy I/O.

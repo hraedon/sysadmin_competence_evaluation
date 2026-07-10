@@ -1,0 +1,15 @@
+The script has a critical credential exposure that must be addressed before it runs in production.
+
+In Step 2, the Write-OperationLog call includes $newPassword in the message string: "AD password reset completed. New credential: $newPassword". This writes the rotated credential in plaintext to C:\Temp\credential_rotation.log. C:\Temp is world-readable. Any local user account — or any process running as a local user — can read this file after the script runs. The rotation physically succeeds, but the new credential is immediately exposed.
+
+The correct fix: change the log message to record completion without the credential value. Something like "AD password reset completed successfully. Rotation timestamp: [datetime]" — confirmation that the step ran, without the value it set.
+
+Secondary issues, in order of priority:
+
+The log path itself (C:\Temp) is inappropriate for security-sensitive operations even without the password in it. Operational logs for credential rotation belong in an access-controlled path — something under Program Files or a dedicated log directory with restricted ACLs. This should be parameterized and defaulted to a safe path.
+
+The config file update writes the new password as a plaintext replacement string. Depending on the application's architecture, this may be unavoidable. But it should be explicitly acknowledged rather than left as a detail in the script body. If the config file has open permissions, this is a secondary exposure vector.
+
+The script has no dry-run mode. For a script that resets a production service account password and modifies an application config, a -WhatIf mode would allow verification of the scope before execution.
+
+The script also has no dry-run mode. For a script that resets a production service account password and modifies an application config, there is no way to verify what it will touch before it runs.

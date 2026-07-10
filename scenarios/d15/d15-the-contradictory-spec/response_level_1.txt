@@ -1,0 +1,3 @@
+Looks pretty clear. It lists resources, flags old ones, and has a
+remediation mode that moves them to an archive. It's read-only for safety
+but can also move things with the flag. I'd let the agent build it.

@@ -1,0 +1,13 @@
+The headline says "success" but the metrics tell a different story. 100%
+locked, yes — but 0% first-attempt pass rate and 4.2 mean attempts per
+item. That means every single item failed the gate multiple times before
+eventually passing. The pipeline isn't producing correct output — it's
+producing eventually-correct output by retrying until the gates pass.
+That's brute-force recovery, not quality. "847 tests pass" doesn't help if
+the tests are weak enough that retrying until they pass is a viable
+strategy. What I'd check: what's failing on the first attempt? Is it the
+same failure each time (a systematic problem the retries are papering
+over), or different failures (the pipeline is flaky)? I wouldn't ship until
+first-attempt pass rate is above some threshold — 0% means the pipeline is
+broken and the retries are hiding it. "Working well" is not the same as
+"eventually passes."

@@ -1,0 +1,212 @@
+schema_version: 2.0
+id: d15-the-trusted-review
+title: The Trusted Review
+domain: 15
+domain_name: Directing AI Agents
+level: 4
+delivery_modes:
+- A
+difficulty:
+  score: 5
+  reasoning: |
+    The hardest calibration. The review really did find a real bug (Issue 1 is
+    verifiable, concrete, and correct). The tests really do pass. The agent
+    really did fix both issues. So the easy read is "the review worked, the
+    fixes are in, ship it." But Issue 2 is a hallucination — the reviewer
+    invented a requirement (replay protection) that the spec never mentioned,
+    and the agent implemented it without questioning whether it was real. The
+    candidate has to do two hard things at once: verify that Issue 1 is real
+    (it is — and that's what makes the trap work), AND calibrate trust in the
+    reviewer itself — finding one real thing doesn't validate the next finding.
+    Each finding is an independent claim; the reviewer's hit rate on one says
+    nothing about the next. A different L4 skill than "The Friday Deploy":
+    there, the pressure is time; here, the pressure is the reviewer's
+    credibility.
+presentation:
+  modes:
+    A:
+      type: agent_session_transcript
+      context: |
+        You asked an agent to run an adversarial security review of an
+        access-control component. The component's spec: "Check whether a user
+        has permission to read a resource. The user's role is set via
+        set_role(). Return True if the user's role matches the resource's
+        required role, False otherwise."
+
+        Below is the review output and what the agent did with it. Read it,
+        then answer the question — do not ask for more first.
+
+        ---
+        ADVERSARIAL REVIEW OUTPUT
+
+        Issue 1 (HIGH): Access-control bypass. The check at line 47 reads
+        `user.role`, but roles are set via `set_role()` which writes to
+        `user.user_level`. A user with an elevated role set via `set_role()`
+        still appears to have the default role, so the access check passes
+        when it shouldn't. This is a real bypass.
+
+        Evidence: line 47 — `if user.role == "admin"` reads the wrong field.
+        The correct field is `user.user_level`.
+
+        Issue 2 (HIGH): Session token replay. The `validate_session()`
+        function accepts a session token and returns True without checking a
+        nonce or timestamp. An attacker who captures a valid token can replay
+        it indefinitely.
+
+        Evidence: `validate_session()` at line 82 has no nonce check.
+
+        AGENT'S RESPONSE
+
+        Fixed both issues:
+        - Issue 1: Changed `user.role` to `user.user_level` in the access-
+          control check. Added a test that sets a user's level via
+          `set_role()` and asserts the check passes.
+        - Issue 2: Added a nonce store to `validate_session()`. The validator
+          now tracks seen nonces and rejects reused tokens. Added a test that
+          replays a token and asserts it's rejected on the second use.
+
+        All tests pass. Both issues resolved.
+
+            $ pytest -q
+            ............                                                       [100%]
+            12 passed in 0.3s
+
+        agent> The adversarial review found 2 issues, both fixed and tested.
+               The component is now secure and ready to ship.
+        ---
+      question: |
+        The agent ran a review, found two issues, fixed both, and the tests
+        pass. Do you trust this? Walk through what you'd verify and why — and
+        specifically, how you'd calibrate trust in the review itself. If you'd
+        verify something, say what evidence would settle it.
+rubric:
+  findings:
+  - id: issue_2_is_invented_requirement
+    type: critical
+    description: |
+      Issue 2 is not a bug — it's the absence of a feature the reviewer
+      thinks should exist. The spec says "check whether a user has
+      permission to read a resource" — it doesn't mention sessions, tokens,
+      or replay protection. The reviewer invented a requirement and then
+      "found" the code doesn't meet it. The candidate must distinguish a real
+      bug (the code does something wrong — Issue 1) from a missing feature
+      (the code doesn't do something the reviewer thinks it should — Issue 2)
+      and check the spec. "No nonce check" is the absence of replay
+      protection, not a vulnerability in existing code — and whether replay
+      protection is needed is a spec decision, not a review finding.
+    miss_signal: |
+      Candidate treats both issues as equally real, or accepts Issue 2 as a
+      vulnerability without checking whether replay protection was ever
+      required by the spec.
+  - id: one_real_finding_doesnt_validate_next
+    type: critical
+    description: |
+      The L4 calibration: the reviewer found a real bug in Issue 1
+      (verifiable, concrete — wrong field, specific line), but that doesn't
+      make Issue 2 real. Each finding is an independent claim that must be
+      verified against ground truth, and the reviewer's hit rate on one claim
+      says nothing about the next. The candidate must calibrate trust in the
+      reviewer itself — not trust the whole review because part of it was
+      right, and not distrust the whole review because part of it was wrong.
+      The principle: a reviewer that finds one real thing and one phantom in
+      the same breath is exactly why you check each against ground truth
+      before acting.
+    miss_signal: |
+      Candidate trusts both issues because Issue 1 is real ("the review
+      found a real bug so it's probably right about Issue 2 too"), or
+      distrusts both because Issue 2 is invented ("the review
+      hallucinated so Issue 1 is probably wrong too"). Either extreme is the
+      miss — L4 is checking each independently.
+  - id: agent_didnt_question_the_review
+    type: secondary
+    severity: high
+    description: |
+      The agent applied both fixes without questioning whether Issue 2 was
+      actually a requirement. A strong answer notices that the agent trusted
+      the review wholesale — it didn't check the spec, didn't question the
+      reviewer's framing, and didn't distinguish a bug from a missing feature.
+      The candidate should say: the agent should have flagged Issue 2 as
+      "not in spec — is this a real requirement?" before implementing it, and
+      escalated it to the human rather than silently adding a feature.
+    miss_signal: |
+      Candidate focuses on the review's quality but doesn't notice that the
+      agent applied both fixes without questioning whether Issue 2 was real —
+      it trusted the review wholesale.
+  - id: tests_pass_doesnt_mean_secure
+    type: secondary
+    severity: medium
+    description: |
+      "12 passed" is real but proves the code runs, not that it's secure. The
+      tests for Issue 2 prove the nonce store works — but they don't prove
+      replay protection was ever needed. The candidate should distinguish
+      "tests pass" from "the security claim is valid": the tests for Issue 1
+      verify a real fix for a real bug; the tests for Issue 2 verify a feature
+      that was never required.
+    miss_signal: |
+      Candidate treats "12 passed" as evidence the component is secure, or
+      notes the tests pass without distinguishing what they actually prove.
+  - id: what_evidence_would_settle_each
+    type: secondary
+    severity: high
+    description: |
+      A strong answer says what evidence would make each fix trustworthy —
+      and the evidence is different for each. For Issue 1: verify the field
+      change against the code, see the test fail without the fix (break the
+      field change, watch the test catch it), confirm the bypass is closed.
+      For Issue 2: check whether replay protection is actually required (the
+      spec doesn't mention it — so either add it as a conscious human decision,
+      or push back on the reviewer). The candidate calibrates: each fix needs
+      its own evidence, not a blanket "tests pass."
+    miss_signal: |
+      Candidate says "I'd verify both" without specifying that the evidence
+      is different for each — code verification for Issue 1, spec
+      verification for Issue 2 — or treats "tests pass" as sufficient for
+      both.
+  - id: reviewer_is_tool_not_authority
+    type: secondary
+    severity: high
+    description: |
+      The L4 move: the reviewer is a tool, not an authority. Its findings are
+      claims to be verified, not truths to be applied — and a reviewer that
+      finds one real thing and one phantom in the same breath is exactly why.
+      The habit is checking each finding against ground truth (the spec, the
+      code, the canonical source) — not trusting the reviewer because it got
+      one right, and not distrusting it because it got one wrong. A strong
+      answer names this reflex rather than only listing the specific issues.
+    miss_signal: |
+      Candidate catches that Issue 2 is invented but never steps back to the
+      principle that the reviewer is a tool whose findings are claims to
+      verify, not truths to apply.
+  level_indicators:
+    level_1: |
+      Trusts the review and the agent's response. "2 issues found, both fixed,
+      tests pass — looks secure." Reads the summary as an account of what
+      happened. Doesn't question either finding or notice that the two issues
+      are different kinds of claims.
+    level_2: |
+      Notices something is off — maybe that Issue 2 doesn't seem like a bug
+      (the spec doesn't mention sessions or tokens), or that the agent didn't
+      verify the review's claims. But can't articulate the calibration principle
+      or say what evidence would settle each issue independently. May say "I'd
+      want to check the review" without specifying how, or treat both issues as
+      equally real.
+    level_3: |
+      Spots that Issue 2 is a missing feature, not a bug — the spec doesn't
+      mention replay protection, so the reviewer invented a requirement. Flags
+      that the agent applied both fixes without questioning whether Issue 2 was
+      real. Specifies what to check: verify Issue 1 against the code (and see
+      the test fail without the fix), check the spec for Issue 2 (replay
+      protection isn't required — so either add it as a conscious decision or
+      push back on the reviewer). May not generalize to the calibration
+      principle or distinguish the evidence needed for each.
+    level_4: |
+      All of L3, plus the calibration: finding one real thing (Issue 1) doesn't
+      validate the next finding (Issue 2). Each finding is an independent
+      claim — the reviewer's hit rate on one says nothing about the next. Says
+      what evidence would make each fix trustworthy: Issue 1 needs code
+      verification and a failing-then-passing test; Issue 2 needs a spec
+      decision (was replay protection ever required?), not just a code fix.
+      Generalizes: the reviewer is a tool, not an authority — its findings are
+      claims to verify against ground truth, not truths to apply, and a
+      reviewer that finds one real thing and one phantom in the same breath is
+      exactly why you check each before acting.

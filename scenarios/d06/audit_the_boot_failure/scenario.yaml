@@ -1,0 +1,211 @@
+schema_version: 2.0
+id: d06-audit-the-boot-failure
+title: The Silent Kernel Update
+domain: 6
+domain_name: Compute
+level: 3
+delivery_modes:
+  - A
+difficulty: 4
+presentation:
+  modes:
+    A:
+      type: log_extract
+      artifact_file: scenarios/d06/audit_the_boot_failure/boot_log.txt
+      context: |
+        srv-db01, an Ubuntu 22.04 LTS VM running a PostgreSQL database with a ZFS
+        root filesystem and UEFI Secure Boot enabled, failed to boot after an
+        unattended kernel update from 5.15.0-91 to 5.15.0-125 during a scheduled
+        maintenance window. The VM is stuck in an initramfs emergency shell.
+        The database is down and replication lag is growing on the standby replica.
+        You have been provided with the serial console boot log and diagnostic
+        data captured from a recovery environment (live ISO), including DKMS status,
+        MOK key information, initramfs status, ZFS boot environments, VM snapshot
+        status, and the unattended-upgrades log.
+
+        Diagnose the boot failure, explain the causal chain, and specify the
+        recovery plan and preventive controls.
+rubric:
+  findings:
+    - id: secure_boot_rejects_unsigned_dkms_module
+      description: |
+        The boot failure is caused by UEFI Secure Boot rejecting the unsigned ZFS
+        DKMS kernel module. The boot log shows the kernel boots successfully (it is
+        signed by Canonical) and enters lockdown mode because Secure Boot is enabled.
+        When the initramfs attempts to load the ZFS kernel modules (zcommon, znvpair,
+        spl, zfs), each module fails with "module verification failed: signature and/or
+        required key missing" and is rejected under lockdown: "Lockdown: <module>:
+        module is not signed, rejecting." Because the root filesystem is on ZFS
+        (root=ZFS=rpool/ROOT/ubuntu), the inability to load the zfs module means the
+        root filesystem cannot be imported or mounted, and the boot drops to the
+        initramfs emergency shell. The DKMS build log confirms the ZFS module was
+        rebuilt for the new kernel (5.15.0-125) but was not signed — the dkms.conf
+        does not contain a sign_tool directive, and the DKMS status shows the new
+        kernel's module as "installed" (not "installed (signed)"). The MOK key pair
+        (MOK.priv and MOK.der) exists on the system and the public key is enrolled in
+        the firmware, so signing is possible — it was simply not performed. A candidate
+        who recommends "rebuild the module" or "regenerate the initramfs" without
+        addressing the signing gap has not identified the critical finding: the module
+        is present in the initramfs, but it cannot be loaded because it is unsigned
+        under Secure Boot enforcement.
+      severity: critical
+      miss_signal: |
+        Candidate sees "module verification failed" and concludes the module is missing
+        or the initramfs is corrupt. Recommends rebuilding the DKMS module or
+        regenerating the initramfs, without recognising that the module IS present and
+        the initramfs IS current — the problem is that the module is unsigned and Secure
+        Boot rejects it. Or: candidate identifies the ZFS module failure but attributes
+        it to a DKMS build failure or a kernel ABI mismatch, missing the Secure Boot
+        signature enforcement as the specific cause. Or: candidate sees the kernel
+        version mismatch and recommends reverting to the old kernel without
+        understanding why the new kernel fails to boot.
+      hit_signal: |
+        Candidate identifies that the ZFS module is present in the initramfs but
+        cannot be loaded because it is unsigned under Secure Boot. Explains the
+        lockdown enforcement chain: Secure Boot enabled → kernel enters lockdown →
+        unsigned modules rejected → ZFS module unavailable → root filesystem cannot
+        mount → boot fails. Distinguishes this from a missing module or corrupt
+        initramfs by pointing to the DKMS status (module is "installed" but not
+        "installed (signed)") and the boot log (module load "rejected: Operation not
+        permitted").
+      learning_note: |
+        UEFI Secure Boot establishes a chain of trust: the firmware verifies the
+        bootloader (shim), the bootloader verifies the kernel, and the kernel enforces
+        that all subsequently loaded modules are signed with a key in its keyring. When
+        Secure Boot is enabled, the kernel enters "lockdown" mode, which rejects unsigned
+        modules outright — they are not merely tainted, they are refused. DKMS modules
+        (third-party modules built outside the kernel tree, such as ZFS, VirtualBox host
+        modules, or vendor drivers) must be signed with a Machine Owner Key (MOK) whose
+        public certificate has been enrolled into the firmware's MOK database via
+        mokutil. The signing must happen at DKMS build time: the dkms.conf file should
+        contain a sign_tool directive that invokes the kernel's sign-file utility with
+        the MOK private key and public certificate. If signing is done manually during
+        the initial installation (a one-time interactive step) but not configured for
+        automatic rebuilds, every subsequent kernel update will produce an unsigned module
+        — and if that update is unattended, the system will fail to boot on the next
+        reboot without any prior warning. The critical insight is that "the module built
+        successfully" and "the module can be loaded" are different conditions: DKMS may
+        compile and install the module without error, but if the signing step is absent,
+        the module cannot be loaded under Secure Boot.
+      type: critical
+    - id: dkms_signing_not_configured
+      description: |
+        The DKMS configuration for the ZFS module (/usr/src/zfs-2.1.6/dkms.conf) does
+        not contain a sign_tool or sign_hash directive. The previous kernel's module
+        was signed manually during the initial ZFS installation (an interactive mokutil
+        enrollment step was performed at that time), but this manual step was not
+        repeated when DKMS rebuilt the module for the new kernel. The
+        unattended-upgrades log explicitly records the signing warning at 02:48:46
+        ("DKMS: module not signed (no sign_tool configured)"), but the warning was not
+        treated as a blocking error and the upgrade continued. This means every future
+        kernel update will reproduce the same failure unless the DKMS configuration is
+        fixed. The correct fix is not to manually sign the module for this one kernel
+        version, but to add a sign_tool directive to dkms.conf so that all future DKMS
+        builds are automatically signed with the MOK key.
+      severity: high
+      miss_signal: |
+        Candidate recommends manually signing the ZFS module for the current kernel
+        version (using sign-file with MOK.priv and MOK.der) without recognising that
+        this is a one-time fix that will be lost on the next kernel update. Or:
+        candidate does not mention the DKMS configuration at all and focuses solely on
+        the immediate recovery.
+      learning_note: |
+        DKMS supports automatic module signing via the sign_tool and sign_hash
+        configuration directives in dkms.conf. When sign_tool is set to the kernel's
+        sign-file utility and sign_hash is set to the appropriate hash algorithm (sha256
+        for modern kernels), DKMS will sign every module it builds automatically. The
+        sign_tool directive should reference the MOK private key and public certificate
+        that have been enrolled in the firmware's MOK database. Without this
+        configuration, DKMS produces unsigned modules by default — which is fine for
+        systems without Secure Boot, but causes boot failures on systems where Secure
+        Boot is enabled. The sign_tool configuration is a one-time setup that should be
+        performed during the initial DKMS package installation, not discovered after a
+        boot failure.
+      type: secondary
+    - id: stale_rollback_snapshot
+      description: |
+        Two rollback mechanisms exist, but both have limitations. (1) The ZFS boot
+        environment for the old kernel (rpool/ROOT/ubuntu_5.15.0-91) is available and
+        should be bootable — selecting it from the GRUB menu would boot the old kernel
+        with its signed ZFS module. However, this boot environment was created on
+        2026-04-04 (12 days before the update), so any changes made to the root
+        filesystem since then (application configuration, user data, system updates)
+        would not be reflected in the old boot environment. (2) The VM-level snapshot
+        (pre-patch-2026-0404) was also taken 12 days before the update, and no snapshot
+        was taken immediately before the 2026-04-16 maintenance window. Rolling back
+        to either would lose 12 days of changes. The absence of a pre-update snapshot
+        or boot environment means the recovery options are limited to: (a) booting the
+        old kernel's boot environment (which works but loses recent root filesystem
+        changes), or (b) fixing the signing issue from the recovery environment and
+        booting the new kernel (which preserves all data but requires more steps).
+      severity: moderate
+      miss_signal: |
+        Candidate recommends rolling back to the old kernel without acknowledging the
+        data loss (12 days of changes since the boot environment was created). Or:
+        candidate does not mention the absence of a pre-update snapshot as a process
+        failure.
+      learning_note: |
+        Before any kernel update on a system with DKMS modules and Secure Boot, two
+        safety measures should be in place: (1) a ZFS boot environment snapshot taken
+        immediately before the update (zsys automatically creates these for apt
+        transactions, but only if the transaction is interactive — unattended upgrades
+        may skip this step), and (2) a VM-level snapshot taken immediately before the
+        maintenance window. The VM-level snapshot provides a fast rollback path
+        independent of the guest OS state, while the ZFS boot environment provides a
+        guest-side rollback. Both should be taken as close to the update as possible —
+        a 12-day-old snapshot is a fallback of last resort, not a primary recovery
+        plan.
+      type: secondary
+  level_indicators:
+    level_1: |
+      Identifies that the boot failed after a kernel update. Sees "module verification
+      failed" and "zfs module not loaded" in the boot log. Concludes the ZFS module is
+      missing or the kernel update broke something. Recommends reinstalling the kernel,
+      reverting to the old kernel, or rebuilding the ZFS module. Does not identify
+      Secure Boot as the cause of the module rejection, and does not explain why the
+      module fails to load. May suggest disabling Secure Boot as a workaround without
+      understanding the security implications.
+    level_2: |
+      Identifies that the ZFS kernel module failed to load with "module verification
+      failed: signature and/or required key missing" and that this prevents mounting
+      the ZFS root filesystem. Recognises that the module needs to be signed. Recommends
+      booting from a live ISO or the old kernel, signing the ZFS module, and regenerating
+      the initramfs. May mention the MOK key. Does NOT identify that the DKMS
+      configuration lacks a sign_tool directive (and that this is a recurring problem,
+      not a one-time issue), does NOT explain the full Secure Boot lockdown enforcement
+      chain, and does NOT address the stale snapshot as a process failure.
+    level_3: |
+      Identifies that the root cause is Secure Boot enforcement: the kernel enters
+      lockdown mode when Secure Boot is enabled, and unsigned DKMS modules are rejected
+      outright (not merely tainted). Explains the full causal chain: unattended kernel
+      update → DKMS rebuilds ZFS module without signing → unsigned module included in
+      initramfs → kernel rejects module under lockdown → ZFS root filesystem cannot be
+      mounted → boot drops to emergency shell. Identifies that the DKMS configuration
+      lacks a sign_tool directive and that the unattended-upgrades log recorded the
+      signing warning but did not treat it as blocking. Proposes correct recovery: boot
+      the old kernel's ZFS boot environment (or sign the module from a live ISO using
+      the existing MOK key pair), then add a sign_tool directive to dkms.conf to prevent
+      recurrence. Notes that the VM snapshot is 12 days old and that no pre-update
+      snapshot was taken. Does NOT synthesise the full process failure chain or propose
+      structural preventive controls beyond the immediate DKMS fix.
+    level_4: |
+      All of the above plus: synthesises the complete failure chain and identifies
+      three process failures that compound each other: (1) unattended kernel upgrades
+      on a ZFS+Secure Boot system are inherently unsafe — the MOK signing step requires
+      either interactive confirmation or a pre-configured sign_tool, and unattended
+      upgrades bypass both; (2) the unattended-upgrades log recorded the signing warning
+      but was not configured to treat it as a blocking error — DKMS build warnings should
+      halt the upgrade on systems where the module is required for boot; (3) no pre-update
+      snapshot or boot environment was taken immediately before the maintenance window —
+      the 12-day-old snapshot is inadequate as a recovery point. Proposes structural
+      preventive controls: (a) configure DKMS auto-signing via sign_tool in dkms.conf
+      so all future kernel updates produce signed modules; (b) disable unattended kernel
+      upgrades on ZFS+Secure Boot systems, or configure the unattended-upgrades
+      PreInstall-Script to verify module signing before proceeding; (c) mandate a
+      VM-level snapshot immediately before any kernel update on production VMs; (d)
+      test-boot new kernels in a staging snapshot or clone before applying to production;
+      (e) treat DKMS signing warnings as blocking errors in the upgrade pipeline, not
+      informational log entries. Notes that the system had all the pieces for a correct
+      outcome (MOK key pair exists, public key is enrolled, sign-file utility is
+      available) — the failure was purely in process and configuration, not in
+      technical capability.

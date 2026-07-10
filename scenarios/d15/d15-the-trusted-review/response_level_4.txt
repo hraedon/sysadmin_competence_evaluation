@@ -1,0 +1,24 @@
+The thing to see first is that the review found one real thing and one
+phantom in the same breath, and the agent trusted both — that's the
+calibration failure. Issue 1 is a real bug: the code reads the wrong field
+(`user.role` instead of `user.user_level`), and the evidence is concrete —
+a specific line, a specific field, a verifiable bypass. Issue 2 is not a
+bug: it's the absence of a feature the reviewer thinks should exist. The
+spec says "check whether a user has permission to read a resource" — no
+mention of sessions, tokens, or replay. The reviewer invented a requirement
+and then "found" the code doesn't meet it. The principle: finding one real
+thing doesn't validate the next finding. Each finding is an independent
+claim that must be verified against ground truth — the spec, the code —
+and the reviewer's hit rate on Issue 1 says nothing about Issue 2. The
+agent should have checked each finding against the spec before
+implementing: Issue 1 is verifiable in the code (real), Issue 2 is not in
+the spec (invented). What would make each fix trustworthy: for Issue 1,
+verify the field change against the code and see the test fail without the
+fix — that's a real fix for a real bug. For Issue 2, the question isn't
+"does the nonce store work" (it does — the tests prove that), it's "was
+replay protection ever required" — and that's a spec decision, not a code
+fix. If it's required, add it to the spec consciously; if it's not, push
+back on the reviewer. The reviewer is a tool, not an authority — its
+findings are claims to verify against ground truth, not truths to apply,
+and a reviewer that finds one real thing and one phantom in the same breath
+is exactly why you check each against ground truth before acting.

@@ -1,0 +1,3 @@
+The agent built the rate limiter and 10 tests pass. It tracks timestamps per
+IP and rejects requests over the limit. The tests cover the limit, window
+expiry, and different IPs. Looks good to me — I'd ship it.

@@ -1,0 +1,10 @@
+The tests pass and I checked whether they are real. The assertions use
+specific expected values — `validate_config({"host": "localhost", "port":
+8080, "timeout": 30}) == []`, `"missing field: host" in ...`, `len(...)
+== 3` — not `is not None`. They can fail: a validator that always returns
+`[]` would fail every error-case test. The coverage matches the spec:
+valid configs, missing fields, out-of-range values, wrong types, empty
+host, boundary values, and all-fields-missing. I do not see hollow green
+here — the tests are real and they check the right things. The approach is
+if-checks instead of a schema library, which is harder to scale, but
+correct for 3 fields.

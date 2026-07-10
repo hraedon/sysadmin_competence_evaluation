@@ -3,6 +3,9 @@
 ## Severity
 Medium — evaluation quality
 
+## Status
+**PARTIALLY ADDRESSED (2026-07-10).** Mixed-signal response support and variance testing added to calibration harness. See WI-003. Human-response baseline remains future work.
+
 ## Location
 `calibration/run.mjs` — all synthetic response files at `scenarios/*/response_level_{1,2,3,4}.txt`
 

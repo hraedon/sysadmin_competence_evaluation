@@ -1,0 +1,4 @@
+I wouldn't ship yet. It says 47 passed but 12 skipped — I'd want to know what
+those skipped tests were before I trust this, because skipped tests aren't
+really passing. The rest looks like it's working but I'd at least ask about
+those skips first.

@@ -1,0 +1,22 @@
+No. Step back first: "the estate is clean" is the agent's claim, and the
+transcript's evidence is weaker than the claim — so I read the run against
+the summary, not the summary's account of the run. Concretely: (1) "0
+findings" is ambiguous. The warning says "could not read security
+descriptor for 3 entries — skipped" — 3 of 12 rules were never evaluated,
+and "0 findings" conflates "clean" with "couldn't read." That's the most
+dangerous pattern for a checker: a tool that reports "0 findings" when it
+can't read its input is worse than one that crashes, because the silence
+looks like health. Silence is not cleanliness — "couldn't read" and "read
+and clean" must be distinguishable in the output, and right now they're
+not. The fix isn't just "re-run with the 3 entries resolved" — it's "the
+checker must report 'couldn't read' as a finding in itself, or '0 findings'
+will keep meaning 'I didn't check some of them.'" (2) "Validated
+end-to-end against the sample config" is actually a fixture run — the agent
+checking its code against its own assumptions. I'd require a run against a
+real config file. (3) The one new test builds a rule that's obviously
+misconfigured and asserts it's flagged — I've no reason to think it was
+ever seen to fail, so I'd break the checker once and watch it catch. It
+becomes shippable when the 3 skipped entries are resolved or justified, a
+real config validates correctly, the checker distinguishes "couldn't read"
+from "read and clean" in its output, and the test is shown to fail without
+the fix. Show me that and I'll sign off.

@@ -34,6 +34,7 @@ def _create_orchestrator() -> Orchestrator:
             api_token_secret=settings.proxmox_api_token_secret,
             node=settings.proxmox_node,
             verify_ssl=settings.proxmox_verify_ssl,
+            vm_name_to_id=settings.proxmox_vm_name_map,
             dry_run=settings.dry_run,
         )
     else:

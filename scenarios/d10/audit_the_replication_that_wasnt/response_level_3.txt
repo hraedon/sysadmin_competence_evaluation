@@ -1,0 +1,21 @@
+This is a false-healthy replication scenario: every agent job reports Success, but the DR replica is stale by 5 days and would fail the business RPO on failover.
+
+The report's own Subscription Status section shows the last successful synchronization was 2026-07-05 03:17, five days before the report date. The Latency column says "5 days". Despite this, the 7-day Latency Trend table shows 0 ms every day because that metric is measuring something different — likely the latency of commands that did get delivered, which has been nothing since 2026-07-05.
+
+The chain of failure is:
+
+1. The network maintenance window on 2026-07-02 caused replication to fall behind.
+2. The latency alert auto-cleared on 2026-07-03 when the WAN stabilised, giving the appearance of recovery.
+3. On 2026-07-05 the Distribution Agent delivered 1,247,891 commands and then stopped delivering. This may have been the last of the backlog, or the subscriber may have entered a state where it could no longer accept commands.
+4. The Distribution clean up job has a 72-hour maximum retention. By 2026-07-08, any undelivered commands older than 72 hours were eligible for deletion. The "Undelivered commands: 0" line confirms the distribution database is now empty, so even if the subscriber reconnects, the gap cannot be filled from the distributor.
+
+The monitoring design is the deeper issue. The organisation only alerts on agent job failure or retry. A job that completes successfully but delivers zero commands is treated as healthy. A job that completes successfully but leaves the subscriber 5 days behind is also treated as healthy. This is inadequate for a 4-hour RPO.
+
+What should be in place:
+- Latency alerting based on the age of the most recently applied transaction at the subscriber, not on the latency of delivered commands.
+- Validation queries that compare row counts, checksums, or known sentinel rows between publisher and subscriber on a schedule.
+- Distribution retention configured to at least 2-3 times the RPO to allow for transient failures and recovery.
+- A failover readiness check that blocks failover or warns operators when subscriber lag exceeds the RPO.
+- Investigation into why the subscriber stopped applying commands after 2026-07-05, including error logs and agent history with verbose logging.
+
+This would move the environment from job-status monitoring to data-freshness monitoring.

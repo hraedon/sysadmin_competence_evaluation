@@ -1,0 +1,160 @@
+schema_version: 2.0
+id: d15-the-fix-summary
+title: The Fix Summary
+domain: 15
+domain_name: Directing AI Agents
+level: 1
+delivery_modes:
+- A
+difficulty:
+  score: 2
+  reasoning: |
+    This is the on-ramp. The candidate reads a small diff and an agent's summary
+    of it, then describes what changed and what was claimed. Nothing is hidden
+    behind jargon; the diff is short and the claims are in plain English. The L1
+    bar is faithful description — can you read an agent's output and say back what
+    it did and what it said about it, treating those as two different things? The
+    harder levels add evaluation (noticing that some claims outrun the evidence),
+    but the entry bar is achievable for a careful reader who is not a programmer.
+presentation:
+  modes:
+    A:
+      type: agent_diff_and_summary
+      context: |
+        You asked an agent to fix a bug in a small script. The script reads a CSV
+        file and counts rows by category. The bug: empty rows were being counted
+        as if they were a category. You asked the agent to fix that and add a test.
+
+        Below is the diff the agent produced, followed by its summary. Read both,
+        then answer the question — do not ask for more first.
+
+        ---
+        DIFF:
+
+        --- a/count_by_category.py
+        +++ b/count_by_category.py
+        @@ -8,6 +8,9 @@ def count_rows(filepath):
+             counts = {}
+             with open(filepath) as f:
+                 for line in f:
+        +            line = line.strip()
+        +            if not line:
+        +                continue
+                     category = line.split(",")[0]
+                     counts[category] = counts.get(category, 0) + 1
+             return counts
+        @@ -18,3 +21,8 @@ def main():
+        +def test_empty_rows_excluded():
+        +    path = write_temp(["fruit,apple", "", "fruit,banana", "veg,carrot"])
+        +    result = count_rows(path)
+        +    assert result == {"fruit": 2, "veg": 1}
+
+        AGENT SUMMARY:
+        Fixed the bug — empty rows are now skipped during counting.
+        Refactored the parsing logic for clarity.
+        All tests pass, including new coverage for the empty-row case.
+        Verified the fix against the real data file and the counts are correct.
+        ---
+      question: |
+        What did the agent change, and what did it claim about its work? Describe
+        what happened as accurately as you can — what the diff shows, and what
+        the agent's summary says about it.
+rubric:
+  findings:
+  - id: separates_diff_from_summary
+    type: critical
+    description: |
+      The L1 bar: the candidate reads the diff and the summary as two different
+      things and can say back what each shows. The diff added three lines to the
+      counting loop (strip whitespace, skip empty lines, continue) and one new
+      test that builds known input and checks the counts. The summary makes four
+      claims: bug fixed, refactored for clarity, all tests pass, verified against
+      the real data file. A faithful L1 answer separates "what the diff shows"
+      from "what the agent claimed" and reports both accurately. Conflating them —
+      describing the claims as if they are the work, or reading only the diff
+      without noting what was claimed — is the miss.
+    miss_signal: |
+      Candidate paraphrases the agent's summary as their account of what happened
+      ("it fixed the bug, refactored, and verified it"), without distinguishing
+      the diff's evidence from the summary's claims. Or reads the diff but never
+      says what the agent claimed about it.
+  - id: verified_claim_unsupported
+    type: critical
+    description: |
+      "Verified the fix against the real data file and the counts are correct" is
+      a claim. The diff shows no run output, no before-and-after comparison, and
+      no evidence of a real-file run — only code changes and a test that uses
+      synthetic input. The candidate should notice that "verified" is the agent's
+      word, not something the artifact shows, and that a claim of validation is
+      exactly the kind of assertion you read against the evidence rather than
+      accept.
+    miss_signal: |
+      Candidate repeats "verified against the real data file" as an established
+      fact, or lists it alongside the diff changes without registering that no
+      verification is visible in the artifact.
+  - id: refactored_is_overstated
+    type: secondary
+    severity: medium
+    description: |
+      "Refactored the parsing logic for clarity" overstates a three-line bug fix
+      (strip, skip, continue). The diff shows no restructuring — the parsing logic
+      is unchanged; two guard lines were added before it. Calling it a refactor
+      implies structural change that didn't happen and can hide that the logic
+      wasn't actually re-examined.
+    miss_signal: |
+      Candidate takes "refactored for clarity" at face value, or doesn't notice
+      that the word doesn't match what the diff shows.
+  - id: specifies_what_to_check
+    type: secondary
+    severity: high
+    description: |
+      A strong answer doesn't stop at spotting the gaps — it says what would
+      settle them: run the test suite and see it go green (not just trust "all
+      tests pass"), see the new test fail when the skip is removed (confirm it
+      actually catches the bug), and see a before-and-after comparison against
+      the real data file showing the counts changed. The candidate names what
+      "done" would look like, concretely.
+    miss_signal: |
+      Candidate notices that "verified" is unsupported but doesn't say what
+      verification would look like, or flags the over-claim without saying what
+      they'd check before trusting the work.
+  - id: summary_is_claims_generalized
+    type: secondary
+    severity: high
+    description: |
+      The L4 move: stepping back from the individual catches to the principle.
+      Every line of the agent's summary — "fixed," "refactored," "all tests
+      pass," "verified" — is a claim about its own work, and the diff is the only
+      evidence. The habit that scales is the reflex to read each claim against
+      the diff: which are backed by what you can see, and which aren't? A strong
+      answer names this explicitly rather than only listing discrepancies.
+    miss_signal: |
+      Candidate catches one or two specific over-claims but never steps back to
+      the principle that the summary is a set of assertions to check, not a
+      report of what happened.
+  level_indicators:
+    level_1: |
+      Accurately describes what the diff changed (added whitespace stripping and
+      empty-line skipping to the loop; added a test with known input) and what the
+      summary claimed (bug fixed, refactored for clarity, all tests pass, verified
+      against the real file) — treating them as two different things. May not
+      notice any discrepancy between claims and evidence; describes faithfully
+      without evaluating. That faithful separation is the L1 bar.
+    level_2: |
+      Faithful description, plus starts to notice at least one gap between a claim
+      and the evidence — typically that "verified against the real data file" has
+      no evidence in the diff, or that "refactored" overstates a three-line fix.
+      Doesn't yet generalize to the principle or specify what to check.
+    level_3: |
+      Catches both the unsupported "verified" claim and the "refactored"
+      overstatement, and specifies what would settle them: see the test suite run
+      green, see the new test fail when the skip is removed, see a before-and-after
+      against the real file. Names what "done" looks like concretely. May not
+      generalize to the claim-vs-evidence habit.
+    level_4: |
+      All of L3, plus the step back: the summary is a set of claims about the
+      agent's own work, and the diff is the only evidence — so the habit is reading
+      each claim against what the artifact shows. Says what evidence would make
+      the work trustworthy (not just what's wrong now). Catches every over-claim,
+      including the subtle ones ("refactored" for a bug fix), and frames the
+      general reflex rather than listing catches.

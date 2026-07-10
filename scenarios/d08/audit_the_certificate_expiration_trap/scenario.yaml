@@ -1,0 +1,78 @@
+schema_version: 2.0
+id: d08-audit-the-certificate-expiration-trap
+title: The Certificate Expiration Trap
+domain: 8
+domain_name: Security Reasoning
+level: 2
+delivery_modes:
+  - A
+difficulty: 3
+presentation:
+  modes:
+    A:
+      type: log_extract
+      artifact_file: scenarios/d08/audit_the_certificate_expiration_trap/cert_inventory.txt
+      context: |
+        The Security team has asked you to audit the enterprise certificate
+        lifecycle after a recent customer-facing outage. They have provided the
+        certificate inventory export from CertWatch, including the incident
+        context for INC-2026-0314.
+
+        Review the inventory and assess whether the certificate management
+        process is fit for purpose and whether the outage was correctly
+        diagnosed.
+
+        Provide your findings and recommendations.
+rubric:
+  findings:
+    - id: expired_certificate_caused_outage
+      description: |
+        The certificate bound to customer-portal.corp.local on the F5 primary data centre expired on 2026-07-05. Incident INC-2026-0314 occurred on 2026-07-07, two days after expiry. The incident evidence points to certificate failure, not a network issue: TCP RSTs originated from the F5 itself, switch counters on DMZ-AGG-03 were clean, service was restored only after failover to the secondary data centre, and the F5 SSL profile still binds the expired certificate. The network team's closeout note attributes the incident to a transient network event, but the certificate expiry date and the RST pattern from the load balancer are inconsistent with that conclusion. The outage was misdiagnosed.
+      severity: critical
+      miss_signal: |
+        Candidate treats INC-2026-0314 as a resolved network incident and focuses only on the expired customer-portal certificate as a separate renewal task. Does not connect the expiry date of 2026-07-05 to the outage date of 2026-07-07, or does not use the F5 RST evidence and secondary-DC failover to argue that the root cause was certificate failure rather than network instability.
+      learning_note: |
+        Load balancers and TLS termination appliances often respond to expired or misconfigured certificates with TCP resets or failed handshakes, which can be mistaken for network-layer failures. When an incident is resolved by failover to a different appliance — especially one with a different certificate — the original appliance's certificate state should be examined before closing the incident as a network transient.
+      type: critical
+    - id: monitoring_threshold_too_late_for_multiple_certs
+      description: |
+        CertWatch is configured to alert 14 days before expiry and currently shows CLEAR. However, several production certificates are within or just past the 30-day window: api-gateway.corp.local (19 days), sso.corp.local (22 days), mail.corp.local (24 days), sharepoint.corp.local (27 days), and vpn.corp.local (30 days). A 14-day threshold leaves insufficient time to procure, validate, deploy, and test replacements for certificates that may require external CA issuance or multi-team change control. The customer-portal certificate itself would have entered the alert window only 14 days before expiry, assuming the threshold was triggered at all, and would have expired before a realistic renewal cycle could complete.
+      severity: critical
+      miss_signal: |
+        Candidate lists the expiring certificates as routine renewal work and does not identify the monitoring threshold as a contributing cause. Accepts the CLEAR alert status as evidence that monitoring is working. Does not recognise that a 14-day threshold is too short for production certificates with change-control or external-CA lead times.
+      learning_note: |
+        Certificate expiry alerts must be timed for the renewal workflow, not for the expiry date. A 14-day alert assumes procurement, validation, deployment, and rollback planning can all complete within two weeks. For externally signed certificates, enterprise change windows, or load balancer profiles that require network team involvement, this assumption is unsafe. Tiered thresholds — 60 days for planning, 30 days for execution, 14 days for escalation — provide realistic lead time.
+      type: critical
+    - id: manual_spreadsheet_single_source_of_truth
+      description: |
+        CertWatch reads CertTracker_v3.xlsx as its source of truth. The inventory notes explicitly state that certificates installed directly on endpoints without tracker rows are not monitored. The load balancer reconciliation depends on the Security team manually updating the spreadsheet after the Network team confirms deployment. This creates a manual, trust-based inventory with no guarantee that production bindings match the tracked inventory. The alert threshold was also reduced from 30 days to 14 days in March 2026 specifically to reduce alert volume.
+      severity: high
+      learning_note: |
+        A spreadsheet maintained by one team and read by another is a fragile source of truth for security-critical assets. Manual reconciliation introduces lag, omission, and duplicate records. Reducing alert thresholds to reduce noise further degrades visibility. Certificate management needs discovery against actual endpoints, not just tracking of intended certificates.
+      type: secondary
+    - id: incomplete_certificate_chain_and_no_trust_validation
+      description: |
+        The F5 SSL profile for customer-portal-ssl has an incomplete certificate chain: the intermediate certificate customer-portal-int is missing. Additionally, CertWatch validation is set to "None (trust chain not verified)" and the process notes state that root and intermediate CA trust chains are maintained in AD DS GPO and are not reviewed during expiry monitoring. An expired or missing intermediate can break TLS handshakes even when the leaf certificate is valid.
+      severity: moderate
+      learning_note: |
+        Monitoring expiry alone is insufficient for TLS health. A valid leaf certificate with a missing intermediate or an untrusted root will still cause client-side failures. Certificate lifecycle monitoring must validate the full chain, including intermediate presence and root CA validity, not just the leaf expiry date.
+      type: secondary
+    - id: no_certificate_discovery_or_transparency_monitoring
+      description: |
+        The inventory documents gaps including no automated discovery of certificates outside the tracker and no Certificate Transparency monitoring. The ldap.corp.local certificate on domain controllers is deployed by GPO and is not in the tracker. Any certificate issued through a shadow CA, cloud provider, or manual endpoint installation is invisible to CertWatch.
+      severity: moderate
+      learning_note: |
+        Organisations typically have more certificates than they track manually. Certificate Transparency log monitoring, network scanning, and endpoint discovery are necessary to find certificates that bypass the official process. Relying only on a curated spreadsheet guarantees blind spots.
+      type: secondary
+  level_indicators:
+    level_1: |
+      Reviews the inventory summary and concludes the environment is mostly healthy. Notes one expired certificate (customer-portal) and several expiring within 30 days. Treats INC-2026-0314 as a resolved network incident and does not connect it to the expired certificate. Accepts CertWatch CLEAR status as reassurance. Recommends renewing the expired and soon-to-expire certificates and continuing normal monitoring.
+    level_2: |
+      Identifies that the customer-portal certificate expired on 2026-07-05 and that INC-2026-0314 on 2026-07-07 was likely caused by certificate failure rather than network instability, citing RSTs from the F5, clean switch counters, and recovery via failover to the secondary data centre. Notes that multiple production certificates are expiring within 19-30 days but CertWatch is configured to alert only at 14 days, which is too late. Flags the manual spreadsheet as the source of truth and the load balancer manual reconciliation as a process gap. Recommends renewing customer-portal immediately and lowering the alert threshold. Does NOT identify the incomplete certificate chain, trust-chain validation gap, or need for certificate discovery / CT monitoring.
+    level_3: |
+      All of the above plus: explains that a 14-day threshold is operationally inadequate for certificates requiring external CA procurement or multi-team change control. Proposes tiered alerting (e.g., 60/30/14/7 days). Recommends replacing the spreadsheet source of truth with automated certificate discovery and lifecycle management, including reconciliation of what is actually deployed on F5, Exchange, IIS, Palo Alto, and other endpoints. Notes the incomplete intermediate chain in the customer-portal F5 profile and the absence of trust-chain validation in CertWatch. Does NOT connect these gaps to the broader monitoring philosophy or propose Certificate Transparency monitoring as a shadow-inventory control.
+    level_4: |
+      All of the above plus: identifies the fundamental design flaw that CertWatch only validates expiry dates from a spreadsheet and therefore provides false confidence — a job-status-green signal that does not prove production TLS endpoints are healthy. Proposes continuous end-to-end validation that checks expiry, deployment presence, chain completeness, intermediate/root validity, and revocation/OCSP status. Recommends network and endpoint-based certificate discovery and inventory reconciliation for internal corp.local domains, and limits Certificate Transparency log monitoring to publicly routable organizational domains. Treats the incident misdiagnosis as systemic: the monitoring and inventory gaps made it possible for an expired certificate to be overlooked as the root cause.
+  mixed_signal:
+    expected_level: 2.5
+    description: "Identifies the expiring certificates and monitoring gap (L2) but incorrectly dismisses the spreadsheet-only tracking as acceptable for the estate size (L1 framing on process maturity)"

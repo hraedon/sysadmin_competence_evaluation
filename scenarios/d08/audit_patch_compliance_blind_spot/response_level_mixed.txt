@@ -1,0 +1,11 @@
+The 97.5% compliance figure needs qualification. There is a problem with the scan data for the three compromised machines that I want to flag.
+
+WORKSTATION-047, WORKSTATION-083, and WORKSTATION-091 all show "Compliant: 0 required" in the summary, but looking at the Scan Health section, their last successful scans are from January 6 through 13. The report footnote states that devices with no successful scan in over 60 days show compliance status from their most recent completed scan, which doesn't reflect updates released after that scan date. So the "Compliant" label on these three machines is based on scan data that's 70-plus days old, not a current assessment.
+
+The broader issue is that the Scan Health section shows 12 machines total with scans older than 60 days, not just the three that were compromised. All 12 have compliance status frozen at a point in time 60-plus days ago. The CTO can't be told the remaining estate is protected without checking the current scan health on those other 9 machines first.
+
+On whether patching contributed to the compromise: the three machines were "Compliant" according to SCCM, so it seems unlikely that an unpatched vulnerability was the initial entry point. The attackers more likely came in through a different vector — phishing, stolen credentials, or an application-level exploit. The compliance data on these machines looks clean, so I'd focus the investigation elsewhere.
+
+The four non-compliant machines (WORKSTATION-112, -118, -133, LAPTOP-044) should be patched promptly. WORKSTATION-133 in particular has updates outstanding from November 2025, which is concerning.
+
+One thing I noticed in the SCCM administrator's note: the three compromised machines didn't receive KB5034763 in February and were unaffected by the boot loop issue. That's actually a silver lining — at least they avoided that problem on top of everything else.

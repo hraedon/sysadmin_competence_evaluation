@@ -1,0 +1,52 @@
+Root cause: UEFI Secure Boot rejects the unsigned ZFS DKMS module, preventing the
+ZFS root filesystem from mounting.
+
+The full causal chain:
+1. Unattended-upgrades installs kernel 5.15.0-125 at 02:47.
+2. DKMS rebuilds the ZFS module (2.1.6) for the new kernel at 02:48. The build
+   completes successfully — the module is compiled and installed.
+3. However, the DKMS configuration (/usr/src/zfs-2.1.6/dkms.conf) does not contain
+   a sign_tool directive. The previous kernel's module was signed manually during
+   the initial ZFS installation (interactive mokutil enrollment), but this manual
+   step was not repeated. The unattended-upgrades log records the warning at
+   02:48:46 ("DKMS: module not signed (no sign_tool configured)") but does not
+   treat it as a blocking error.
+4. update-initramfs runs at 02:49 and includes the unsigned ZFS module in the
+   new initramfs. The initramfs is current — the module is present, but unsigned.
+5. On reboot at 03:00, the kernel boots successfully (signed by Canonical) and
+   enters lockdown mode because Secure Boot is enabled.
+6. The initramfs attempts to load the ZFS modules. Each module fails: "module
+   verification failed: signature and/or required key missing" → "Lockdown:
+   <module>: module is not signed, rejecting" → "module load rejected: Operation
+   not permitted."
+7. Without the zfs module, the root filesystem (root=ZFS=rpool/ROOT/ubuntu)
+   cannot be imported or mounted. Boot drops to the initramfs emergency shell.
+
+Recovery — immediate (restore service):
+- Boot the old kernel's ZFS boot environment (rpool/ROOT/ubuntu_5.15.0-91) from
+  the GRUB menu. This boot environment has the signed ZFS module and should boot
+  normally. This restores service immediately but uses a 12-day-old boot
+  environment — any root filesystem changes since April 4th may not be present.
+  Database data is on a separate dataset and should be unaffected.
+
+Recovery — correct (fix the new kernel):
+- Boot from a live ISO, import the rpool, and chroot into the system.
+- Sign the ZFS modules for the new kernel using the existing MOK key pair:
+    /lib/modules/5.15.0-125-generic/build/scripts/sign-file sha256 \
+      /etc/keys/mok/MOK.priv /etc/keys/mok/MOK.der \
+      <path to each .ko file>
+- Regenerate the initramfs for the new kernel.
+- Reboot into the new kernel.
+
+Preventive fix (prevent recurrence):
+- Add a sign_tool directive to /usr/src/zfs-2.1.6/dkms.conf so that all future
+  DKMS builds are automatically signed with the MOK key. This is a one-time
+  configuration change that prevents the same failure on every future kernel
+  update. Simply signing the module manually for this kernel version is a
+  temporary fix — the next kernel update will reproduce the failure.
+
+Process gap — stale snapshot: The VM snapshot (pre-patch-2026-0404) and the ZFS
+boot environment were both created 12 days before the update. No snapshot was
+taken immediately before the maintenance window. Rolling back would lose 12 days
+of root filesystem changes. A pre-update snapshot should have been taken
+immediately before the kernel update as a recovery point.

@@ -1,0 +1,6 @@
+It says 100% success, but I'm looking at "items passing on first attempt:
+0/20 (0%)." That means every single item needed retries before it passed.
+That seems off — if the pipeline were working well, shouldn't more items
+pass on the first try? I'm not sure I'd call it "working well" if nothing
+passes on the first attempt. But it did eventually pass everything, so maybe
+it's fine? I'd want to look at what's failing before I shipped.

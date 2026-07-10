@@ -1,0 +1,191 @@
+schema_version: 2.0
+id: d15-the-self-review
+title: The Self-Review
+domain: 15
+domain_name: Directing AI Agents
+level: 3
+delivery_modes:
+- A
+difficulty:
+  score: 4
+  reasoning: |
+    The tests really do pass. The review really did run. The summary is
+    confident. The failure is that the agent reviewed its own work in the same
+    session — and self-review is systematically worse at detecting errors. The
+    agent that built the work absorbed its own assumptions during generation
+    and cannot reliably audit it; an agent in a long conversation has gotten
+    "agreeable" and accepts things it would have questioned earlier. The
+    candidate has to spot that the review is hollow (the same model reviewing
+    itself) and specify the fix: fresh context, different model lineage,
+    specific prompts. A different L3 skill than "The One-Liner Spec" (spec
+    literacy) or "The Sure Thing" (specify the fix for vacuous tests): here the
+    candidate specifies the review *process*, not the code or the spec.
+presentation:
+  modes:
+    A:
+      type: agent_session_transcript
+      context: |
+        You asked an agent to build an access-control check for a resource
+        service. The check verifies whether a user's role matches the
+        resource's required role. Below is the tail of its session. Read it,
+        then answer the question — do not ask for more first.
+
+        ---
+        agent> Built the access-control check and wrote tests:
+
+            $ pytest -q
+            ........                                                               [100%]
+            8 passed in 0.4s
+
+        agent> I ran an adversarial review of the implementation in this
+               session. The review found no issues — the code is clean, the
+               tests cover the key paths, and the access-control logic is
+               correct. The feature is reviewed, tested, and ready to ship.
+
+            REVIEW SUMMARY:
+            - Code quality: good
+            - Test coverage: adequate
+            - Security: no issues found
+            - Overall: clean
+
+        agent> The access-control check is complete, reviewed, and tested.
+               Ready to ship.
+        ---
+      question: |
+        The agent built the feature, reviewed its own work, and says it's
+        clean and ready to ship. Do you trust this? What would you do
+        differently, and why? Specify the fix: what review process would you
+        set up, and which decisions must come to you rather than the agent's?
+rubric:
+  findings:
+  - id: self_review_is_systematically_worse
+    type: critical
+    description: |
+      The agent reviewed its own work — and the model that produced the
+      work cannot reliably audit it. This isn't a flaw in any particular
+      model; it's structural. The agent that wrote the code absorbed its own
+      assumptions during generation — it "understands" why it made certain
+      choices, and that understanding blinds it to the choices that were
+      wrong. A fresh model questions everything, which is exactly what you
+      want for review. The candidate must spot that self-review is a
+      systematic blind spot, not a one-off risk, and that "I reviewed it and
+      it's clean" is the least trustworthy review possible.
+    miss_signal: |
+      Candidate accepts "reviewed and clean" at face value, or notes that
+      the agent reviewed itself without registering that self-review is
+      systematically worse — that the same model sharing its own blind spots
+      is a structural problem, not a minor caveat.
+  - id: same_session_context_drift
+    type: critical
+    description: |
+      The review was run "in this session" — meaning the agent has been in
+      a long conversation, has absorbed the builder's assumptions, and has
+      gotten agreeable. An agent that stays in a long conversation starts
+      accepting things it would have questioned earlier. By resetting the
+      context for each review, every pass hits with the same intensity as
+      the first — no drift, no softening, no "well, I already looked at that
+      so I'll let it slide." The candidate must spot that "in this session"
+      means "with accumulated context bias" and specify the fix: fresh
+      context for the review.
+    miss_signal: |
+      Candidate notes that the agent reviewed itself but doesn't flag that
+      "in this session" means accumulated context bias — that a long
+      conversation makes the reviewer agreeable and less likely to catch
+      issues.
+  - id: review_summary_is_vacuous
+    type: secondary
+    severity: high
+    description: |
+      The review summary — "code quality: good, test coverage: adequate,
+      security: no issues found, overall: clean" — is a set of claims with
+      no evidence. "Good" by what standard? "Adequate" against what? "No
+      issues found" by what check? The candidate should notice that the
+      summary is vacuous: it's the agent's assessment of its own work, in
+      its own words, with no specifics. A real review names specific
+      findings — "line 47 reads the wrong field," "the test doesn't cover
+      the empty-input case," "the error message leaks internal state" — not
+      a checklist of "good / adequate / clean."
+    miss_signal: |
+      Candidate accepts the review summary as evidence the code is clean,
+      or notes the summary without registering that "good / adequate / no
+      issues" is a set of claims, not findings.
+  - id: specify_real_review_process
+    type: secondary
+    severity: high
+    description: |
+      A strong answer specifies what a real review process looks like:
+      (1) fresh context — a new conversation, not the same session; (2)
+      different model lineage — not the same family, because the same family
+      shares blind spots; (3) specific prompts — not "review this for
+      quality" but "find every place where untrusted input reaches a
+      security-sensitive operation" or "name every test that could pass
+      against a broken implementation." The candidate should name all three,
+      not just "use a different model."
+    miss_signal: |
+      Candidate says "use a different model" or "get a fresh context" but
+      doesn't specify all three layers (fresh context, different lineage,
+      specific prompts), or doesn't name what the review should look for.
+  - id: what_decisions_must_come_to_human
+    type: secondary
+    severity: high
+    description: |
+      The candidate should name which decisions must come to the human
+      rather than the agent: what "adequate coverage" means is a judgment
+      call (the agent doesn't get to grade its own homework), what
+      "security-relevant" means is the human's call (the agent doesn't get
+      to decide whether its own code is secure), and whether the review
+      process is sufficient is the human's call (the agent doesn't get to
+      set its own review bar). The delegation boundary: the agent owns the
+      tactics (how to build); the human owns the standard (what "done" and
+      "secure" mean).
+    miss_signal: |
+      Candidate specifies the review process but doesn't name which
+      decisions are the human's — what "adequate" means, what
+      "security-relevant" means, whether the review bar is sufficient.
+  - id: reviewer_is_tool_not_authority
+    type: secondary
+    severity: high
+    description: |
+      The L4 move: the reviewer is a tool, not an authority — and a
+      self-reviewer is a tool reviewing itself, which is the worst possible
+      tool for the job. The habit that scales is the reflex to distrust any
+      review that wasn't run in a fresh context by a different lineage, and
+      to treat "I reviewed it" from the same agent as a claim to verify, not
+      a verdict to trust. A strong answer names this explicitly: the
+      review's credibility depends on the reviewer's independence from the
+      builder, and zero independence means zero credibility.
+    miss_signal: |
+      Candidate catches that self-review is bad but doesn't step back to the
+      principle that the reviewer is a tool whose credibility depends on
+      independence from the builder.
+  level_indicators:
+    level_1: |
+      Trusts the review. "8 tests pass, reviewed and clean, ready to ship."
+      Reads the summary as an account of what happened. Doesn't question
+      whether the agent can reliably review its own work.
+    level_2: |
+      Is skeptical. Notices that the agent reviewed its own work and senses
+      that's problematic — "can it really review itself?" May note the review
+      summary is vague. But can't articulate why self-review is systematically
+      worse or specify what a real review process looks like.
+    level_3: |
+      Spots that self-review is systematically worse — the model that produced
+      the work shares its blind spots — AND that "in this session" means
+      accumulated context bias (the agent has gotten agreeable). Specifies the
+      fix: fresh context for the review, different model lineage for
+      security-relevant code, specific prompts (not "is this good?" but "find
+      every injection vector"). Flags that the review summary is vacuous —
+      claims without evidence. Names which decisions must come to the human
+      (what "adequate" and "secure" mean). May not generalize to the
+      reviewer-as-tool principle.
+    level_4: |
+      All of L3, plus the principle: the reviewer is a tool, not an authority —
+      and a self-reviewer is a tool reviewing itself, which is the worst
+      possible tool for the job. The review's credibility depends on the
+      reviewer's independence from the builder, and zero independence means
+      zero credibility. Generalizes: distrust any review that wasn't run in a
+      fresh context by a different lineage. The "exit signal" from the VDD
+      methodology applies here too: when the reviewer starts inventing
+      problems instead of finding real ones, you're done — but a self-reviewer
+      never reaches that signal, because it can't find the real ones in the
+      first place.

@@ -1,0 +1,6 @@
+I wouldn't ship yet. The tests all pass, but they're all component-level —
+each piece is tested on its own. I don't see any test that checks whether
+the components actually connect. Does the scheduler call the monitor?
+Does the monitor's output reach the formatter? Does the formatter's message
+reach the sender? I'd want to see the system run end-to-end before I
+trusted it. But I'm not sure exactly what that test would look like.

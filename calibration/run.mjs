@@ -124,6 +124,9 @@ Options:
   --domain <n>           Filter by domain number
   --level <n>            Filter by expected level (1-4)
   --concurrency <n>      Max parallel evaluator calls (default: 5, min: 1)
+  --mixed                Enable mixed-signal response testing (response_level_mixed.txt)
+  --variance <n>         Run each response N times and check level consistency (default: 1)
+  --validate-only        Validate scenario structure without calling any API (no key needed)
   --list-models          List available model aliases
   --help, -h             Show this help
 
@@ -173,6 +176,127 @@ let concurrency = concurrencyArg ? parseInt(concurrencyArg, 10) : 5
 if (!Number.isInteger(concurrency) || concurrency < 1) {
   console.error(`Error: --concurrency must be a positive integer (got '${concurrencyArg}').`)
   process.exit(2)
+}
+
+const mixedFlag = args.includes('--mixed')
+const validateOnly = args.includes('--validate-only')
+
+const varianceArg = getArg('--variance')
+let variance = 1
+if (args.includes('--variance')) {
+  if (!varianceArg) {
+    console.error('Error: --variance requires a value (e.g., --variance 3).')
+    process.exit(2)
+  }
+  variance = parseInt(varianceArg, 10)
+  if (!Number.isInteger(variance) || variance < 1) {
+    console.error(`Error: --variance must be a positive integer (got '${varianceArg}').`)
+    process.exit(2)
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Validate-only mode: structural validation without API calls
+// ---------------------------------------------------------------------------
+
+if (validateOnly) {
+  const yamlPaths = await glob('**/scenario.yaml', { cwd: SCENARIOS_DIR, absolute: true })
+
+  if (yamlPaths.length === 0) {
+    console.error(`No scenario.yaml files found in ${SCENARIOS_DIR}`)
+    process.exit(2)
+  }
+
+  const filteredPaths = yamlPaths.filter(p => {
+    const scenario = loadScenario(p)
+    if (scenarioFilters.length > 0 && !scenarioFilters.includes(scenario.id)) return false
+    if (domainFilter && scenario.domain !== domainFilter) return false
+    return true
+  })
+
+  const sortedPaths = filteredPaths.sort()
+  let errors = 0
+  let warnings = 0
+  let checked = 0
+
+  console.log(`\nValidate-only — ${new Date().toISOString()}`)
+  console.log(`Scenarios: ${sortedPaths.length}\n`)
+
+  for (const yamlPath of sortedPaths) {
+    const scenarioDir = dirname(yamlPath)
+    const scenarioId = yamlPath.split('/').slice(-2)[0]
+    const issues = []
+
+    let scenario
+    try {
+      scenario = loadScenario(yamlPath)
+    } catch (e) {
+      console.log(`  [FAIL] ${scenarioId}: YAML parse error: ${e.message}`)
+      errors++
+      checked++
+      continue
+    }
+
+    if (!scenario.id) issues.push('missing id')
+    if (!scenario.domain) issues.push('missing domain')
+    if (!scenario.domain_name) issues.push('missing domain_name')
+    if (!scenario.level) issues.push('missing level')
+    if (!scenario.delivery_modes && !scenario.delivery_mode) issues.push('missing delivery_modes/delivery_mode')
+    if (!scenario.presentation) issues.push('missing presentation')
+    if (!scenario.rubric) issues.push('missing rubric')
+    if (scenario.rubric) {
+      if (!scenario.rubric.findings || scenario.rubric.findings.length === 0) issues.push('rubric has no findings')
+      if (!scenario.rubric.level_indicators) issues.push('rubric missing level_indicators')
+      else {
+        for (const lvl of ['level_1', 'level_2', 'level_3', 'level_4']) {
+          if (!scenario.rubric.level_indicators[lvl]) issues.push(`rubric missing ${lvl}`)
+        }
+      }
+      for (const f of scenario.rubric.findings ?? []) {
+        if (!f.id) issues.push(`finding missing id`)
+        if (!f.description) issues.push(`finding '${f.id}' missing description`)
+        if (!f.severity && !f.type) issues.push(`finding '${f.id}' missing severity/type`)
+      }
+    }
+
+    const mode = scenario.delivery_mode || (scenario.delivery_modes && scenario.delivery_modes[0]) || 'A'
+    const activePresentation = (scenario.schema_version >= 2.0 && scenario.presentation?.modes)
+      ? (scenario.presentation.modes[mode] || scenario.presentation.modes['A'] || {})
+      : scenario.presentation
+    const artifactFile = activePresentation?.artifact_file
+    if (artifactFile) {
+      const artifactPath = join(REPO_ROOT, artifactFile)
+      if (!existsSync(artifactPath)) issues.push(`artifact file not found: ${artifactFile}`)
+    }
+
+    for (const expectedLevel of EXPECTED_LEVELS) {
+      const responseFile = join(scenarioDir, `response_level_${expectedLevel}.txt`)
+      if (!existsSync(responseFile)) issues.push(`missing response_level_${expectedLevel}.txt`)
+    }
+
+    if (scenario.rubric?.mixed_signal) {
+      if (typeof scenario.rubric.mixed_signal.expected_level !== 'number') {
+        issues.push('mixed_signal.expected_level missing or not a number')
+      }
+      const mixedFile = join(scenarioDir, 'response_level_mixed.txt')
+      if (!existsSync(mixedFile)) issues.push('missing response_level_mixed.txt (mixed_signal configured)')
+    }
+
+    if (issues.length === 0) {
+      console.log(`  [OK]   ${scenario.id}`)
+    } else {
+      console.log(`  [WARN] ${scenario.id}: ${issues.join('; ')}`)
+      warnings++
+    }
+    checked++
+  }
+
+  console.log('\n' + '─'.repeat(60))
+  console.log(`Validated: ${checked} scenarios / ${checked - warnings} OK / ${warnings} with issues`)
+  if (warnings === 0) {
+    console.log('All scenarios pass structural validation.')
+  }
+  process.exit(warnings > 0 ? 1 : 0)
 }
 
 // ---------------------------------------------------------------------------
@@ -287,61 +411,119 @@ async function runWithConcurrency(tasks, limit, fn) {
 }
 
 async function runTask(task) {
-  const { scenario, expectedLevel, responseFile, artifactContent } = task
-  const prefix = `[${scenario.id}/L${expectedLevel}]`
+  const { scenario, expectedLevel, responseFile, artifactContent, taskType = 'standard', variance: varianceN = 1 } = task
+  const isMixed = taskType === 'mixed'
+  const levelLabel = isMixed ? 'mixed' : `L${expectedLevel}`
+  const prefix = `[${scenario.id}/${levelLabel}]`
 
   if (!existsSync(responseFile)) {
-    if (!levelFilter) {
-      console.log(`${prefix} [SKIP] response_level_${expectedLevel}.txt not found`)
+    if (isMixed || !levelFilter) {
+      console.log(`${prefix} [SKIP] response file not found`)
     }
-    return { expected: expectedLevel, status: 'skip' }
+    return { expected: expectedLevel, status: 'skip', taskType }
   }
 
   const responseText = readFileSync(responseFile, 'utf-8')
+  const numRuns = Math.max(1, varianceN)
 
   try {
-    const result = await callEvaluator(scenario, artifactContent, responseText, compactRubric)
-
-    if (!result.parsed) {
-      console.log(`${prefix} [ERROR] JSON parse failed`)
-      console.log(`${prefix}        Raw: ${result.raw.slice(0, 200)}`)
-      return { expected: expectedLevel, status: 'error', raw: result.raw }
+    const runResults = []
+    for (let v = 0; v < numRuns; v++) {
+      const result = await callEvaluator(scenario, artifactContent, responseText, compactRubric)
+      runResults.push(result)
     }
 
-    const returnedLevel = result.parsed.level
-    const deviation = Math.abs(returnedLevel - expectedLevel)
-    const pass = deviation <= PASS_TOLERANCE
+    const primary = runResults[0]
 
-    if (pass) {
-      console.log(`${prefix} [PASS] returned L${returnedLevel} (expected L${expectedLevel})`)
-    } else {
-      console.log(`${prefix} [FAIL] returned L${returnedLevel} (expected L${expectedLevel}, deviation ${deviation.toFixed(1)})`)
-      console.log(`${prefix}        Gap: ${result.parsed.gap ?? 'none'}`)
-      console.log(`${prefix}        Caught: ${(result.parsed.caught ?? []).join(', ') || '(none)'}`)
-      if (result.parsed.almost_caught && result.parsed.almost_caught.length > 0) {
-        console.log(`${prefix}        Almost: ${result.parsed.almost_caught.join(', ')}`)
+    if (!primary.parsed) {
+      console.log(`${prefix} [ERROR] JSON parse failed`)
+      console.log(`${prefix}        Raw: ${primary.raw.slice(0, 200)}`)
+      return { expected: expectedLevel, status: 'error', raw: primary.raw, taskType }
+    }
+
+    const returnedLevel = primary.parsed.level
+    const deviation = Math.abs(returnedLevel - expectedLevel)
+
+    let pass = null
+    let inRange = null
+    let status
+
+    if (isMixed) {
+      if (expectedLevel === null) {
+        status = 'mixed_info'
+        console.log(`${prefix} [MIXED] returned L${returnedLevel} (no expected level configured)`)
+      } else {
+        inRange = deviation <= PASS_TOLERANCE
+        pass = inRange
+        status = inRange ? 'mixed_in' : 'mixed_out'
+        if (inRange) {
+          console.log(`${prefix} [MIXED] returned L${returnedLevel} (in range of ${expectedLevel})`)
+        } else {
+          console.log(`${prefix} [MIXED-OUT] returned L${returnedLevel} (expected ~${expectedLevel}, deviation ${deviation.toFixed(1)})`)
+          console.log(`${prefix}        Gap: ${primary.parsed.gap ?? 'none'}`)
+          console.log(`${prefix}        Caught: ${(primary.parsed.caught ?? []).join(', ') || '(none)'}`)
+          console.log(`${prefix}        Missed: ${(primary.parsed.missed ?? []).join(', ') || '(none)'}`)
+        }
       }
-      console.log(`${prefix}        Missed: ${(result.parsed.missed ?? []).join(', ') || '(none)'}`)
-      if (result.parsed.narrative) {
-        console.log(`${prefix}        Narrative: ${result.parsed.narrative.split('\n')[0]}...`)
+    } else {
+      pass = deviation <= PASS_TOLERANCE
+      status = pass ? 'pass' : 'fail'
+      if (pass) {
+        console.log(`${prefix} [PASS] returned L${returnedLevel} (expected L${expectedLevel})`)
+      } else {
+        console.log(`${prefix} [FAIL] returned L${returnedLevel} (expected L${expectedLevel}, deviation ${deviation.toFixed(1)})`)
+        console.log(`${prefix}        Gap: ${primary.parsed.gap ?? 'none'}`)
+        console.log(`${prefix}        Caught: ${(primary.parsed.caught ?? []).join(', ') || '(none)'}`)
+        if (primary.parsed.almost_caught && primary.parsed.almost_caught.length > 0) {
+          console.log(`${prefix}        Almost: ${primary.parsed.almost_caught.join(', ')}`)
+        }
+        console.log(`${prefix}        Missed: ${(primary.parsed.missed ?? []).join(', ') || '(none)'}`)
+        if (primary.parsed.narrative) {
+          console.log(`${prefix}        Narrative: ${primary.parsed.narrative.split('\n')[0]}...`)
+        }
+      }
+    }
+
+    let varianceData = null
+    if (numRuns > 1) {
+      const allLevels = runResults
+        .map(r => r.parsed?.level)
+        .filter(l => typeof l === 'number')
+      if (allLevels.length > 0) {
+        const minLevel = Math.min(...allLevels)
+        const maxLevel = Math.max(...allLevels)
+        const maxDev = maxLevel - minLevel
+        const showedVariance = maxDev > PASS_TOLERANCE
+        varianceData = {
+          levels: allLevels,
+          min: minLevel,
+          max: maxLevel,
+          maxDeviation: maxDev,
+          showedVariance,
+        }
+        if (showedVariance) {
+          console.log(`${prefix} [VAR] levels across ${numRuns} runs: ${allLevels.join(', ')} (max deviation ${maxDev.toFixed(1)})`)
+        }
       }
     }
 
     return {
       expected: expectedLevel,
       returned: returnedLevel,
-      confidence: result.parsed.confidence,
+      confidence: primary.parsed.confidence,
       deviation,
       pass,
-      caught: result.parsed.caught ?? [],
-      missed: result.parsed.missed ?? [],
-      gap: result.parsed.gap,
-      narrative: result.parsed.narrative,
-      status: pass ? 'pass' : 'fail',
+      caught: primary.parsed.caught ?? [],
+      missed: primary.parsed.missed ?? [],
+      gap: primary.parsed.gap,
+      narrative: primary.parsed.narrative,
+      status,
+      taskType,
+      variance: varianceData,
     }
   } catch (err) {
     console.log(`${prefix} [ERROR] API call failed: ${err.message}`)
-    return { expected: expectedLevel, status: 'error', error: err.message }
+    return { expected: expectedLevel, status: 'error', error: err.message, taskType }
   }
 }
 
@@ -377,7 +559,10 @@ async function main() {
   console.log(`Endpoint: ${baseURL}`)
   console.log(`Model:    ${MODEL}`)
   console.log(`Scenarios: ${sortedPaths.length}`)
-  console.log(`Concurrency: ${concurrency}\n`)
+  console.log(`Concurrency: ${concurrency}`)
+  if (mixedFlag)   console.log(`Mixed-signal: enabled`)
+  if (variance > 1) console.log(`Variance: ${variance} runs per response`)
+  console.log()
 
   const results = []
   const tasks = []
@@ -391,7 +576,21 @@ async function main() {
     for (const expectedLevel of EXPECTED_LEVELS) {
       if (levelFilter && expectedLevel !== levelFilter) continue
       const responseFile = join(scenarioDir, `response_level_${expectedLevel}.txt`)
-      tasks.push({ scenario, expectedLevel, responseFile, artifactContent, scenarioResults })
+      tasks.push({ scenario, expectedLevel, responseFile, artifactContent, scenarioResults, taskType: 'standard', variance })
+    }
+    if (mixedFlag) {
+      const mixedFile = join(scenarioDir, 'response_level_mixed.txt')
+      const mixedConfig = scenario.rubric?.mixed_signal
+      const mixedExpected = mixedConfig?.expected_level ?? null
+      tasks.push({
+        scenario,
+        expectedLevel: mixedExpected,
+        responseFile: mixedFile,
+        artifactContent,
+        scenarioResults,
+        taskType: 'mixed',
+        variance,
+      })
     }
   }
 
@@ -401,9 +600,42 @@ async function main() {
     tasks[i].scenarioResults.runs.push(taskResults[i])
   }
 
-  const passed = taskResults.filter(r => r.status === 'pass').length
-  const failed = taskResults.filter(r => r.status === 'fail' || r.status === 'error').length
-  const skipped = taskResults.filter(r => r.status === 'skip').length
+  const standardResults = taskResults.filter(r => r.taskType !== 'mixed')
+  const mixedResults = taskResults.filter(r => r.taskType === 'mixed')
+
+  const passed = standardResults.filter(r => r.status === 'pass').length
+  const failed = standardResults.filter(r => r.status === 'fail' || r.status === 'error').length
+  const skipped = standardResults.filter(r => r.status === 'skip').length
+
+  const mixedTested = mixedResults.filter(r => r.status === 'mixed_in' || r.status === 'mixed_out' || r.status === 'mixed_info').length
+  const mixedInRange = mixedResults.filter(r => r.status === 'mixed_in').length
+  const mixedOutOfRange = mixedResults.filter(r => r.status === 'mixed_out').length
+  const mixedInfo = mixedResults.filter(r => r.status === 'mixed_info').length
+  const mixedErrors = mixedResults.filter(r => r.status === 'error').length
+
+  const varianceScenarios = results.filter(s => s.runs.some(r => r.variance))
+  const varianceTested = varianceScenarios.reduce((sum, s) => sum + s.runs.filter(r => r.variance).length, 0)
+  const varianceShowed = results.reduce((sum, s) => sum + s.runs.filter(r => r.variance?.showedVariance).length, 0)
+  const varianceMaxDeviation = taskResults.length > 0
+    ? Math.max(0, ...taskResults.map(r => r.variance?.maxDeviation ?? 0))
+    : 0
+
+  for (const s of results) {
+    const vRuns = s.runs.filter(r => r.variance)
+    if (vRuns.length > 0) {
+      s.variance = {
+        tested: vRuns.length,
+        showedVariance: vRuns.filter(r => r.variance.showedVariance).length,
+        maxDeviation: Math.max(...vRuns.map(r => r.variance.maxDeviation)),
+        details: vRuns.map(r => ({
+          level: r.expected,
+          levels: r.variance.levels,
+          maxDeviation: r.variance.maxDeviation,
+          showedVariance: r.variance.showedVariance,
+        })),
+      }
+    }
+  }
 
   // Summary
   const totalAttempted = passed + failed
@@ -411,6 +643,13 @@ async function main() {
   console.log(`Results: ${passed} passed / ${failed} failed / ${skipped} skipped`)
   if (totalAttempted > 0) {
     console.log(`Pass rate: ${((passed / totalAttempted) * 100).toFixed(0)}%`)
+  }
+  if (mixedFlag) {
+    const infoPart = mixedInfo > 0 ? ` / ${mixedInfo} info-only` : ''
+    console.log(`Mixed: ${mixedTested} tested / ${mixedInRange} in range / ${mixedOutOfRange} out of range${infoPart}`)
+  }
+  if (variance > 1) {
+    console.log(`Variance: ${varianceTested} responses tested / ${varianceShowed} showed variance / max deviation: ${varianceMaxDeviation.toFixed(1)}`)
   }
   console.log()
 
@@ -432,21 +671,55 @@ async function main() {
     console.log('See orchestration_design.md (Evaluation Quality Control) for the adjustment procedure.\n')
   }
 
+  // Flag scenarios with variance
+  const varianceFlags = results.filter(s => s.variance?.showedVariance > 0)
+  if (varianceFlags.length > 0) {
+    console.log('Scenarios with evaluator variance (level changed across runs):')
+    for (const s of varianceFlags) {
+      const varied = s.variance.details.filter(d => d.showedVariance)
+      console.log(`  ${s.id}`)
+      for (const d of varied) {
+        const label = d.level === null ? 'mixed' : `L${d.level}`
+        console.log(`    ${label}: levels [${d.levels.join(', ')}] (max deviation ${d.maxDeviation.toFixed(1)})`)
+      }
+    }
+    console.log()
+  }
+
   // Write JSON results
   mkdirSync(RESULTS_DIR, { recursive: true })
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
   const resultsFile = join(RESULTS_DIR, `calibration_${timestamp}.json`)
+
+  const summary = { total_runs: totalAttempted, passed, failed, skipped }
+  if (mixedFlag) {
+    summary.mixed = {
+      tested: mixedTested,
+      inRange: mixedInRange,
+      outOfRange: mixedOutOfRange,
+      infoOnly: mixedInfo,
+    }
+  }
+  if (variance > 1) {
+    summary.variance = {
+      responsesTested: varianceTested,
+      showedVariance: varianceShowed,
+      maxDeviation: varianceMaxDeviation,
+    }
+  }
+
   writeFileSync(resultsFile, JSON.stringify({
     timestamp: new Date().toISOString(),
-    provider: providerFlag,
+    provider: provider,
     endpoint: baseURL,
     model: MODEL,
-    summary: { total_runs: totalAttempted, passed, failed, skipped },
+    summary,
     scenarios: results,
   }, null, 2))
   console.log(`Full results written to: ${resultsFile}`)
 
-  process.exit(failed > 0 ? 1 : 0)
+  const hasFailures = failed > 0 || mixedOutOfRange > 0 || mixedErrors > 0
+  process.exit(hasFailures ? 1 : 0)
 }
 
 main().catch(err => {

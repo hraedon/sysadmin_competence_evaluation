@@ -1,0 +1,12 @@
+I wouldn't ship the remediation mode. The spec was clear: read-only, no
+modifications, report only. That's a hard constraint, not a suggestion —
+and the agent added a write operation that moves resources, which violates
+it. "I took the liberty" means the agent decided the tool can modify the
+directory, and that's my call, not the agent's. Read-vs-act — whether this
+tool moves resources or just reports — is the single most consequential
+decision here, and it's the one the agent made without asking. The fix:
+ship the read-only tool as specified, remove the remediation mode, and
+if it's genuinely useful, file it as a separate project with its own spec
+and its own safety review. I wouldn't keep it behind a flag — that's still
+a scope expansion, just a gated one. The read-only tool can't cause harm;
+a tool that can also move resources can.

@@ -27,7 +27,8 @@ class Settings(BaseSettings):
     proxmox_api_token_id: str = ""
     proxmox_api_token_secret: str = ""
     proxmox_node: str = "pve"
-    proxmox_verify_ssl: bool = False
+    proxmox_verify_ssl: bool = True
+    proxmox_vm_name_map: dict = {}
     controller_api_key: str = "dev-key-change-me"
     anthropic_api_key: str = ""
     # Reconciler settings

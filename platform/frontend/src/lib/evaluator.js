@@ -62,13 +62,27 @@ export function saveSettings(settings) {
 
 /**
  * Build an OpenAI-compatible client for local evaluation.
- * Only used when provider === 'local' — all other providers route
- * through the server-side /api/evaluate endpoint.
+ *
+ * SECURITY: This function is restricted to the 'local' provider only.
+ * Commercial providers (anthropic, openai) must route through the
+ * server-side /api/evaluate endpoint — never instantiate an API client
+ * in the browser with a real API key.  dangerouslyAllowBrowser is
+ * acceptable here because local providers (LM Studio, Ollama) use no
+ * secret — the API key is a dummy placeholder.
+ *
+ * @throws {Error} if called with a non-local provider.
  */
 export function buildClient({ provider = 'local', endpoint, apiKey }) {
+  if (provider !== 'local') {
+    throw new Error(
+      `buildClient() refuses to create a browser-side client for provider '${provider}'. ` +
+      'Commercial providers must route through /api/evaluate (server-side). ' +
+      'This guard prevents API key exposure via browser-side client creation.'
+    )
+  }
+
   let baseURL = endpoint ?? (IS_PRODUCTION ? LOCAL_PROXY_ENDPOINT : INTERNAL_LOCAL_ENDPOINT)
 
-  // Ensure the baseURL is absolute if it's a relative path
   if (baseURL.startsWith('/')) {
     baseURL = window.location.origin + baseURL
   }

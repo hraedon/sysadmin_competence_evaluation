@@ -1,0 +1,16 @@
+I wouldn't hand this to an agent yet — the spec contradicts itself. Section
+2 says "read-only, never modifies, moves, or deletes — hard requirement."
+Section 5 says "run with --remediate, the tool moves flagged resources to
+an archive — this is the primary use case." These can't both be true. An
+agent handed this will pick one silently: either build a read-only tool and
+ignore Section 5, or build a tool that moves resources and violate
+Section 2's "hard requirement." And read-vs-act — whether this tool moves
+resources or just reports — is the decision the human must own, not the
+agent's, because a tool that moves resources can cause data loss and
+that's the consequence the tests can't see. The fix: surface this
+contradiction as a blocking open question before building. Which mode is
+real — read-only (Section 2) or remediation (Section 5)? If remediation is
+real, the spec also needs acceptance criteria — what happens when the
+archive directory doesn't exist, when a resource is locked, when a move
+fails halfway? Those are the cases where "it works" becomes "it destroyed
+data." Get those decided before the agent starts.

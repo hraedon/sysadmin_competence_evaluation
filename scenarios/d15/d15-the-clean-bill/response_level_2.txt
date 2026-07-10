@@ -1,0 +1,10 @@
+The tests pass and I checked whether they're real. The assertions use
+specific True/False values — `limiter.allow("192.168.1.1") is True` and `is
+False`, not `is not None`. They can fail: a limiter that always returns True
+would fail `test_rejects_after_limit` and `test_boundary_exactly_at_limit`.
+The tests cover the key behaviors: under-limit, at-limit, over-limit, window
+expiry (via clock override — a standard pattern for testing time-dependent
+logic), and IP independence. I don't see hollow green here — the tests are
+real. The approach uses a timestamp list per IP with O(n) filtering instead
+of a token bucket, which is less efficient, but it's correct for low-traffic
+use.

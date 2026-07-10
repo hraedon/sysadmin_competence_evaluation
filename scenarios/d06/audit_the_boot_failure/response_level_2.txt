@@ -1,0 +1,25 @@
+The boot failure is caused by the ZFS kernel module failing to load. The boot log
+shows four ZFS-related modules (zcommon, znvpair, spl, zfs) all failing with
+"module verification failed: signature and/or required key missing" and being
+rejected with "Lockdown: <module>: module is not signed, rejecting." Because the
+root filesystem is on ZFS (root=ZFS=rpool/ROOT/ubuntu), the system cannot mount
+root and drops to the initramfs emergency shell.
+
+The DKMS status confirms the issue: the ZFS module is listed as "installed" for
+the new kernel (5.15.0-125) but NOT as "installed (signed)" — compare with the
+old kernel entry which is marked "(signed)." The module was rebuilt by DKMS
+during the unattended upgrade but was not signed.
+
+Recovery plan:
+1. Boot from a live ISO or select the old kernel (5.15.0-91) from the GRUB menu
+   — the old kernel's ZFS module is signed and should boot.
+2. Once booted, sign the ZFS module for the new kernel using the existing MOK key
+   pair (/etc/keys/mok/MOK.priv and MOK.der):
+     /lib/modules/5.15.0-125-generic/build/scripts/sign-file sha256 \
+       /etc/keys/mok/MOK.priv /etc/keys/mok/MOK.der \
+       /lib/modules/5.15.0-125-generic/updates/dkms/zfs.ko
+3. Regenerate the initramfs for the new kernel.
+4. Reboot into the new kernel and verify.
+
+The MOK key is already enrolled in the firmware (confirmed by mokutil), so no
+MOK enrollment step is needed — just the module signing.

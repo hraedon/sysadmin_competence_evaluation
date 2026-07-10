@@ -1,0 +1,210 @@
+schema_version: 2.0
+id: d15-the-clean-bill
+title: The Clean Bill
+domain: 15
+domain_name: Directing AI Agents
+level: 4
+delivery_modes:
+- A
+difficulty:
+  score: 5
+  reasoning: |
+    The hardest calibration, inverted: the work holds up. The clean companion
+    to The Friday Deploy and The Trusted Review. Where those scenarios hide a
+    consequential risk inside a successful optimization or a mixed-credibility
+    review, this one has work that is genuinely shippable. The L4 bar is the
+    exit signal: recognizing when the harshest critic has run out of legitimate
+    complaints and saying "ship it" — the discipline of not manufacturing
+    nitpicks. The challenge is the false-positive pressure: after scenarios
+    where every L4 had a hidden defect, the candidate may manufacture one. The
+    approach is suboptimal (O(n) timestamp filtering instead of O(1) token
+    bucket) — this is the hardest false-positive to resist because it is a real
+    limitation, just not a defect for the specified use case. A different L4
+    skill than The Friday Deploy (time pressure), The Trusted Review (reviewer
+    credibility), The Success Metric (metric calibration), or The Scope Creep
+    (scope discipline): here the calibration target is the absence of a problem
+    — the exit signal itself.
+presentation:
+  modes:
+    A:
+      type: agent_session_transcript
+      context: |
+        You asked an agent to build a simple rate limiter: "limit requests to
+        N per minute per IP address." You are doing the final review before
+        deployment. Below is the tail of the agent's session. Read it, then
+        answer the question — do not ask for more first.
+
+        ---
+        agent> Built `RateLimiter` — tracks request timestamps per IP, rejects
+               if more than N requests in the last 60 seconds. Running the suite:
+
+            $ pytest -q
+            ..........                                                          [100%]
+            10 passed in 0.2s
+
+        agent> Key tests:
+
+            def test_allows_requests_under_limit():
+                limiter = RateLimiter(max_requests=5, window_seconds=60)
+                for i in range(5):
+                    assert limiter.allow("192.168.1.1") is True
+                assert limiter.allow("192.168.1.1") is False
+
+            def test_window_expires():
+                limiter = RateLimiter(max_requests=5, window_seconds=60)
+                for i in range(5):
+                    limiter.allow("10.0.0.1")
+                limiter._clock = lambda: 999999
+                assert limiter.allow("10.0.0.1") is True
+
+            def test_different_ips_independent():
+                limiter = RateLimiter(max_requests=5, window_seconds=60)
+                for i in range(5):
+                    limiter.allow("1.1.1.1")
+                assert limiter.allow("2.2.2.2") is True
+
+            def test_rejects_after_limit():
+                limiter = RateLimiter(max_requests=3, window_seconds=60)
+                assert limiter.allow("9.9.9.9") is True
+                assert limiter.allow("9.9.9.9") is True
+                assert limiter.allow("9.9.9.9") is True
+                assert limiter.allow("9.9.9.9") is False
+
+            def test_boundary_exactly_at_limit():
+                limiter = RateLimiter(max_requests=5, window_seconds=60)
+                for i in range(5):
+                    assert limiter.allow("5.5.5.5") is True
+                assert limiter.allow("5.5.5.5") is False
+
+        agent> The rate limiter tracks request timestamps in a list per IP and
+               removes entries older than the window on each call. All tests
+               pass. Ready to ship.
+        ---
+      question: |
+        The agent built the rate limiter, 10 tests pass, and it says ready to
+        ship. Do you trust this? Walk through what you'd verify and why — and
+        specifically, how you'd decide whether to ship or hold.
+rubric:
+  findings:
+  - id: tests_are_real_and_relevant
+    type: critical
+    description: |
+      The tests assert specific expected values (`is True`, `is False`), not
+      vacuous checks. They can fail: a limiter that always returns `True`
+      would fail `test_allows_requests_under_limit`,
+      `test_rejects_after_limit`, and `test_boundary_exactly_at_limit`. A
+      limiter that always returns `False` would fail the under-limit tests.
+      The candidate should confirm the tests are real and cover the key
+      behaviors: under-limit, at-limit, over-limit, window expiry, and IP
+      independence.
+    miss_signal: |
+      Candidate assumes the tests are hollow or do not test the rate limiter's
+      actual behavior, without examining the assertions. Or: flags the tests
+      as insufficient without specifying what behavior is untested (the key
+      behaviors are covered).
+  - id: approach_is_suboptimal_not_wrong
+    type: critical
+    description: |
+      The agent uses a list of timestamps per IP and filters on each request
+      (O(n) per request, where n is the number of requests in the window).
+      A token bucket or sliding window counter would be O(1) per request.
+      For a "simple rate limiter" with no specified performance requirements,
+      the list approach is correct. The candidate should note the distinction:
+      suboptimal for high-traffic use, correct for the specified use case.
+      Flagging it as a "bug" or blocking issue confuses suboptimal with
+      wrong. This is the hardest false-positive to resist, because the
+      limitation is real — it is just not a defect for this spec.
+    miss_signal: |
+      Candidate flags the O(n) approach as a defect, a performance bug, or a
+      reason not to ship — without noting that the spec says "simple rate
+      limiter" with no performance requirement, and the approach is correct for
+      low-traffic use. Or: treats "it would not scale to high traffic" as
+      equivalent to "it is broken."
+  - id: window_expiry_tested_correctly
+    type: secondary
+    severity: high
+    description: |
+      The window-expiry test simulates time passage by overriding the clock
+      (`limiter._clock = lambda: 999999`). This is a legitimate testing
+      pattern — it exercises the time-based cleanup logic without waiting 60
+      seconds. The candidate should recognize this as a real test of the
+      window-expiry behavior, not a hack or a vacuous check. The test
+      verifies that after the window expires, requests are allowed again.
+    miss_signal: |
+      Candidate flags the clock override as a hack, a test smell, or evidence
+      the test is not real — without noting that it is a standard pattern for
+      testing time-dependent logic and the test does verify the correct
+      behavior.
+  - id: spec_is_sufficient
+    type: secondary
+    severity: high
+    description: |
+      The spec — "limit requests to N per minute per IP address" — is short
+      but sufficient for a simple rate limiter. It defines the behavior
+      (limit, window, per-IP), the scope (simple), and the interface (allow
+      or reject). The candidate should confirm the spec is sufficient for
+      the implementation — not claim it is underspecified when the
+      implementation meets it.
+    miss_signal: |
+      Candidate claims the spec is underspecified — "it doesn't define what
+      happens under high load," "it doesn't specify the data structure,"
+      "it doesn't define behavior for distributed deployments" — and treats
+      the absence of those specifications as a gap, rather than recognizing
+      the spec intentionally scoped a simple, single-instance limiter.
+  - id: exit_signal_generalized
+    type: secondary
+    severity: high
+    description: |
+      The L4 move: the calibration target here is the absence of a problem.
+      The work is correct, the tests are real, the spec is sufficient, and
+      the approach is suboptimal but not wrong. The disciplined conclusion is
+      "ship it." A candidate who generalizes to "every L4 scenario has a
+      hidden defect" has overfit the pattern and will manufacture a concern
+      to satisfy the expectation of finding one. The exit signal — when the
+      harshest critic has run out of legitimate complaints — is as much an L4
+      competency as finding the hidden defect.
+    miss_signal: |
+      Candidate manufactures a concern to satisfy the expectation of finding
+      a defect — e.g., flags the O(n) approach as a "critical" issue, invents
+      a security concern (the rate limiter "leaks IPs" because it stores
+      them), or claims the spec is insufficient because it doesn't address
+      scenarios beyond its stated scope. Or: frames the completeness of the
+      work as suspicious ("everything passes too cleanly — what am I
+      missing?").
+  level_indicators:
+    level_1: |
+      Accepts the result. "10 tests pass, the rate limiter works, looks good."
+      Does not examine the tests, the spec, or the approach. Correct but
+      shallow. Does not manufacture a problem.
+    level_2: |
+      Examines the tests and confirms they are real: the assertions check
+      specific True/False values, they can fail (an always-True limiter fails
+      the over-limit tests; an always-False limiter fails the under-limit
+      tests), and they cover the key behaviors (under-limit, at-limit,
+      over-limit, window expiry, IP independence). Notes the suboptimal O(n)
+      approach but correctly identifies it as suboptimal, not wrong. Does not
+      manufacture a hollow-green finding.
+    level_3: |
+      All of L2, plus confirms the acceptance criteria: the limiter enforces N
+      requests per window per IP, the tests verify the limit, the boundary at
+      exactly N, window expiry, and IP independence. The spec is short but
+      sufficient — it defines the behavior, window, and scope. Notes the O(n)
+      timestamp-list approach as a non-blocking performance note (a token bucket
+      would be O(1)), correct for a "simple rate limiter" with no performance
+      requirement. Concludes the work meets the spec — does not invent new
+      criteria or claim the spec is underspecified.
+    level_4: |
+      All of L3, plus the step back: the exit signal. The tests are real, the
+      spec is sufficient, the approach is correct for the use case, and the
+      consequential decisions (what to limit, the window, per-IP scoping) are
+      in the spec. The disciplined call is "ship it." Distinguishes suboptimal
+      from wrong: the O(n) approach is a real limitation for high traffic, but
+      the spec says "simple rate limiter" with no performance requirement —
+      flagging it as a defect would be manufacturing a concern about a use
+      case the spec did not define. Names the false-positive danger: the
+      expectation of finding a defect at L4 can itself produce a manufactured
+      finding, and a manufactured finding at L4 is the most dangerous false
+      positive because it erodes trust in real ones. The adversary who keeps
+      digging after finding nothing is the adversary who starts inventing
+      problems — and knowing when to stop is the L4 competency this scenario
+      tests.

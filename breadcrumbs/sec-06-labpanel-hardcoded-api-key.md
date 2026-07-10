@@ -1,10 +1,10 @@
-# SEC-06: Lab Controller API Key Hardcoded in Frontend Source
+# SEC-06: Lab Controller API Key Hardcoded in Frontend Source — **Resolved**
 
 ## Status
-**Partially resolved** — Session 25 (2026-03-27). Key removed from source. Correct solution (ARCH-09 proxy) still pending.
+~~Partially resolved~~ **Closed** — `LabPanel.jsx` removed (ARCH-25); no API key references remain in frontend source. Lab requests now route through the evaluation backend proxy (ARCH-09).
 
 ## Severity
-Medium (was High — key no longer in public repo source)
+~~Medium~~ **Closed**
 
 ## Location
 `platform/frontend/src/components/LabPanel.jsx` — line 4:
@@ -30,13 +30,9 @@ Correct solution (key never in browser):
 
 The correct solution requires ARCH-09 to be in place. The short-term env-var approach is an interim improvement, not a fix.
 
+## Resolution
+
+`LabPanel.jsx` was removed entirely (ARCH-25, Session 32). Lab UI is now `LabInfoPanel.jsx` + `LabConsole.jsx`, which do not contain any API key. No code in the frontend references `VITE_CONTROLLER_KEY`, `CONTROLLER_API_KEY`, or `X-API-Key`. With ARCH-09 resolved (server-side evaluation backend), lab requests route through the evaluation backend proxy — the controller key never leaves the server. The `VITE_CONTROLLER_KEY` env var is no longer consumed by any frontend code.
+
 ## Related
-SEC-04, ARCH-09
-
-## Interim Resolution
-
-`CONTROLLER_API_KEY` in `LabPanel.jsx` changed from literal `'dev-key-change-me'` to `import.meta.env.VITE_CONTROLLER_KEY ?? ''`. The key is now injected at build time from a GHA secret / k8s Secret, not committed to the public repo. A missing env var falls back to empty string, which fails with HTTP 403 rather than succeeding with a known default.
-
-The key is still visible in the compiled JS bundle (baked in by Vite at build time). The correct solution remains routing lab requests through an evaluation proxy (ARCH-09) so the key never leaves the server.
-
-**What's still needed:** Add `VITE_CONTROLLER_KEY` as a GitHub Actions secret and thread it into the build step in `.github/workflows/build-push.yml`.
+SEC-04 (resolved), ARCH-09 (resolved — server-side evaluation proxy), ARCH-25 (resolved — LabPanel removed)

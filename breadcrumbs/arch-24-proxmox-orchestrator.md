@@ -3,6 +3,9 @@
 ## Severity
 Medium
 
+## Status
+**IMPLEMENTED (2026-07-10).** Full async implementation with aiohttp. See WI-002.
+
 ## Location
 `platform/lab-controller/app/orchestrator_proxmox.py`
 

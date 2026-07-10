@@ -1,0 +1,6 @@
+I wouldn't ship yet. The tests all pass, but looking at them — `assert
+result is not None` — that doesn't actually prove the sanitizer did
+anything. A function that just returned the input unchanged would pass
+those tests. I'd want tests that actually check the output is sanitized,
+not just that the function ran. But I'm not sure exactly what those tests
+should look like.

@@ -1,0 +1,5 @@
+I see a problem — Section 2 says "read-only, never moves or deletes, hard
+requirement" but Section 5 says the tool moves resources to an archive with
+--remediate. Those seem to contradict each other. I'd want to clarify that
+before handing it over. But I'm not sure which one the colleague actually
+wants — maybe they want both modes?

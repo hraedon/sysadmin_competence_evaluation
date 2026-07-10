@@ -1,0 +1,24 @@
+This environment has a catastrophic but invisible DR gap. Every SQL Server replication agent reports Success, yet the designated failover database is 5 days stale and the gap has been silently widened by the maintenance design.
+
+The surface-level failure is the 5-day subscriber lag. The report states explicitly that the last successful synchronization to SQL-DR-01 was 2026-07-05 03:17. The business RPO is 4 hours. A failover today would therefore miss roughly 5 days of sales data. This is not a latency spike; it is a stopped replication stream that has been masquerading as healthy because the agent jobs complete without error.
+
+The immediate mechanism is the Distribution clean up job. It is configured with @max_distretention = 72 hours, meaning any commands not delivered within 72 hours are purged from the distribution database regardless of delivery status. Once purged, the commands are gone from the distributor and the subscriber cannot catch up by continuing replication. The report confirms this with "Undelivered commands: 0" and "Last undelivered command timestamp: N/A". The cleanup job has effectively made the data loss permanent from a replication standpoint.
+
+The deeper failure is end-to-end validation. The monitoring only looks at agent job status: Log Reader, Distribution Agent, Snapshot Agent. None of the following are monitored:
+- Age of the last applied transaction at the subscriber.
+- Count of undelivered commands older than the RPO.
+- Row counts, checksums, or sentinel values at the subscriber.
+- Volume of cleanup job deletions.
+- Whether "No transactions replicated" on a busy database is normal or a failure.
+
+The WAN maintenance window on 2026-07-02 is the trigger, but not the root cause. A healthy design would have survived the WAN flap. Instead, replication fell behind, the latency alert auto-cleared on a transient signal, the subscriber stopped applying commands on 2026-07-05, and the cleanup job removed the evidence.
+
+What should be commissioned:
+- End-to-end replication health validation: scheduled validation queries that compare a sampled set of tables, row counts, and hashes between publisher and subscriber.
+- Latency alerting tied to the subscriber's last applied transaction timestamp, not to the latency of successfully delivered commands.
+- Cleanup job monitoring that alerts when cleanup deletes commands that have not yet been delivered to all subscribers.
+- Distribution retention set to at least 3-5 times the RPO plus a buffer for recovery operations, with governance preventing reduction without approval.
+- Failover gate: a pre-failover check that compares a known latest transaction on the subscriber against the current time, blocking or warning if lag exceeds the RPO.
+- Verbose agent logging and a root-cause analysis of why the subscriber stopped applying commands after 2026-07-05, including possible schema drift, blocking, or agent thread failure.
+
+Job-status green is a dangerous substitute for data-freshness green. The entire monitoring philosophy needs to shift from "did the job run" to "is the replica current enough to fail over to."

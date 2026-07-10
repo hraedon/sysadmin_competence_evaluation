@@ -1,0 +1,9 @@
+This environment has a significant certificate lifecycle management gap.
+
+The expired certificate on customer-portal.corp.local is the most obvious issue. It expired on 2026-07-05 and caused incident INC-2026-0314 two days later on 2026-07-07. The outage was misdiagnosed as a network issue, but the evidence points to certificate failure: the F5 itself was sending TCP RSTs, the switch counters on DMZ-AGG-03 were clean, and the secondary DC restored service because it presumably still has a valid certificate. The network team closed the incident without identifying the certificate as the root cause.
+
+More concerning is that the certificate monitoring threshold is set to 14 days. CertWatch is currently showing CLEAR, yet api-gateway.corp.local expires in 19 days and several other production certs expire within 22-30 days. With only 14 days of warning, there is almost no margin if a renewal request stalls or a deployment fails. A 30-day lead time would be more appropriate for certificates that require procurement or external CA validation.
+
+The process also relies on a manual spreadsheet (CertTracker_v3.xlsx) as the source of truth. Certificates installed directly on endpoints are not monitored, load balancer deployments are only reconciled manually, and the alert threshold was deliberately reduced in March 2026 to reduce alert volume. These are process failures, not just operational oversights.
+
+Recommendations: renew customer-portal immediately, re-investigate INC-2026-0314 as a certificate outage, and lower the monitoring threshold back to 30 days.

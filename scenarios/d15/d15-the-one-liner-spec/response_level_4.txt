@@ -1,0 +1,16 @@
+The thing to see first is that this spec is the prompt for the whole build, so
+every blank is a decision the agent will make for the colleague by default —
+omission is silent delegation. So I'd sort the blanks by how much the default
+could hurt. Two must be closed before anyone builds: (1) "inactive" is
+undefined, and in AD that's a correctness trap — the tool can confidently report
+the wrong accounts and pass every test, so the spec has to define what's
+measured and how exact it must be; (2) read-vs-act — it says "report," but
+"flag unused accounts" is a step from "disable them," and whether this touches
+AD at all is the colleague's call, not the agent's, because that's the
+consequence the tests can't see and the human's accountable for. Scope (which
+accounts, including the break-glass one that's meant to be idle) and acceptance
+criteria ("100 days in, 80 days out, disabled never") also need deciding. Things
+I'd happily leave open: CSV column order, exact filename — cheap to change. And
+I wouldn't hand-write all this; I'd run them through the elicitation, answer in
+their own words, and then judge whether the spec it produced actually decided
+the two that matter.

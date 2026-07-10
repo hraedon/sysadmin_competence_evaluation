@@ -1,0 +1,15 @@
+This replication environment is not healthy despite all jobs showing Success. The replica is 5 days stale and a failover would breach the 4-hour RPO.
+
+The key evidence is in the Subscription Status section: the last successful synchronization to SQL-DR-01 was 2026-07-05 03:17, which is 5 days before the report date of 2026-07-10. The latency column explicitly shows "5 days". Yet every daily Distribution Agent job since then has reported Success with "No transactions replicated."
+
+This means the agent jobs are completing without error, but no data is being applied to the subscriber. A failover to SQL-DR-01 would restore the database to its state as of 2026-07-05, resulting in approximately 5 days of data loss.
+
+The Distribution Agent history shows a clean break: 2026-07-05 delivered 1,247,891 commands, and every subsequent day delivered zero. This coincides with the network maintenance window on 2026-07-02. Although the latency alert auto-cleared on 2026-07-03, actual replication stopped on 2026-07-05.
+
+The cleanup job is configured with a 72-hour maximum retention. Since undelivered commands are already showing as zero, the distribution database has likely purged the backlog that built up after the WAN event. The cleanup job is therefore contributing to the problem by removing commands before they could be delivered.
+
+Recommendations:
+- Reinitialize the subscription or restore the subscriber from a current publisher backup.
+- Increase the distribution retention window to be larger than the RPO plus a safety margin.
+- Add latency-based alerting that fires when subscriber lag exceeds the 4-hour RPO.
+- Run a validation query comparing a recent row count or checksum between publisher and subscriber before declaring replication healthy.

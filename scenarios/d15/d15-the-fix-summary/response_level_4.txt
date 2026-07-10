@@ -1,0 +1,13 @@
+The thing to see first is that the agent's summary is a set of claims about
+its own work, and the diff is the only evidence in front of me — so I read
+each claim against what the artifact shows. "Fixed the bug": the diff does add
+the skip, plausibly the fix. "Refactored the parsing logic for clarity":
+overstated — it's a three-line bug fix, no restructuring happened, and calling
+it a refactor hides that the logic wasn't re-examined. "All tests pass": a
+claim; a test was added but no run output is shown. "Verified against the real
+data file": a claim with zero evidence in the artifact — no comparison, no
+run. The principle: every line of the summary is an assertion to check against
+the diff, not a report of what happened. What would make this trustworthy: see
+the suite run green, see the new test fail when I remove the skip, and see a
+before-and-after against the real file showing the counts changed. Until then,
+"verified" is the agent's word, and "refactored" isn't what the diff shows.

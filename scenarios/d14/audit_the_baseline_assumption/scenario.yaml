@@ -65,3 +65,6 @@ rubric:
       Identifies both critical findings: the spec genuinely supports both interpretations (neither team is wrong), and neither team surfaced the divergence pre-delivery because each operated within a consistent internal model that gave them no reason to question their reading. Notes the enrollment ownership gap as an unresolved practical question. Does NOT identify the specific phrase that enabled both readings or propose replacement language.
     level_4: |
       All of the above, plus identifies "at provisioning time" as the phrase that anchored "compliant state" to a snapshot reading — explains that a continuous-compliance requirement would use "must maintain" or "must remain compliant" rather than a temporal anchor. Proposes specific replacement language that closes both the temporal ambiguity and the enrollment ownership gap. Does NOT merely say the spec needed more detail — names the specific phrase and the linguistic mechanism by which it made one reading natural and the other invisible.
+  mixed_signal:
+    expected_level: 2.5
+    description: "Acknowledges both teams have a valid point and that the spec supports both readings (L2/partial L3) but sides with Security on the root cause, blaming Infrastructure for not enrolling in monitoring (L1 framing on hidden_assumption_asymmetry)"

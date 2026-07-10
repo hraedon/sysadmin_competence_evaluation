@@ -27,12 +27,13 @@ The exercises test reasoning, not recall. A candidate who has memorized the righ
 
 ```
 core/                    Shared JavaScript evaluator logic
-scenarios/               Exercise definitions and artifacts (53 scenarios)
+scenarios/               Exercise definitions and artifacts (58 scenarios across d01-d14)
 
   d01-d11/               Standard technical domains
   d12/                   Linux Administration (3 synthesis scenarios)
   d13/                   Cross-domain Synthesis
   d14/                   Theory of Mind & Communication (5 scenarios)
+  d15/                   Directing AI Agents (20 scenarios, synced from agentic-onboarding)
 
 platform/
   frontend/              React + Vite SPA
@@ -56,7 +57,7 @@ Evaluations are performed by a shared core module (`core/evaluator.js`). It asse
 ### Calibration
 Every scenario must pass the calibration harness before deployment. The harness runs synthetic responses at each level through the evaluator and verifies that the returned level matches the expected level within a 0.5 margin.
 
-**Current Status:** 53 scenarios calibrated — 100% pass rate on Sonnet 4.6.
+**Current Status:** 60 scenarios (d01-d14) + 20 d15 scenarios synced from [agentic-onboarding](../agentic-onboarding) = 80 total. Calibrated on Sonnet 4.6.
 
 ---
 

@@ -1,7 +1,7 @@
-# ARCH-04: SQLite Hardcoded in Containerized Lab Controller
+# ARCH-04: SQLite Hardcoded in Containerized Lab Controller — **Resolved**
 
 ## Severity
-Medium
+~~Medium~~ **Closed**
 
 ## Location
 `platform/lab-controller/app/database.py` — line 9: `SQLALCHEMY_DATABASE_URL = "sqlite:///./lab_state.db"`
@@ -15,20 +15,9 @@ The lab controller's database is hardcoded to a SQLite file at `./lab_state.db` 
 
 `mvmpostgres01.ad.hraedon.com` is already available and reachable from the cluster per the build notes.
 
-## Remediation
+## Resolution
 
-Replace the hardcoded SQLite URL with a configurable connection string read from an environment variable:
-
-```python
-SQLALCHEMY_DATABASE_URL = os.environ.get(
-    "DATABASE_URL",
-    "sqlite:///./lab_state.db"  # local dev fallback only
-)
-```
-
-Wire the production URL to `mvmpostgres01` via a k8s Secret. SQLAlchemy already supports Postgres; the model definitions should require no changes. The SQLite fallback keeps local development working without a Postgres instance.
-
-This should be done before any multi-session or multi-user scenario, and is a prerequisite for ARCH-01 (SELECT FOR UPDATE requires Postgres row-level locking; SQLite advisory locks are not equivalent).
+`database.py` now reads `SQLALCHEMY_DATABASE_URL` from the environment (`os.getenv`), falling back to SQLite for local development. The k8s deployment wires it to a `lab-controller-secret` key (`DATABASE_URL`). SQLAlchemy engine creation branches on SQLite vs PostgreSQL (connection pooling, `check_same_thread` for SQLite). Alembic migrations run automatically on PostgreSQL startup. Resolved prior to Session 32.
 
 ## Related
-ARCH-01 (race condition fix requires Postgres), ARCH-02 (session flush partially caused by non-persistent DB)
+ARCH-01 (race condition fix requires Postgres — now possible), ARCH-02 (session flush partially caused by non-persistent DB — root cause eliminated)

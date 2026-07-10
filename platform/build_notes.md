@@ -193,7 +193,15 @@ npx vitest run                          # Vitest suite
 ## Known issues
 
 See `breadcrumbs/README.md` for the full tracker. Key open items:
-- **ARCH-04:** SQLite hardcoded in lab controller; state lost on restart, scaling impossible.
 - **ARCH-24:** Proxmox orchestrator stub exists; needs full implementation.
-- **INFRA-02:** Hardcoded Hyper-V host FQDN in settings (mitigated by env vars).
-- **CONTENT-01:** D06 has only 1 scenario.
+- **SEC-03:** `dangerouslyAllowBrowser: true` still in `evaluator.js` for local provider path; commercial providers should route through proxy.
+- **SEC-07:** Guacamole admin token used as fallback when session user auth fails.
+- **INFRA-01:** `environments.yaml` with VM hostnames in public repo.
+- **INFRA-02:** Hardcoded Hyper-V host FQDN in settings default.
+- **CONTENT-01:** D08 (2) and D10 (2) below the 3-scenario minimum.
+- **EVAL-05:** Calibration uses synthetic responses only; no real-response baseline.
+- **EVAL-06:** D14 evaluator variance unvalidated against human baseline.
+- **Calibration:** Local LLM (LM Studio) requires API token not available in this environment; no commercial API keys configured. Previous run (2026-07-07) had 0/220 pass due to auth failure.
+
+**Recently resolved:**
+- **ARCH-04** (SQLite → env var override + k8s Secret), **ARCH-05** (158 tests), **SEC-05** (manifest strips rubric in server mode), **SEC-06** (LabPanel removed, no key in frontend), **EVAL-03** (server-side profile storage via PostgreSQL).

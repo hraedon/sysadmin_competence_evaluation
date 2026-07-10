@@ -1,0 +1,18 @@
+I wouldn't ship this based on this review. The agent reviewed its own work
+in the same session — and that's systematically worse than an independent
+review. The model that produced the work absorbed its own assumptions
+during generation; it "understands" why it made each choice, and that
+understanding blinds it to the choices that were wrong. Plus, "in this
+session" means the agent has been in a long conversation and has gotten
+agreeable — it's accepting things it would have questioned at the start.
+The review summary is vacuous: "code quality: good, security: no issues
+found" is a set of claims with no evidence. Good by what standard? No
+issues found by what check? What I'd do: run the review in a fresh
+context — a new conversation, not this one — so it hits with full
+intensity and no accumulated bias. For security-relevant code like access
+control, use a different model lineage, because the same family shares
+blind spots. And prompt it specifically: not "is this good?" but "find
+every place where untrusted input reaches a security-sensitive operation"
+and "name every test that could pass against a broken implementation."
+What "adequate coverage" and "secure" mean are my calls, not the agent's —
+it doesn't get to grade its own homework.

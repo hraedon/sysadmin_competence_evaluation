@@ -1,0 +1,6 @@
+The agent made 4 commits. The first one says it fixed an input validation
+bug — the diff renames `data` to `input_data`. The second says it added
+error handling — the diff adds a try/except block. The third says it
+refactored for readability — the diff changes some spacing. The fourth says
+it added test coverage — the diff adds a test function called
+test_feature_works.

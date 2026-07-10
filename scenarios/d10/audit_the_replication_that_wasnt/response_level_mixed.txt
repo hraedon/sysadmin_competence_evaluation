@@ -1,0 +1,13 @@
+The replication report is more worrying than it first appears.
+
+The replica on SQL-DR-01 is five days stale. The last successful synchronization was 2026-07-05 03:17, while the report is dated 2026-07-10. With a 4-hour RPO, a failover would lose roughly five days of sales data. This is a real DR problem even though every agent job shows Success.
+
+The root cause appears to be the network maintenance window on 2026-07-02. The WAN link flapped until 23:45, and although the latency alert cleared on 2026-07-03, replication never properly recovered. The Distribution Agent delivered a large batch of commands on 2026-07-05 and then stopped applying changes, which suggests the WAN path between the publisher and subscriber is still unstable or saturated. The "No transactions replicated" messages after 2026-07-05 are consistent with a broken or intermittently available network connection.
+
+Recommendations:
+- Investigate the WAN link between SQL-PROD-01 and SQL-DR-01 for packet loss, latency spikes, or firewall resets.
+- Restart the Distribution Agent and monitor whether the subscriber begins applying transactions again.
+- Add a network-level alert that fires when the WAN link to the DR site is unstable.
+- Reinitialize the subscription if the network path cannot be stabilized.
+
+I would also recommend running a validation query to compare recent row counts between publisher and subscriber before declaring replication healthy.

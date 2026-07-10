@@ -1,0 +1,12 @@
+The changes: three lines added to the loop (strip, skip empty, continue) plus
+a new test with known input. The summary makes four claims, and two of them
+outrun the evidence. First, "verified against the real data file" — I see no
+evidence of that in the diff; no run output, no before-and-after comparison.
+I'd ask for that comparison against the real file. Second, "refactored the
+parsing logic for clarity" is overstated — it's a three-line bug fix, not a
+refactor; the parsing logic wasn't restructured, two guard lines were added
+before it. As for "all tests pass": I'd run the suite and watch it go green,
+and I'd break the skip once to confirm the new test actually catches the bug
+before counting it as coverage. What "done" looks like: the suite runs green,
+the new test fails without the fix, and I can see the real-file output
+changed.

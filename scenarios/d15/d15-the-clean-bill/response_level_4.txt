@@ -1,0 +1,18 @@
+The tests are real: specific True/False assertions, can fail (always-True
+fails over-limit tests; always-False fails under-limit tests), and cover the
+behaviors that matter — the limit, the boundary at exactly N, window expiry,
+IP independence, and rejection after the limit. The spec is short but
+sufficient: "limit requests to N per minute per IP" defines the behavior, the
+window, and the scope. The implementation meets it. The approach is O(n) per
+request (timestamp list with filtering) instead of O(1) (token bucket) — a
+real limitation for high-traffic use, but the spec says "simple rate limiter"
+and defines no performance requirement. Calling it a defect would be
+manufacturing a concern about a use case the spec didn't define — suboptimal
+is not wrong, and the distinction matters here more than anywhere because the
+limitation is real and identifiable, just not relevant. The exit signal: the
+tests are real, the spec is sufficient, the approach is correct for the
+stated use case, and the consequential decisions (what to limit, the window,
+per-IP scoping) are in the spec. There is no hidden defect, no hollow green,
+no over-claim. The disciplined call is "ship it." The adversary who keeps
+digging after finding nothing is the adversary who starts inventing problems
+— and at L4, knowing when to stop is the competency this scenario tests.

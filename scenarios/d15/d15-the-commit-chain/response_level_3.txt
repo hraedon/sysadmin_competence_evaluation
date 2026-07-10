@@ -1,0 +1,15 @@
+Four commits, and the messages overstate every one. Commit 1, "Fix input
+validation bug" — the diff renames `data` to `input_data`. No validation
+logic changed; the bug (crash on empty input) is unfixed. I'd run the
+empty-input case and see if it still crashes. Commit 2, "Add error
+handling" — the diff adds `try: ... except: pass`, which silently swallows
+every exception. That's not error handling, it's error hiding, and it's
+actively worse than not having it because failures become invisible. I'd
+remove the bare except and handle specific errors or let them propagate.
+Commit 3, "Refactor for readability" — the diff is whitespace alignment
+changes, no structural change. Commit 4, "Add test coverage" — the test
+is `assert True`, which cannot fail. I'd write a real test that checks the
+actual behavior — does the script handle empty input without crashing? —
+and see it fail without the fix. What "done" looks like: the empty-input
+crash is actually fixed, errors are handled not swallowed, and the test
+can fail.

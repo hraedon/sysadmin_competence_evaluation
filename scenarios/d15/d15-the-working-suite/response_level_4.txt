@@ -1,0 +1,14 @@
+The tests are real: they assert specific expected values (`== 90`, `== 45`,
+`== 120`), they can fail (a broken parser fails four of six), and they cover
+every format the agent supports (XhYm, Xm, Xh) plus edge cases (zero,
+invalid, large). The coverage matches the scope — the tests cover what was
+asked, not what wasn't. The approach is suboptimal (char-by-char loop vs.
+regex) but correct for the specified formats. The principle: not every green
+is hollow. The skill is examining the evidence, which means sometimes the
+conclusion is "the tests are real, the coverage is adequate, ship it."
+Calling the char-by-char approach a defect would be confusing suboptimal
+with wrong — it's less maintainable, not incorrect, and the spec didn't
+require maintainability. Manufacturing a concern about the approach, or
+inventing coverage gaps for unsupported formats, would be the false-positive
+failure mode. The exit signal: the tests are real, the claims hold, the
+coverage matches the scope. Ship it.

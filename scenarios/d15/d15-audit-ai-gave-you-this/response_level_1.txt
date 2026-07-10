@@ -1,0 +1,11 @@
+Looking at this script, it handles the credential rotation for svc_invoicing. It generates a new password, resets the AD account, updates the application config file with the new credential, and writes a log of each step.
+
+A few questions I'd want answered before running it:
+- Does the account running this script have permission to reset the svc_invoicing password in AD?
+- Does the account have write access to the application config file path?
+- Is the log directory (C:\Temp\) writable?
+- Has this been tested in a non-production environment first?
+
+The script looks well-structured — each step is clearly labeled, there's error handling in the catch block, and it uses a helper function to keep the log format consistent. The password generation uses a reasonable length. I'd want to confirm the AD path is correct before running, but the script itself looks clean.
+
+One thing to check: what is the application's behavior during the rotation window? If the application is mid-transaction when the config is updated, it might fail. I'd want to know if there's a maintenance window or a way to gracefully restart the application after the rotation completes.

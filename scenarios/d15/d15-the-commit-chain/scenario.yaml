@@ -1,0 +1,194 @@
+schema_version: 2.0
+id: d15-the-commit-chain
+title: The Commit Chain
+domain: 15
+domain_name: Directing AI Agents
+level: 1
+delivery_modes:
+- A
+difficulty:
+  score: 2
+  reasoning: |
+    A companion to "The Fix Summary" that tests the same L1 skill — separating
+    what an agent did from what it claimed — across multiple artifacts instead
+    of one. The candidate reads four commits, each with a message and a diff,
+    and must describe what each commit actually changed versus what its message
+    claimed. The messages overstate every diff: "fix input validation" is a
+    rename, "add error handling" is error swallowing, "refactor" is whitespace,
+    "add tests" is `assert True`. The discipline of sustaining the
+    claim-vs-evidence separation across four commits — not just one — is the
+    added difficulty. The harder levels add noticing that one commit is
+    actively harmful and that the test cannot fail.
+presentation:
+  modes:
+    A:
+      type: agent_commit_chain
+      context: |
+        You asked an agent to fix a bug in a data-processing script and add
+        tests. The bug: the script crashed when given empty input. You asked
+        the agent to handle that gracefully and add a test for it.
+
+        The agent made four commits. Below are the commit messages and their
+        diffs. Read all four, then answer the question — do not ask for more
+        first.
+
+        ---
+        COMMIT 1: "Fix input validation bug"
+
+        --- a/process.py
+        +++ b/process.py
+        @@ -15,7 +15,7 @@ def run_pipeline(filepath):
+        -    data = load_file(filepath)
+        +    input_data = load_file(filepath)
+             if not input_data:
+                 return None
+
+        COMMIT 2: "Add error handling"
+
+        --- a/process.py
+        +++ b/process.py
+        @@ -22,6 +22,8 @@ def run_pipeline(filepath):
+             try:
+                 result = transform(input_data)
+        +    except:
+        +        pass
+             return result
+
+        COMMIT 3: "Refactor for readability"
+
+        --- a/process.py
+        +++ b/process.py
+        @@ -10,9 +10,9 @@ def run_pipeline(filepath):
+        -    data = load_file(filepath)
+        -    if not data:
+        -        return None
+        +    data    = load_file(filepath)
+        +    if not data:
+        +        return None
+
+        COMMIT 4: "Add test coverage"
+
+        --- a/test_process.py
+        +++ b/test_process.py
+        @@ -1,3 +1,6 @@
+        +def test_feature_works():
+        +    assert True
+        ---
+      question: |
+        What did the agent do in each commit, and what did each commit message
+        claim? Describe what happened as accurately as you can — what each diff
+        shows, and what its message says about it.
+rubric:
+  findings:
+  - id: separates_each_diff_from_message
+    type: critical
+    description: |
+      The L1 bar: the candidate reads each commit's diff and its message as
+      two different things and reports both accurately. Commit 1 renamed
+      `data` to `input_data`; the message says "fix input validation bug."
+      Commit 2 added `try: ... except: pass`; the message says "add error
+      handling." Commit 3 changed whitespace alignment; the message says
+      "refactor for readability." Commit 4 added `def test_feature_works():
+      assert True`; the message says "add test coverage." A faithful L1
+      answer describes each diff and each message, treating them as two
+      different things. Conflating them — describing the messages as if they
+      are the work — is the miss.
+    miss_signal: |
+      Candidate paraphrases the commit messages as their account of what
+      happened ("it fixed the validation bug, added error handling, refactored,
+      and added tests") without describing what the diffs actually show.
+  - id: messages_overstate_diffs
+    type: critical
+    description: |
+      Every commit message overstates what its diff shows. "Fix input
+      validation bug" — the diff renames a variable, no validation logic
+      changed. "Add error handling" — the diff adds `except: pass`, which is
+      error swallowing, not handling. "Refactor for readability" — the diff
+      changes whitespace alignment, no structural change. "Add test coverage"
+      — the diff adds `assert True`, which is not coverage. The candidate
+      should notice that the pattern is systematic: every message inflates
+      what the diff did, and the gap between claim and evidence is visible in
+      every commit.
+    miss_signal: |
+      Candidate takes one or more commit messages at face value, or describes
+      the diffs without noting that the messages don't match them.
+  - id: error_handling_is_actively_harmful
+    type: secondary
+    severity: high
+    description: |
+      "Add error handling" is worse than an overstatement — it's actively
+      harmful. `try: ... except: pass` silently swallows every exception,
+      turning visible failures into invisible ones. The candidate should
+      notice that this commit doesn't just fail to add error handling; it
+      makes the code worse by hiding errors that would otherwise surface.
+      A bare `except: pass` is error hiding, not error handling.
+    miss_signal: |
+      Candidate notes that "add error handling" doesn't really add handling,
+      but doesn't register that it's actively harmful — that swallowing all
+      exceptions makes failures invisible.
+  - id: test_cannot_fail
+    type: secondary
+    severity: high
+    description: |
+      The test in commit 4 is `assert True` — which can never fail. It's
+      decoration, not coverage. The candidate should spot that the test
+      proves nothing and that "add test coverage" is the most direct
+      contradiction between message and diff: the diff adds something that
+      is definitionally not coverage.
+    miss_signal: |
+      Candidate counts "it added a test" as added coverage, or doesn't
+      notice that `assert True` cannot fail.
+  - id: specifies_what_to_check
+    type: secondary
+    severity: high
+    description: |
+      A strong answer doesn't stop at spotting the mismatches — it says
+      what would settle each: run the empty-input case and see if it still
+      crashes (commit 1), remove the bare except and see what errors surface
+      (commit 2), check whether the readability actually changed (commit 3),
+      and write a real test that fails without the fix (commit 4). The
+      candidate names what "done" would look like for each commit.
+    miss_signal: |
+      Candidate notices the mismatches but doesn't say what verification
+      would look like for each, or flags the problems without saying what
+      they'd check before trusting the work.
+  - id: messages_are_claims_generalized
+    type: secondary
+    severity: high
+    description: |
+      The L4 move: stepping back from the individual catches to the principle.
+      Every commit message is a claim about the commit, and the diff is the
+      only evidence. The habit that scales is the reflex to read each message
+      against its diff: which are backed by what you can see, and which
+      aren't? A strong answer names this explicitly — the pattern is
+      systematic, not incidental — rather than only listing individual
+      mismatches.
+    miss_signal: |
+      Candidate catches individual mismatches but never steps back to the
+      principle that commit messages are claims to check against diffs, not
+      reports of what happened.
+  level_indicators:
+    level_1: |
+      Accurately describes what each commit's diff changed (renamed a variable,
+      added a try/except, changed whitespace, added a test function) and what
+      each message claimed (fixed validation, added error handling, refactored,
+      added tests) — treating them as two different things. May not notice the
+      discrepancies; describes faithfully without evaluating. That faithful
+      separation across all four commits is the L1 bar.
+    level_2: |
+      Faithful description, plus notices at least one discrepancy — typically
+      that "add error handling" actually swallows errors, or that the test is
+      `assert True`. Doesn't yet catch all four or specify what to check.
+    level_3: |
+      Catches multiple discrepancies and specifies what to check for each.
+      Names that the error-handling commit is actively harmful (swallows all
+      exceptions) and that the test cannot fail. Says what a real test would
+      look like and what "done" means for each commit. May not generalize to
+      the claim-vs-evidence principle or catch all four.
+    level_4: |
+      All of L3, plus the step back: every commit message is a claim about the
+      commit, and the diff is the only evidence — so the habit is reading each
+      message against its diff, every time. Catches all four discrepancies,
+      flags that one is actively harmful (not just overstated), and frames the
+      general reflex rather than listing catches. Says what evidence would
+      make each commit trustworthy.

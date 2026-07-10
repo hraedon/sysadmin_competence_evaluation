@@ -1,0 +1,36 @@
+Root cause: Host-level CPU contention from srv-build02, a CI build server co-located
+on hv-node03. During hourly build jobs (Build-All-Projects, every 60 min at :40,
+~20 min duration), srv-build02's % Guest Run Time spikes from 4% to 91%, pushing
+the host's % Total Run Time to 93% with only 7% idle. srv-app01's guest CPU stays
+flat at 35%, but its disk latency spikes from 3 ms to 19-23 ms because the
+hypervisor cannot process I/O requests promptly when the host is CPU-saturated.
+The guest is I/O-blocked, not CPU-bound.
+
+The configuration gap that enables this: neither VM has CPU resource controls
+configured. Both have Reserve = 0, Limit = 0 (no cap), and Relative Weight = 100
+(default). srv-build02 has 8 vCPUs and no cap, so during build jobs it can consume
+all 16 logical processors on the host. srv-app01 has 4 vCPUs and no reserve, so it
+has no guaranteed minimum CPU allocation when the host is under contention.
+
+Remediation for CPU contention:
+- Set a CPU Limit on srv-build02 (e.g., 60-70% of host capacity, equivalent to
+  capping it at ~10 of 16 logical processors) to prevent it from saturating the
+  host during builds.
+- Set a CPU Reserve on srv-app01 (e.g., equivalent to 2 full logical processors)
+  to guarantee it a minimum allocation regardless of other VMs' demand.
+- Alternatively, live-migrate srv-app01 to a host without batch workloads.
+
+Additional issue — Dynamic Memory balloon pressure: During the degradation windows,
+srv-app01's Guest Visible Physical Memory drops from 8 GB to 2 GB (the configured
+minimum), and memory pressure rises from 5% to 50%. Pages/sec jumps from ~13 to
+~8,800. This occurs because srv-build02's memory demand rises to 30 GB during builds,
+and the host — which is memory-overcommitted (total VM maximums = 56 GB against
+64 GB physical, leaving only 8 GB for the host OS) — reclaims memory from srv-app01
+via the balloon driver. The resulting paging generates additional disk I/O, which
+is already delayed by the host CPU contention, creating a compounding feedback loop.
+
+Remediation for memory pressure:
+- Raise srv-app01's Dynamic Memory Minimum from 2048 MB to at least 6144 MB (covering
+  the application's working set), or switch to static memory allocation of 8 GB.
+- Alternatively, add physical RAM to the host or reduce the number of co-located
+  VMs to eliminate the memory overcommit.

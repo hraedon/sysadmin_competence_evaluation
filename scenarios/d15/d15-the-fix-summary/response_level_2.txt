@@ -1,0 +1,7 @@
+The diff added whitespace stripping and an empty-line skip to the loop —
+that's the actual fix — plus a test that builds known input and checks the
+counts. The agent's summary says the bug is fixed, it refactored for clarity,
+all tests pass, and it verified against the real data file. One thing I notice:
+it says "verified against the real data file," but the diff doesn't show any
+run output or comparison — that's a claim, not something I can see in the
+evidence. I'd want to see that before I took it as done.

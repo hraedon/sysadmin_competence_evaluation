@@ -1,0 +1,7 @@
+The agent fixed the bug, added a test, and updated two validators. It says
+342 tests pass and it's ready to merge. But it also says it didn't write a
+regression test for the header-injection fix — that sounds like a security
+thing, and if there's no test for it I'd want that before merging. The
+"ready to merge" claim doesn't really match the fact that it's listing
+things it didn't verify. I'd at least want that injection test before I
+called it ready.

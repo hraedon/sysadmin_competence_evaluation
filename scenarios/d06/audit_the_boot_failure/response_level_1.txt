@@ -1,0 +1,18 @@
+The boot log shows srv-db01 failed to boot after the kernel update from 5.15.0-91
+to 5.15.0-125. The ZFS module failed to load — the log says "module verification
+failed: signature and/or required key missing" and "module load rejected." Since
+the root filesystem is on ZFS and the module can't load, the boot drops to an
+emergency shell.
+
+This looks like the kernel update broke the ZFS module. The DKMS module probably
+needs to be rebuilt for the new kernel version.
+
+Recovery plan:
+1. Boot from a live ISO.
+2. Rebuild the ZFS DKMS module for kernel 5.15.0-125.
+3. Regenerate the initramfs with update-initramfs.
+4. Reboot and verify the system comes up.
+
+If that doesn't work, try reverting to the old kernel (5.15.0-91) by selecting
+it from the GRUB menu. There's also a VM snapshot from April 4th that could be
+used as a last resort.

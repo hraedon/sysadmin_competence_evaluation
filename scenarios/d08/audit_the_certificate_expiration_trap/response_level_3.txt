@@ -1,0 +1,16 @@
+The certificate posture in this environment is brittle and the recent outage was almost certainly caused by certificate failure, not network instability.
+
+The expired certificate on customer-portal.corp.local (expired 2026-07-05) matches the timing of incident INC-2026-0314 on 2026-07-07. The network team's own evidence — TCP RSTs originating from the F5 rather than upstream servers, clean switch counters, and recovery only after failover to the secondary data centre — is consistent with an expired client SSL certificate on the primary F5 SSL profile. The fact that the F5 profile also has an incomplete certificate chain further undermines TLS termination. This incident should be reopened and the root cause corrected to certificate expiry.
+
+The monitoring design is inadequate. CertWatch alerts at 14 days before expiry, which is too late for the certificates expiring within the next 19-30 days. The current CertWatch status is CLEAR, but api-gateway, sso, mail, sharepoint, and vpn are all inside what should be an active renewal window. A 14-day threshold leaves insufficient time for external CA renewals, change control, and staged deployment.
+
+The certificate management process is fundamentally manual and trust-based. CertTracker_v3.xlsx is the source of truth; certificates installed outside it are invisible; load balancer certificate reconciliation depends on Security manually updating the tracker after Network confirms deployment; and trust chains are not validated. The alert threshold was reduced from 30 days to 14 days specifically to reduce alert volume, which trades visibility for quiet.
+
+What should be in place:
+- Automated certificate discovery and inventory across F5, Palo Alto, Exchange, IIS, and domain controllers, not just spreadsheet rows.
+- A tiered alert threshold: 60 days for awareness, 30 days for renewal initiation, 14 days for escalation.
+- Certificate lifecycle automation through a proper PKI or certificate management platform that can request, deploy, and verify certificates end to end.
+- Validation of full trust chains as part of monitoring, not just expiry dates.
+- Automated reconciliation between the intended certificate inventory and what is actually bound to production endpoints.
+
+This would move the organisation from manual tracking to a managed PKI lifecycle.

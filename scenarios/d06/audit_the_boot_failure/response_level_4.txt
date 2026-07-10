@@ -1,0 +1,94 @@
+Root cause: UEFI Secure Boot rejects the unsigned ZFS DKMS module, preventing the
+ZFS root filesystem from mounting.
+
+Full causal chain:
+1. Unattended-upgrades installs kernel 5.15.0-125 at 02:47. The upgrade is
+   non-interactive — no operator is present to respond to MOK enrollment or
+   signing prompts.
+2. DKMS rebuilds the ZFS module (2.1.6) for the new kernel at 02:48. Build
+   completes successfully — the module is compiled and installed.
+3. The DKMS configuration (/usr/src/zfs-2.1.6/dkms.conf) lacks a sign_tool
+   directive. The previous kernel's module was signed manually during the
+   initial ZFS installation (interactive mokutil enrollment). This manual step
+   is not part of the DKMS build process and was not repeated. The
+   unattended-upgrades log records the warning at 02:48:46 ("DKMS: module not
+   signed (no sign_tool configured)") but continues — the warning is
+   informational, not blocking.
+4. update-initramfs runs at 02:49 and includes the unsigned ZFS module. The
+   initramfs is current and the module is present — but unsigned.
+5. On reboot at 03:00, the kernel boots (signed by Canonical) and enters
+   lockdown mode (Secure Boot enabled).
+6. initramfs attempts to load ZFS modules → each fails: "module verification
+   failed: signature and/or required key missing" → "Lockdown: module is not
+   signed, rejecting" → "module load rejected."
+7. Without the zfs module, root=ZFS=rpool/ROOT/ubuntu cannot be mounted.
+   Boot drops to initramfs emergency shell.
+
+The critical insight is that "module built successfully" ≠ "module can be
+loaded." DKMS compiled and installed the module without error, but without
+signing, the module cannot be loaded under Secure Boot lockdown. The module is
+present in the initramfs — the initramfs does not need regeneration. The
+problem is signing, not availability.
+
+Recovery — immediate (restore service fastest):
+- Select the old kernel's ZFS boot environment (rpool/ROOT/ubuntu_5.15.0-91)
+  from the GRUB menu. This BE has the signed ZFS module and should boot normally.
+  Database data is on a separate ZFS dataset (not part of the root BE), so it
+  will be current. This restores service within minutes.
+- Note: this BE was created on 2026-04-04 (12 days ago). Root filesystem changes
+  since then (system config, package updates, cron changes) will not be present.
+  For a database server, the root filesystem is less critical than the data, but
+  any root-level changes should be re-applied after recovery.
+
+Recovery — correct (fix the new kernel):
+- Boot from a live ISO, import rpool, chroot into the system.
+- Sign all ZFS modules for the new kernel using the existing MOK key pair:
+    /lib/modules/5.15.0-125-generic/build/scripts/sign-file sha256 \
+      /etc/keys/mok/MOK.priv /etc/keys/mok/MOK.der <module.ko>
+- The MOK key pair exists and the public key is enrolled in firmware — no MOK
+  enrollment step is needed. Only the signing step was missing.
+- Regenerate the initramfs and reboot into the new kernel.
+
+Preventive fix — DKMS auto-signing:
+- Add sign_tool to /usr/src/zfs-2.1.6/dkms.conf:
+    sign_tool=/lib/modules/$kernel/build/scripts/sign-file
+    sign_hash=sha256
+    sign_key=/etc/keys/mok/MOK.priv
+    sign_cert=/etc/keys/mok/MOK.der
+  This ensures every future DKMS build signs the module automatically. Without
+  this, the next kernel update will reproduce the same failure.
+
+Three process failures compounded each other:
+
+1. Unattended kernel upgrade on a ZFS+Secure Boot system. The MOK signing step
+   requires either interactive confirmation or a pre-configured sign_tool.
+   Unattended upgrades bypass both. On systems where a DKMS module is required
+   for boot, kernel upgrades must be interactive or the signing must be fully
+   automated via dkms.conf. Unattended upgrades are safe for systems where all
+   modules are in the kernel tree (signed by the distro), but not for systems
+   with DKMS boot-critical modules under Secure Boot.
+
+2. The unattended-upgrades log recorded the signing warning ("DKMS: module not
+   signed") at 02:48:46 but did not treat it as a blocking error. On a system
+   where the DKMS module is required for boot, a signing failure should halt the
+   upgrade — not log a warning and continue to reboot into a broken state. The
+   unattended-upgrades configuration should include a PreInstall-Script or
+   hook that verifies DKMS module signing before allowing the kernel upgrade to
+   proceed. Alternatively, configure unattended-upgrades to skip kernel packages
+   on these systems and handle kernel updates through a controlled, interactive
+   maintenance process.
+
+3. No pre-update snapshot. The VM snapshot (pre-patch-2026-0404) is 12 days old.
+   No snapshot was taken immediately before the 2026-04-16 maintenance window.
+   A VM-level snapshot taken immediately before the update would have provided
+   a fast, complete rollback path — restoring both the kernel and the root
+   filesystem state to the pre-update point. The 12-day-old snapshot is a
+   fallback of last resort, not a recovery plan. Pre-update snapshots should be
+   mandatory for production VMs undergoing kernel changes.
+
+The system had every component needed for a correct outcome: the MOK key pair
+exists, the public key is enrolled in firmware, the sign-file utility is
+available, and DKMS built the module successfully. The failure was purely
+procedural — the signing step was not automated, the warning was not treated as
+blocking, and no safety net (snapshot) was in place. This is a process failure,
+not a technical limitation.

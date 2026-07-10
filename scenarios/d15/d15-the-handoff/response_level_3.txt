@@ -1,0 +1,12 @@
+The agent fixed the trailing-whitespace bug, added a test, updated two more
+validators, and ran 342 tests locally. It claims "ready to merge," but its
+own "What was NOT verified" section contradicts that — it lists three
+things that aren't done. The most important is the header-injection fix
+with no regression test: that's a security-relevant fix, and "no test"
+means we can't confirm it actually rejects malicious input. I'd also flag
+that "342 pass" is local — CI wasn't confirmed on the final commit, and
+the e2e suite wasn't run after the UI change, which the project's own rules
+require. What "done" looks like: write the regression test for the injection
+fix and see it fail without the fix, run the e2e suite, and confirm CI
+green on the final commit. Until those three are done, "ready to merge" is
+the agent's word, not the evidence.

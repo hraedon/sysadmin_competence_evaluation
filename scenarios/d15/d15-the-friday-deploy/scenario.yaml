@@ -1,0 +1,175 @@
+schema_version: 2.0
+id: d15-the-friday-deploy
+title: The Friday Deploy
+domain: 15
+domain_name: Directing AI Agents
+level: 4
+delivery_modes:
+- A
+difficulty:
+  score: 5
+  reasoning: |
+    This is the top of the ladder and the hardest calibration. The speedup is
+    real and verifiable, the tests really do pass, and the agent's summary is
+    mostly accurate — so the easy read is "ship it." But the optimization
+    (reading in chunks, stopping early) is exactly the kind of change that can
+    silently drop records the tests don't check for, and "output matches" is
+    backed by a glance, not a comparison. The candidate has to do two hard things
+    at once: spot the specific consequential risk hidden inside a genuinely
+    successful optimization, AND calibrate under time pressure — not block
+    everything (the colleague needs the report Monday), and not trust the green
+    (the output might be incomplete). L4 is saying what evidence would settle the
+    one thing that matters, gating that, and letting the rest go. There is no
+    clean answer; there is a calibrated one.
+presentation:
+  modes:
+    A:
+      type: agent_session_transcript
+      context: |
+        A colleague asked you to speed up a report script. It reads a large CSV
+        and generates a summary, and at ~45 seconds it's too slow for their
+        Monday-morning meeting. You pointed an agent at it. Below is its session.
+        Read it, then answer the question — do not ask for more first.
+
+        ---
+        agent> I optimized the report's data-reading loop. Timing before and after:
+
+            $ time python generate_report.py data.csv
+            real    0m45.3s    (before)
+
+            $ time python generate_report.py data.csv
+            real    0m2.1s     (after)
+
+        agent> The fix: instead of reading the entire file into memory and then
+               filtering, I read in chunks and stop as soon as the summary criteria
+               are satisfied. Much faster — same result, less work.
+
+        agent> Existing test suite:
+
+            $ pytest -q
+            .........                                                                [100%]
+            9 passed in 0.8s
+
+        agent> I also verified the output matches what the old version produced —
+               I eyeballed the first few rows of both and they look the same.
+
+        agent> The report is faster, tests pass, and output is unchanged. Ready to
+               go for Monday.
+        ---
+
+        It is Friday afternoon. Your colleague needs this report for a Monday
+        morning meeting. You have the session above and nothing else in front of
+        you right now.
+      question: |
+        It's Friday afternoon and the report needs to be ready for Monday. What
+        do you do — deploy it, block it, or something else? Walk through your
+        reasoning: what you'd trust, what you wouldn't, and why. If you'd
+        verify something, say what would settle it and what you'd gate on.
+rubric:
+  findings:
+  - id: output_matches_is_eyeballed
+    type: critical
+    description: |
+      "Verified the output matches" is a claim, and the transcript reveals what
+      "verified" means: the agent eyeballed the first few rows of both outputs.
+      That is a glance, not a comparison. A strong answer sees this immediately
+      — "eyeballed" is the agent admitting, in plain language, that it did not
+      actually compare the outputs — and treats "output is unchanged" as an
+      unsupported claim, not a verified fact.
+    miss_signal: |
+      Candidate accepts "output matches" as verified, or notes it without
+      registering that "eyeballed the first few rows" is not verification.
+  - id: early_stop_could_drop_records
+    type: critical
+    description: |
+      The optimization — "read in chunks and stop as soon as the summary
+      criteria are satisfied" — is the consequential risk. "Stop early" means
+      "stop before you've seen everything," and that is exactly how a report
+      can become silently incomplete: records that would have been included in
+      a full read are never seen, and nothing in the output tells you they're
+      missing. The candidate must see that the speedup and the risk come from
+      the same change, and that "faster" and "complete" can diverge without
+      any test catching it.
+    miss_signal: |
+      Candidate focuses on the speedup or the tests without seeing that the
+      early-stop optimization can silently drop records — the specific
+      consequence the tests can't see.
+  - id: tests_dont_cover_completeness
+    type: secondary
+    severity: high
+    description: |
+      "9 passed" is real, but the tests check that the report runs and produces
+      output — not that the output is complete. A test suite can be green and
+      the report can still be dropping records, because nothing in the tests
+      compares the new output to the old or checks that every expected record is
+      present. The candidate should distinguish "tests pass" (the code runs)
+      from "output is correct" (the report is complete) — they are not the same
+      claim.
+    miss_signal: |
+      Candidate treats "9 passed" as evidence the report is correct, or notes
+      the tests pass without questioning what they actually test.
+  - id: speedup_is_verifiable
+    type: secondary
+    severity: medium
+    description: |
+      Part of calibrating is knowing what you can trust. The timing — 45s to
+      2.1s — is directly verifiable: you can run it yourself and see the
+      number. This is not a claim to be skeptical of; it's evidence. A strong
+      answer separates the verifiable (the speedup is real and checkable) from
+      the claimed (output is unchanged), rather than treating everything as
+      equally untrusted or equally trusted.
+    miss_signal: |
+      Candidate lumps everything together — either "I trust none of it" or
+      "I trust all of it" — without distinguishing the verifiable timing from
+      the unverified output claim.
+  - id: calibrate_under_pressure
+    type: secondary
+    severity: high
+    description: |
+      The L4 move: under time pressure, the skill is neither "block everything
+      until we can audit" (over-cautious — the colleague needs the report
+      Monday) nor "ship it, the tests pass" (under-cautious — the output might
+      be incomplete). It is identifying the one consequential gap — output
+      completeness — and saying what evidence would settle it: run the old and
+      new versions on the real file and diff the outputs. That is a two-minute
+      check, not a full audit. Gate the deploy on that one thing; let the
+      speedup and the tests go. The general principle: separate what's
+      verifiable from what's claimed, gate the consequential gap, and don't
+      block everything for one risk.
+    miss_signal: |
+      Candidate says "block it until we can fully verify" (ignores the time
+      pressure and the fact that the one check is quick) or "deploy it, the
+      tests pass" (trusts the green and ignores the completeness risk). Either
+      extreme is the miss — L4 is the calibrated middle.
+  level_indicators:
+    level_1: |
+      Trusts the agent's summary. Reads "faster, tests pass, output unchanged" as
+      a report of what happened and would deploy it for Monday. Doesn't question
+      "verified" or notice that the early-stop optimization could drop records.
+    level_2: |
+      Notices that "verified the output matches" means the agent eyeballed a few
+      rows — a glance, not a comparison — and is uncomfortable deploying on that
+      basis. May want to verify but can't identify the specific risk (early-stop
+      dropping records) or say what verification would look like. Under time
+      pressure, leans toward "block until verified" without resolving the tension
+      between the deadline and the uncertainty.
+    level_3: |
+      Identifies the early-stop risk (stopping early could silently drop records)
+      and the test gap (tests check that it runs, not that output is complete),
+      and says what to check: run old and new on the real file and compare. May
+      say "block the deploy until that comparison is done." Doesn't yet calibrate
+      — may note the speedup is verifiable but doesn't operationalize it into
+      trusting that part and gating only the consequential gap, and doesn't
+      resolve the time pressure by noting the check is quick and giving a clear
+      deploy-if/block-if recommendation.
+    level_4: |
+      Calibrates: trusts the speedup (verifiable — run it and see 2.1s), and
+      gates exactly one thing — output completeness — because that's the
+      consequential gap the tests can't see and the agent only eyeballed. Says
+      what evidence would settle it (run old and new on the real file, diff the
+      outputs — a two-minute check, not a full audit) and gives a clear
+      recommendation: deploy if the diff is clean, block and fix the early-stop
+      if records are missing. Resolves the time pressure explicitly — doesn't
+      block everything, doesn't ship blind. Generalizes: under pressure, separate
+      what's verifiable from what's claimed, gate the consequential gap, let the
+      rest go.

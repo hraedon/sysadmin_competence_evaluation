@@ -1,0 +1,164 @@
+================================================================================
+INCIDENT REPORT — INC-2026-2043
+================================================================================
+Priority:    Medium
+Status:      Open
+Opened:      2026-04-14 09:22
+VM:          srv-app01 (Windows Server 2022, Hyper-V Generation 2)
+Host:        hv-node03.contoso.local
+Assigned to: Virtualization Team
+
+--------------------------------------------------------------------------------
+USER REPORT (submitted 2026-04-14 09:22 by application team)
+--------------------------------------------------------------------------------
+The document indexing service on srv-app01 has been experiencing intermittent
+slowdowns since last week. Every hour or so, the service becomes unresponsive
+for 15-20 minutes. Query response times go from sub-second to 30+ seconds,
+and the service occasionally throws timeout errors. The issue self-resolves
+after each episode. There have been no recent changes to the application or
+the VM configuration. The application team has confirmed that their service is
+not running any scheduled batch jobs.
+
+================================================================================
+VM CONFIGURATION
+Source: Hyper-V Manager / Get-VM (captured 2026-04-14 10:05)
+================================================================================
+
+VM Name:          srv-app01
+State:            Running
+Generation:       2
+Memory:
+  Startup:        4096 MB
+  Minimum:        2048 MB
+  Maximum:        16384 MB
+  Dynamic Memory: Enabled
+Processor:
+  Virtual CPU:    4
+  Reserve:        0 (not configured)
+  Limit:          0 (not configured — no cap)
+  Relative Weight: 100 (default)
+Disk:
+  Path:           C:\ClusterStorage\Volume1\srv-app01\disk0.vhdx
+  Type:           Dynamic VHDX
+  Size:           500 GB
+Network:          vmSwitch-Prod
+Notes:            Application server — document indexing service.
+
+VM Name:          srv-build02
+State:            Running
+Generation:       2
+Memory:
+  Startup:        4096 MB
+  Minimum:        2048 MB
+  Maximum:        32768 MB
+  Dynamic Memory: Enabled
+Processor:
+  Virtual CPU:    8
+  Reserve:        0 (not configured)
+  Limit:          0 (not configured — no cap)
+  Relative Weight: 100 (default)
+Disk:
+  Path:           C:\ClusterStorage\Volume1\srv-build02\disk0.vhdx
+  Type:           Dynamic VHDX
+  Size:           1 TB
+Network:          vmSwitch-Prod
+Notes:            CI build server — scheduled build pipeline.
+
+Host:             hv-node03.contoso.local
+  Logical CPUs:   16 (2 x 8-core Xeon Silver 4314 @ 2.0 GHz)
+  Physical RAM:   64 GB
+
+VMs on host:      srv-app01, srv-build02, srv-dc01, srv-mon01
+  (srv-dc01 and srv-mon01 are low-utilization: <5% CPU, <2 GB RAM each)
+
+================================================================================
+GUEST-SIDE PERFORMANCE METRICS (srv-app01)
+Source: PerfMon inside the guest VM. 5-minute averages.
+Two windows captured: baseline (08:00-08:35) and degradation (08:40-09:00).
+================================================================================
+
+  Metric                                      Baseline         Degradation
+                                              08:00-08:35      08:40-09:00
+  ------------------------------------------  ---------------  ---------------
+  \Processor(_Total)\% Processor Time             34               35
+  \Memory\Available MBytes                      8192             2048
+  \Memory\Pages/sec                              13              8801
+  \PhysicalDisk(_Total)\Avg. Disk sec/Read      3.2 ms           19.4 ms
+  \PhysicalDisk(_Total)\Avg. Disk sec/Write     3.5 ms           23.5 ms
+  \PhysicalDisk(_Total)\Current Disk Queue Len   0.3              4.8
+
+  Notes:
+  - % Processor Time is flat at 34-35% across both windows. No CPU spike
+    inside the guest during degradation.
+  - Available MBytes drops from 8 GB to 2 GB during degradation.
+  - Pages/sec jumps from ~13 to ~8,800 during degradation.
+  - Disk read latency increases 6x (3.2 → 19.4 ms) during degradation.
+  - Disk write latency increases 7x (3.5 → 23.5 ms) during degradation.
+  - Disk queue length increases from 0.3 to 4.8 during degradation.
+
+  A second degradation window was observed at 09:40-09:55 with identical
+  metric patterns. The baseline metrics return immediately after each window.
+
+================================================================================
+HOST-SIDE PERFORMANCE METRICS (hv-node03)
+Source: PerfMon on the Hyper-V host. 5-minute averages.
+Two windows captured: baseline (08:00-08:35) and degradation (08:40-09:00).
+================================================================================
+
+  Counter                                                           Baseline         Degradation
+                                                                   08:00-08:35      08:40-09:00
+  ---------------------------------------------------------------  ---------------  ---------------
+  \Hyper-V Hypervisor Logical Processor(_Total)\% Total Run Time      29               93
+  \Hyper-V Hypervisor Logical Processor(_Total)\% Idle Time           71                7
+
+  \Hyper-V Virtual Processor(srv-app01:Root)\% Guest Run Time          34               35
+  \Hyper-V Virtual Processor(srv-app01:Root)\% Hypervisor Run Time      3                8
+
+  \Hyper-V Virtual Processor(srv-build02:Root)\% Guest Run Time          4               91
+  \Hyper-V Virtual Processor(srv-build02:Root)\% Hypervisor Run Time      2                6
+
+  \Hyper-V Virtual Processor(srv-dc01:Root)\% Guest Run Time             2                2
+  \Hyper-V Virtual Processor(srv-mon01:Root)\% Guest Run Time            1                1
+
+  \Hyper-V Dynamic Memory VM(srv-app01)\Current Pressure                 5               50
+  \Hyper-V Dynamic Memory VM(srv-app01)\Guest Visible Physical Memory   8192 MB         2048 MB
+
+  \Hyper-V Dynamic Memory VM(srv-build02)\Current Pressure               10              76
+  \Hyper-V Dynamic Memory VM(srv-build02)\Guest Visible Physical Memory 8192 MB        30720 MB
+
+  Notes:
+  - Host CPU (% Total Run Time) jumps from 29% to 93% during degradation.
+    Host idle time drops from 71% to 7%.
+  - srv-app01's % Guest Run Time stays at 34-35% across both windows.
+    srv-app01's % Hypervisor Run Time increases from 3% to 8%.
+  - srv-build02's % Guest Run Time jumps from 4% to 91% during degradation.
+    srv-build02 is the dominant CPU consumer on the host during these windows.
+  - srv-app01's Guest Visible Memory drops from 8 GB to 2 GB during degradation.
+    Memory pressure rises from 5% to 50%.
+  - srv-build02's Guest Visible Memory rises from 8 GB to 30 GB during degradation.
+    Memory pressure rises from 10% to 76%.
+  - srv-dc01 and srv-mon01 show no change across both windows.
+
+================================================================================
+SCHEDULED TASK CHECK (srv-build02)
+Source: Get-ScheduledTask (captured 2026-04-14 10:10)
+================================================================================
+
+Task Name:      Build-All-Projects
+Task Path:      \BuildSystem\
+State:          Ready
+Last Run:       2026-04-14 09:40 (completed successfully, duration: 19 min)
+Next Run:       2026-04-14 10:40
+Schedule:       Every 60 minutes, starting 06:40
+Duration:       ~18-20 minutes per run
+Action:         powershell.exe -File D:\build\run-build.ps1
+
+Previous runs on 2026-04-14:
+  06:40 — completed (18 min)
+  07:40 — completed (19 min)
+  08:40 — completed (20 min)  ← matches first degradation window
+  09:40 — completed (19 min)  ← matches second degradation window
+
+================================================================================
+END OF INCIDENT REPORT INC-2026-2043
+================================================================================

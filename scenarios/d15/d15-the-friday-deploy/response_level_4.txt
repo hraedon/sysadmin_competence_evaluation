@@ -1,0 +1,18 @@
+The speedup is real and I can trust that part — 2.1s vs 45s is verifiable in
+seconds, and the tests passing tells me the report runs. What I don't trust
+is "output unchanged." The agent said it verified the output matches, and then
+told you what it did: it eyeballed the first few rows. That's a glance, not a
+comparison. And the optimization itself — read in chunks, stop as soon as the
+criteria are satisfied — is exactly the kind of change that can silently drop
+records, because "stop early" means "stop before you've seen everything." The
+9 tests don't catch this: they check the report runs, not that it's complete.
+So here's the calibration under Friday-afternoon pressure. I don't need to
+audit everything, and I shouldn't trust the green. I need to verify the one
+consequential thing — is the output complete? — and that's a two-minute
+check: run old and new on the real file and diff the outputs. If the diff is
+clean, deploy tonight — the speedup is real and the output is proven. If the
+diff shows missing records, block and fix the early-stop logic; a slow correct
+report on Monday beats a fast wrong one. The principle: under pressure,
+separate what's verifiable from what's claimed, gate the consequential gap,
+and let the rest go. Don't block everything for one risk; don't ship blind to
+it either.

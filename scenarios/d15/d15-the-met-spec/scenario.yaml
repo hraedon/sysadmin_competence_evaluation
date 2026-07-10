@@ -1,0 +1,197 @@
+schema_version: 2.0
+id: d15-the-met-spec
+title: The Met Spec
+domain: 15
+domain_name: Directing AI Agents
+level: 3
+delivery_modes:
+- A
+difficulty:
+  score: 4
+  reasoning: |
+    The clean companion to The One-Liner Spec and The Contradictory Spec. Where
+    those scenarios present an underspecified or contradictory spec, this one
+    presents a complete spec that is fully met by the implementation. The L3
+    bar is specifying what "done" looks like — which sometimes means confirming
+    it is already done. The challenge is the false-positive pressure: after
+    scenarios where the spec was always broken, the candidate may invent new
+    criteria or claim the spec is underspecified when it is not. The approach
+    is suboptimal (if-checks instead of a schema library) — this gives the
+    candidate something to flag, but it is a maintainability note, not a
+    blocking issue. A different challenge than The Sure Thing: there, the skill
+    is specifying the fix for vacuous tests; here, the skill is recognizing
+    there is nothing to fix.
+presentation:
+  modes:
+    A:
+      type: agent_session_transcript
+      context: |
+        You asked an agent to build a config validator. The spec:
+        "Validate a config dictionary. Required fields: `host` (non-empty
+        string), `port` (integer 1–65535), `timeout` (integer 1–300). Return a
+        list of error strings, or an empty list if valid. Missing fields, empty
+        strings, out-of-range values, and wrong types should each produce an
+        error."
+
+        Below is the tail of the agent's session. Read it, then answer the
+        question — do not ask for more first.
+
+        ---
+        agent> Built `validate_config()` and added tests. Running the suite:
+
+            $ pytest -q
+            ........                                                              [100%]
+            8 passed in 0.3s
+
+        agent> The validator checks each required field and returns a list of
+               errors. I added 8 tests covering valid configs, missing fields,
+               out-of-range values, wrong types, and edge cases. All pass.
+
+        agent> Here are the key tests:
+
+            def test_valid_config():
+                assert validate_config({"host": "localhost", "port": 8080,
+                    "timeout": 30}) == []
+
+            def test_missing_host():
+                config = {"port": 8080, "timeout": 30}
+                assert "missing field: host" in validate_config(config)
+
+            def test_port_out_of_range():
+                config = {"host": "localhost", "port": 99999, "timeout": 30}
+                assert "port out of range" in validate_config(config)
+
+            def test_timeout_out_of_range():
+                config = {"host": "localhost", "port": 8080, "timeout": 500}
+                assert "timeout out of range" in validate_config(config)
+
+            def test_empty_host():
+                config = {"host": "", "port": 8080, "timeout": 30}
+                assert "host is empty" in validate_config(config)
+
+            def test_all_fields_missing():
+                assert len(validate_config({})) == 3
+
+            def test_boundary_values():
+                assert validate_config({"host": "x", "port": 1,
+                    "timeout": 1}) == []
+                assert validate_config({"host": "x", "port": 65535,
+                    "timeout": 300}) == []
+
+            def test_wrong_type_port():
+                config = {"host": "localhost", "port": "not a number",
+                    "timeout": 30}
+                assert "port must be an integer" in validate_config(config)
+
+        agent> The spec is fully implemented. All acceptance criteria met.
+               Ready to ship.
+        ---
+      question: |
+        The agent says it's done and all acceptance criteria are met. What
+        would you tell the agent to do to make it actually done? Specify: what
+        acceptance criteria should be met, which decisions must come to you, and
+        what would you validate against reality?
+rubric:
+  findings:
+  - id: acceptance_criteria_already_met
+    type: critical
+    description: |
+      The spec defined the acceptance criteria: three required fields
+      (host, port, timeout), range constraints (port 1–65535, timeout 1–300),
+      type checking, and error-list output. The tests verify each criterion:
+      valid config returns empty list, missing field produces error,
+      out-of-range produces error, wrong type produces error, boundary
+      values pass, all-fields-missing produces three errors. The candidate
+      should confirm the criteria are met — not invent new ones.
+    miss_signal: |
+      Candidate invents acceptance criteria the spec did not define — e.g.,
+      "it should also validate hostnames against a whitelist," "it should
+      check for duplicate fields," "it should handle nested configs" — and
+      treats their absence as a gap. Or: claims the spec is underspecified
+      when it explicitly defines fields, ranges, types, and output format.
+  - id: tests_are_real
+    type: critical
+    description: |
+      The tests assert specific expected values (`== []`, `"missing field:
+      host" in ...`, `len(...) == 3`), not vacuous checks. They can fail: a
+      validator that always returns `[]` would fail every error-case test. A
+      validator that always returns `["error"]` would fail
+      `test_valid_config` and `test_boundary_values`. The candidate should
+      confirm the tests are real.
+    miss_signal: |
+      Candidate assumes the tests are vacuous or do not actually test the
+      validator's behavior, without examining the assertions.
+  - id: spec_made_load_bearing_decisions
+    type: secondary
+    severity: high
+    description: |
+      The spec already decided the load-bearing decisions: which fields are
+      required, what ranges are valid, what types are accepted, and what the
+      output format is. These are the consequential decisions the delegation-
+      boundary thread teaches you to gate — and the spec gated them. The
+      candidate should confirm these decisions were made in the spec, not
+      claim they need gating when they already were.
+    miss_signal: |
+      Candidate says "the agent should have asked you what counts as a valid
+      port range" or "what fields are required" — when the spec already
+      defined these. Or: treats decisions the spec already made as decisions
+      the agent should have escalated.
+  - id: approach_is_suboptimal_not_wrong
+    type: secondary
+    severity: medium
+    description: |
+      The agent likely used individual if-checks for each field instead of a
+      schema validation library (e.g., pydantic, jsonschema). For 3 fields,
+      the if-check approach is readable and correct. For 50 fields, it would
+      be unmaintainable — but the spec defines 3 fields. A strong answer
+      notes the distinction: suboptimal for large schemas, correct for the
+      specified scope.
+    miss_signal: |
+      Candidate flags the if-check approach as a defect, a maintainability
+      crisis, or a reason not to ship — without noting that it is correct for
+      3 fields and the spec did not define more.
+  - id: exit_signal_generalized
+    type: secondary
+    severity: high
+    description: |
+      The L4 move: the principle is specifying what "done" looks like — which
+      sometimes means confirming it is already done. Manufacturing new
+      criteria is the false-positive failure mode. A candidate who
+      generalizes to "every spec is underspecified" has overfit the pattern.
+    miss_signal: |
+      Candidate steps back to a generalized distrust ("specs are always
+      underspecified") rather than the principle ("check whether the
+      implementation meets the specified criteria"). Or: frames the
+      completeness of the spec as suspicious ("the spec is too complete —
+      what is missing?").
+  level_indicators:
+    level_1: |
+      Accepts the result. "8 tests pass, the validator checks the fields, looks
+      good." Does not examine the tests or the spec. Correct but shallow. Does
+      not manufacture a problem.
+    level_2: |
+      Examines the tests and confirms they are real: the assertions check
+      specific expected values and error messages, and they can fail. Confirms
+      the test coverage matches the spec's requirements (required fields, ranges,
+      types, edge cases). Notes the suboptimal approach but correctly identifies
+      it as suboptimal, not wrong. Does not manufacture a hollow-green finding.
+    level_3: |
+      All of L2, plus confirms the acceptance criteria are met: the spec defined
+      three required fields with range and type constraints, and the tests
+      verify each one (valid config, missing fields, out-of-range, wrong type,
+      boundary values, all-missing). The tests can fail. Notes the spec already
+      made the load-bearing decisions (what is required, what ranges are valid,
+      what types are accepted). Notes the suboptimal approach (if-checks vs.
+      schema library) as a non-blocking maintainability note for the current
+      scope (3 fields). Concludes the work is done — does not invent new
+      criteria.
+    level_4: |
+      All of L3, plus the step back: not every spec is underspecified. The
+      skill is checking whether the implementation meets the specified criteria
+      — which means sometimes the answer is "it does, ship it." Distinguishes
+      suboptimal from wrong: the if-check approach is less scalable than a
+      schema library, but correct for 3 fields. Names the exit signal: when the
+      spec is complete, the tests are real, and the consequential decisions
+      were made in the spec, manufacturing new criteria would be the
+      false-positive failure mode. The discipline of not inventing requirements
+      is as load-bearing as the discipline of catching missing ones.

@@ -1,0 +1,7 @@
+Both fixes were applied and tests pass, but I'm a bit uncomfortable. Issue
+2 — the replay protection thing — I'm not sure that's actually a bug. The
+spec says "check whether a user has permission to read a resource," and it
+doesn't mention sessions or tokens. So "the validator doesn't check for
+replay" might just mean replay protection was never required. But the agent
+went ahead and added it anyway. I'd want to look at that more closely before
+calling it secure.

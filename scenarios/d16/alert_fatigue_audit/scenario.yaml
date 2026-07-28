@@ -1,0 +1,90 @@
+schema_version: 2.0
+id: d16-alert-fatigue-audit
+title: The Noisy Pager
+domain: 16
+domain_name: "Observability & Alert Design"
+level: 2
+delivery_modes:
+  - A
+difficulty: 3
+presentation:
+  modes:
+    A:
+      type: report
+      artifact_file: scenarios/d16/alert_fatigue_audit/alerting_30day_review.txt
+      context: |
+        You are reviewing the organization's alerting posture after two recent
+        incidents were discovered by users rather than by the on-call team.
+        The operations lead has given you the 30-day alerting review below.
+
+        Identify where the signal-to-noise contract with responders has broken
+        down, what the consequences are, and what the first three interventions
+        should be — ordered by impact, not by ease.
+rubric:
+  findings:
+    - id: unacknowledged_pages_broken_contract
+      description: |
+        52 of 412 pages (12.6%) were never acknowledged. An unacknowledged page is an alert that invokes the responder contract and gets no response — operationally equivalent to the alert never firing. No escalation policy is configured, so these alerts simply disappear. This is the most severe breakdown in the review.
+      severity: critical
+      miss_signal: |
+        Candidate treats the 52 unacknowledged pages as acceptable, says they were probably handled in another channel, or discounts them because "most pages are acknowledged." The tell is any recommendation that starts with Slack noise or email cleanup before addressing unacknowledged pages.
+      learning_note: |
+        An alert is a contract with a responder. A page that fires and is never acknowledged is a contract invoked with no counterparty. The monitoring system technically detected a condition; the organization did not respond. Without escalation, unacknowledged pages are silent failures dressed up as active alerting.
+      type: critical
+    - id: paging_tier_inflated_with_non_urgent_alerts
+      description: |
+        142 pages (34.5%) were acknowledged after 30 minutes, and the median time to acknowledge is 22 minutes. CPU, memory, and disk threshold breaches make up 368 of 412 pages (89%). If an alert can wait 22–30+ minutes, it does not meet the paging-tier test of "requires a human's attention right now." The paging tier has been inflated with infrastructure metrics that should be notifications or dashboards.
+      severity: critical
+      miss_signal: |
+        Candidate accepts all 412 pages as legitimately urgent and recommends only tuning thresholds or notification templates, without questioning whether the paging tier itself is carrying alerts that do not need a human immediately.
+      learning_note: |
+        The tiered routing model is central to sustainable alerting: page only when the condition requires immediate action; notify when awareness can wait; dashboard when no action is needed. A page with a 30-minute acknowledgment time is evidence that the alert was not page-worthy. The paging tier is the most expensive channel because it interrupts a human's attention; carrying non-urgent alerts there trains responders to deprioritize the entire tier.
+      type: critical
+    - id: notification_channel_threshold_noise
+      description: |
+        The #ops-alerts channel received 1,203 alerts in 30 days, of which 847 were CPU thresholds and 286 were memory thresholds. That is roughly 40 alerts per day, almost all generic infrastructure thresholds. Several team members have muted the channel. This is the alert-fatigue pattern: volume turns a notification channel into unread noise.
+      severity: high
+      miss_signal: |
+        Candidate lists Slack noise as the primary finding and leads recommendations with threshold tuning or routing adjustments for the notification channel, while treating the paging tier as basically healthy.
+      learning_note: |
+        High-volume, low-fidelity alerting produces alert fatigue, which produces ignored alerts, which produces the same outcome as no alerting. CPU and memory thresholds are useful metrics, but firing 40 times a day on infrastructure that is behaving within expected variance makes the channel unusable. The fix is not necessarily tighter thresholds — it is deciding whether these signals require human action at all.
+      type: secondary
+    - id: email_success_failure_mixing
+      description: |
+        The operations mailbox received 1,109 backup success notifications and 123 disk space warnings in the same channel. Mixing routine success traffic with actionable warning traffic trains responders to process every message as routine. When a real warning arrives, it looks like another success email and is processed with the same low priority. The June 22 certificate expiry alert was not assigned to an owner and was missed for three days, until a downstream service failed on June 25 — same failure pattern.
+      severity: high
+      miss_signal: |
+        Candidate says "reduce email alerts" generically, defends backup success emails as useful status updates, or treats the 123 disk warnings as the problem without identifying that the success/failure mixture in one mailbox buries the warnings.
+      learning_note: |
+        The backup-success-email pattern from Domain 10 (Backup, Recovery & Resilience) generalizes: any channel that carries both routine success and actionable failure will eventually be processed as routine. The success emails are not noise because they are numerous; they are noise because they share a channel with failures, making failures indistinguishable.
+      type: secondary
+    - id: volume_exceeds_responder_capacity
+      description: |
+        The on-call rotation has four engineers. Over 30 days they received 412 pages, or roughly 13.7 pages per on-call day. Total alert volume is 2,847 alerts, or about 95 alerts per day across all channels. Combined with 52 unacknowledged pages and 142 pages acknowledged after 30 minutes, the volume exceeds the team's capacity to triage. The contract cannot hold at this load.
+      severity: moderate
+      miss_signal: |
+        Candidate calls the volume "high" in abstract terms but does not quantify it against the four-person rotation or connect the per-responder page rate to the unacknowledged and delayed acknowledgments.
+      learning_note: |
+        Alert volume must be evaluated against responder capacity, not in absolute numbers. A 13.7-page-per-day rate may be sustainable if every page is actionable and acknowledged quickly; it is not sustainable when combined with 47% of pages acknowledged after 30 minutes or never. The numbers together show a capacity breach, not just a tuning problem.
+      type: secondary
+    - id: systemic_signal_to_noise_budget
+      description: |
+        The correct intervention is not a one-time cleanup. It is to establish a sustainable signal-to-noise budget: a target alert volume per responder, a regular review cadence for alert rules, a post-incident feedback loop that converts "monitoring missed this" into specific rule changes, and a policy that new alert rules must displace existing ones or justify the additional volume. The organizational pressure is always to add alerts and never to remove them; without active governance, volume grows monotonically and the contract breaks again.
+      severity: moderate
+      miss_signal: |
+        Candidate lists immediate fixes — reclassify alerts, add escalation, tune thresholds — but frames them as a project that ends, not as a recurring operational process with a budget and governance loop.
+      learning_note: |
+        Alerting systems degrade over time through orphaned rules, threshold drift, and accumulated alerts. Sustainability requires maintenance: a regular review cadence, a feedback loop from incidents, and an alerting budget that forces tradeoffs. The skill is not cleaning up once; it is designing a system that stays clean under drift.
+      type: secondary
+  level_indicators:
+    level_1: |
+      Reads the summary as broadly healthy or fixable through tuning. Notes the large Slack/email counts and recommends threshold tuning, filtering backup success emails, or adding more alert rules for the recent incidents. Treats the 52 unacknowledged pages as acceptable or says they were probably handled another way. Does not identify the paging tier as carrying non-urgent alerts. Recommends starting with the easy or visible fixes rather than the broken contract.
+    level_2: |
+      Identifies that 52 unacknowledged pages mean the responder contract is broken, and that 142 pages acknowledged after 30 minutes mean the paging tier is carrying non-urgent alerts. Recognizes that CPU/memory/disk threshold alerts should not be pages if they can wait half an hour. Identifies the 1,203 Slack alerts as noise degrading the notification channel. Orders interventions starting with the paging tier (separate signal from noise, add escalation, ensure every page is actionable), not with Slack or email cleanup. Does NOT quantify the per-responder load or explain why mixing backup success with failure emails buries warnings.
+    level_3: |
+      All of the above plus: quantifies the load — 412 pages across a four-person rotation is roughly 13.7 pages per on-call day, and 47% of pages are acknowledged after 30 minutes or never. Explains why the 1,109 backup success emails mixed with 123 disk warnings in one mailbox train responders to treat warnings as routine. Proposes concrete tier reassignments (e.g., move CPU/memory thresholds to dashboards unless they page through a composite or runbook-verified condition; route backup failures to a distinct owner/escalation path; add an escalation policy for unacknowledged pages). Does NOT frame the fix as a sustainable signal-to-noise budget requiring ongoing governance, regular review cadence, or a rule that new alerts displace old ones.
+    level_4: |
+      All of the above plus: frames the intervention as establishing a sustainable signal-to-noise budget. Describes the organizational asymmetry — pressure to add alerts, no pressure to remove them — and proposes a maintenance process with a regular review cadence, a post-incident feedback loop that turns missed incidents into specific rule changes, and an alert budget enforced by requiring new rules to displace existing ones or justify the volume. Articulates the tradeoff: configured coverage must be reduced to gain effective coverage, and this holds only if the governance process stays active.
+  mixed_signal:
+    expected_level: 2.5
+    description: "Catches L2 findings (broken paging contract, paging-tier inflation, Slack noise) but treats email mixing and volume load abstractly and misses the systemic budget argument"

@@ -1,0 +1,9 @@
+The commit message says "update image to v1.2.4", but the diff makes three distinct changes, two of which are not documented in the message.
+
+Image tag change (v1.2.3 → v1.2.4): this is the only change the commit message describes. It is a routine patch update, but it still needs verification: the v1.2.4 image must exist in the registry, and the deployment should have a rollback plan in case the new version misbehaves.
+
+Replicas change (3 → 1): this removes the deployment's redundancy. With three replicas, the service can tolerate the loss or restart of one pod. With one replica, a node failure, pod eviction, or container crash becomes a service outage until Kubernetes reschedules and restarts the pod. This change should be called out explicitly in the commit message.
+
+Liveness probe removal: the probe was configured to GET /healthz on port 8080 every 5 seconds after an initial 10-second delay. Removing it means Kubernetes no longer has a signal for whether the application is actually responding. A hung or deadlocked container will remain in Running state indefinitely and will not be restarted automatically. This is a significant operational change.
+
+The commit message is misleading because it describes only one of three changes. Bundling an image update with a redundancy reduction and a probe removal makes rollback harder and obscures intent. I would ask the author to either split this into three separate commits or rewrite the commit message to describe every change and why it is safe. Before removing the probe, I would also verify that the application still exposes /healthz and that there is an alternative health-monitoring path.

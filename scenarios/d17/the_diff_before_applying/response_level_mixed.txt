@@ -1,0 +1,9 @@
+This diff does more than the commit message says. There are three changes here, and only one of them is documented.
+
+The image tag goes from v1.2.3 to v1.2.4, which is what the message describes. That part is routine.
+
+The replicas change from 3 to 1 is not mentioned. With one replica there is no redundancy — if that pod goes down, the service is down until Kubernetes brings it back. That seems like a significant operational change to slip into an image update.
+
+The livenessProbe removal is also not mentioned. The probe was hitting /healthz every 5 seconds, so without it Kubernetes won't be checking whether the app is actually responding. That removes a layer of health checking.
+
+The commit message should be updated to mention all three changes before this is merged — right now a reviewer scanning the message would only expect the image bump. I'd ask the author to fix the message and then this is probably fine to approve, assuming v1.2.4 is a normal patch release.

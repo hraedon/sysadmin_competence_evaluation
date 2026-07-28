@@ -1,0 +1,19 @@
+I recommend conditional approval. The proposal makes a real tradeoff — lower operational cost and faster API access versus reduced physical separation from the production environment — but it cannot be approved as written because several controls are missing.
+
+The first issue is that cloud object storage is not an air gap. A StorCloud bucket is network-attached and reachable with credentials. If ransomware or an insider gains access to the production network, identity platform, or the backup service account, the offsite copy can be attacked. Tape in a vault is offline unless physically mounted, so it survives a wider range of compromises.
+
+The second issue is that Object Lock immutability is configuration-dependent, not unconditional. Anyone holding the right administrative credentials — the svc_backup_replicate account, tenant admins, or someone who can rotate those credentials — can potentially disable the lock or modify retention. The proposal uses a single service account stored in a file on BACKUP01 with read/write access, which is a single point of failure.
+
+The third issue is buried in the retention numbers. The tape vault keeps offsite copies for 1 year; the cloud bucket specifies a minimum retention of 30 days and nothing else. That is not a like-for-like replacement — the offsite recovery window shrinks from a year to a month. Ransomware that dwells longer than 30 days leaves us no pre-infection copy to recover, and any corruption discovered more than a month late is unrecoverable. The Object Lock only protects objects during the retention window, so after 30 days there is neither protection nor data. Either the cloud retention must be extended to match the existing 1-year window, with the cost acknowledged, or the business must explicitly accept the reduced window.
+
+To make this acceptable I would require:
+- Separate credentials for the write path and any lock-management or policy-change path.
+- Scoped permissions so the backup account can write new objects but cannot delete objects or modify bucket policy during the retention window.
+- Credential storage in a dedicated credential manager, not a file on the backup server.
+- Alerts on bucket-policy changes, retention-lock tampering, and credential rotation.
+- Periodic restore tests from the cloud target, not just backup job success alerts.
+- A lifecycle policy extending cloud retention to the current 1-year offsite window, or a documented risk acceptance of the reduction.
+
+The restore assumption also needs quantification. A 1 Gbps link sounds fast, but restoring multiple terabytes will take hours and incur egress fees at the worst possible moment. RTO calculations must include download time and cost.
+
+Until these controls are committed to, this should not proceed.

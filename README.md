@@ -27,13 +27,14 @@ The exercises test reasoning, not recall. A candidate who has memorized the righ
 
 ```
 core/                    Shared JavaScript evaluator logic
-scenarios/               Exercise definitions and artifacts (60 scenarios across d01-d14)
+scenarios/               Exercise definitions and artifacts (61 scenarios across d01-d14, +20 d15, +3 d16-d18 pilots)
 
   d01-d11/               Standard technical domains
   d12/                   Linux Administration (3 synthesis scenarios)
-  d13/                   Cross-domain Synthesis
+  d13/                   Cross-domain Synthesis (3 scenarios)
   d14/                   Theory of Mind & Communication (5 scenarios)
   d15/                   Directing AI Agents (20 scenarios, synced from agentic-onboarding)
+  d16-d18/               New domains (Observability, MV DevOps, MV Database) — 1 pilot scenario each per Plan 001
 
 platform/
   frontend/              React + Vite SPA
@@ -57,7 +58,7 @@ Evaluations are performed by a shared core module (`core/evaluator.js`). It asse
 ### Calibration
 Every scenario must pass the calibration harness before deployment. The harness runs synthetic responses at each level through the evaluator and verifies that the returned level matches the expected level within a 0.5 margin.
 
-**Current Status:** 60 scenarios (d01-d14) + 20 d15 scenarios synced from [agentic-onboarding](../agentic-onboarding) = 80 total. Calibrated on Sonnet 4.6.
+**Current Status:** 61 scenarios (d01-d14) + 20 d15 scenarios synced from [agentic-onboarding](../agentic-onboarding) + 3 pilot scenarios for new domains d16–d18 = 84 total. Calibrated on Sonnet 4.6 (d16–d18 pilots: structural validation only; calibration runs pending API keys — see `calibration/README.md` model pinning policy).
 
 ### D15 content sync direction
 

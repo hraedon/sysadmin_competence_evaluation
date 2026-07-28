@@ -1,0 +1,10 @@
+Overall the alerting system is working reasonably well. The 30-day review shows that 87.4% of pages were eventually acknowledged, which is a solid number, and the median acknowledgment time of 22 minutes is within most SLA expectations. The 52 unacknowledged pages likely reflect cases where the responder saw the condition in the Slack channel first or where a teammate handled it before the on-call engineer got to the PagerDuty notification. I would not treat that as a critical issue on its own.
+
+The main problem is noise in the lower-priority channels. The #ops-alerts channel received 1,203 alerts in 30 days, which is about 40 per day, and the operations mailbox got 1,232 emails, of which 1,109 were backup success notifications. That volume makes it hard for the team to notice real issues.
+
+My first three interventions would be:
+1. Tune the CPU threshold from 90% to 95% and add a longer duration (10 minutes instead of 5) to reduce the 847 CPU alerts in Slack.
+2. Filter backup success emails into a dedicated folder or digest so they stop flooding the operations mailbox.
+3. Create a separate Slack channel for disk warnings so they don't get lost in CPU/memory noise.
+
+For the recent incidents, the database latency and certificate expiry cases show we need more coverage, not less. I would add explicit alerts for database read-only mode and certificate expiry escalation so those specific failure modes are caught earlier next time.

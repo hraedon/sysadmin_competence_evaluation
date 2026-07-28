@@ -1,0 +1,35 @@
+diff --git a/k8s/web-deployment.yaml b/k8s/web-deployment.yaml
+index 4a3f2c1..7b8e9d2 100644
+--- a/k8s/web-deployment.yaml
++++ b/k8s/web-deployment.yaml
+@@ -6,7 +6,7 @@ metadata:
+   labels:
+     app: web
+ spec:
+-  replicas: 3
++  replicas: 1
+   selector:
+     matchLabels:
+       app: web
+@@ -17,7 +17,7 @@ spec:
+     spec:
+       containers:
+       - name: web
+-        image: myregistry.example.com/webapp:v1.2.3
++        image: myregistry.example.com/webapp:v1.2.4
+         ports:
+         - containerPort: 8080
+         env:
+@@ -26,12 +26,6 @@ spec:
+             configMapKeyRef:
+               name: web-config
+               key: log_level
+-        livenessProbe:
+-          httpGet:
+-            path: /healthz
+-            port: 8080
+-          initialDelaySeconds: 10
+-          periodSeconds: 5
+         resources:
+           requests:
+             memory: "128Mi"

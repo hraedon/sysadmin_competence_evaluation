@@ -1,0 +1,89 @@
+================================================================================
+DATABASE SERVER INCIDENT REPORT
+================================================================================
+Incident ID:        INC-2026-0727-044
+Detected:           2026-07-27 09:15 UTC
+Server:             db-prod-01.internal
+Database Engine:    Microsoft SQL Server 2019 (15.0.4249.2)
+Affected Database:  orders
+Status:             Paged DBA; ETA 45 minutes
+================================================================================
+
+ALERT SUMMARY
+-------------
+Monitoring alert: Data volume (E:) on db-prod-01.internal is at 98.2% capacity.
+Database 'orders' is reporting error 9002: "The transaction log for database
+'orders' is full due to 'LOG_BACKUP'." Write operations are failing.
+
+Current disk usage on E: drive:
+  Total capacity:      500.0 GB
+  Used:              491.0 GB (98.2%)
+  Free:                9.0 GB
+
+DATABASE FILE SIZES
+-------------------
+File type          File name                    Size        Auto-growth
+---------          ---------                    ----        -----------
+Data (mdf)         orders_data.mdf               42.3 GB    10%, unlimited
+Log (ldf)          orders_log.ldf               437.2 GB    10%, unlimited
+
+The log file has grown from 38.2 GB on 2026-07-20 to 437.2 GB today — a gain of
+399.0 GB in seven days.
+
+DATABASE CONFIGURATION
+----------------------
+Recovery model:     FULL (confirmed from sys.databases)
+Compatibility:      150
+Last DBCC CHECKDB:  2026-07-13 02:00 UTC (clean)
+
+BACKUP CONFIGURATION
+--------------------
+Job name:             Nightly Full Backup - All Production DBs
+Schedule:             Daily at 02:00 UTC
+Type:                 Full backup only
+Last successful run:  2026-07-27 02:03 UTC
+Backup destination:   \\BACKUP01\SQLBackups\db-prod-01\
+Retention:            7 days
+
+Transaction log backup job: Not configured
+
+VM-LEVEL SNAPSHOT BACKUP
+------------------------
+Hypervisor:           Hyper-V host HV-PROD-03
+Snapshot schedule:    Nightly at 01:00 UTC
+Snapshot type:        Host-level VM checkpoint
+Last checkpoint:      2026-07-27 01:12 UTC
+Notes:                Snapshots taken while VM is running. No VSS writer or
+                      application-consistent backup agent is installed on the
+                      guest. Checkpoint type: standard (not production).
+
+READ REPLICA
+------------
+Replica server:       db-replica-01.internal
+Replication mode:   Asynchronous read replica of 'orders'
+Replication state:  Synchronized
+Last synced:        2026-07-27 09:14 UTC (approx. 1 second lag)
+Used for:           Reporting queries
+Failover target:    No automatic failover configured
+
+RECENT CHANGES
+--------------
+2026-07-20 18:30 UTC: Application deployment APP-2026.07.20-3 deployed to the
+                      web-prod tier. Release notes state: "Improved batch
+                      processing for order fulfillment."
+
+2026-07-20 19:00 UTC: Operations team noted a sustained increase in database
+                      write volume starting at 19:05 UTC. Write rate remained
+                      elevated through 2026-07-27.
+
+OPERATOR NOTES
+--------------
+09:20 UTC: Disk usage still climbing. Log file grew 2.1 GB in the last five
+           minutes. Application team reports order-processing errors.
+
+09:25 UTC: DBA paged; estimated arrival 45 minutes. No log backups have ever
+           been configured for the 'orders' database.
+
+================================================================================
+END OF REPORT
+================================================================================

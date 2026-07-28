@@ -1,0 +1,9 @@
+There are several concerns with this proposal.
+
+First, a cloud object-storage bucket is not the same as an offline tape vault. It is reachable over the production network, so if an attacker gets into the environment they could potentially access or delete the offsite copy. Tape in a vault is physically disconnected unless someone mounts it.
+
+Second, the immutability claim depends on Object Lock, which is a configuration. If someone has admin rights to the StorCloud tenant or the backup account, they could potentially disable the lock or delete objects. The single service account (svc_backup_replicate) with read/write access is a concentration of risk.
+
+Third, restore performance may not be as good as claimed. Restoring large amounts of data over a 1 Gbps link will take time, and egress charges could be significant during an incident.
+
+These issues need to be addressed before the proposal goes ahead. The team should look at tighter credential handling and possibly keeping tape for a transition period.

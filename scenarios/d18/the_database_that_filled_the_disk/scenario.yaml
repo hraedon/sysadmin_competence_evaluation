@@ -1,0 +1,87 @@
+schema_version: 2.0
+id: d18-the-database-that-filled-the-disk
+title: The Disk, Not the Database
+domain: 18
+domain_name: "Minimum Viable Database Administration"
+level: 2
+delivery_modes:
+  - A
+difficulty: 3
+presentation:
+  modes:
+    A:
+      type: log_extract
+      artifact_file: scenarios/d18/the_database_that_filled_the_disk/incident_report.txt
+      context: |
+        The monitoring system has paged you for db-prod-01.internal: the data
+        volume is at 98% and the `orders` database is refusing writes with
+        error 9002 ("The transaction log for database 'orders' is full due to
+        'LOG_BACKUP'"). The DBA has been paged and will arrive in approximately
+        45 minutes.
+
+        Review the incident report and answer:
+        (1) What is the immediate cause of the disk exhaustion?
+        (2) Why is the nightly VM-level snapshot not a reliable database
+            backup on its own?
+        (3) Why is the read replica on db-replica-01 not a backup?
+        (4) What should happen before the DBA arrives and what must the DBA
+            or application team fix once on-site?
+rubric:
+  findings:
+    - id: transaction_log_growth_from_missing_log_backups
+      description: |
+        The `orders` database is in FULL recovery model but no transaction log backups are configured. In FULL recovery, SQL Server preserves every committed transaction in the log until a log backup confirms those changes are captured elsewhere. With only nightly full backups, the log cannot truncate and grows without bound. The disk usage report confirms this: the log file (`orders_log.ldf`) has grown from 38.2 GB on 2026-07-20 to 437.2 GB on 2026-07-27 — a 399 GB gain in seven days — and now consumes 87% of the data volume. The error 9002 text explicitly states the log is full due to 'LOG_BACKUP'.
+      severity: critical
+      miss_signal: |
+        Candidate treats the disk-full condition as a generic capacity problem and recommends only extending the data volume or shrinking/truncating the log file, without identifying that the root cause is the missing log-backup schedule under FULL recovery. Or: candidate identifies FULL recovery but does not connect it to log growth, or suggests deleting log files to free space.
+      learning_note: |
+        A database transaction log is not a circular buffer in FULL recovery model. It is the durability mechanism and cannot be reused until the database engine has confirmation that the covered transactions are captured in a backup. Deleting or shrinking the log without fixing the backup configuration is a temporary measure at best and can compromise recovery capability at worst.
+      type: critical
+    - id: vm_snapshot_is_not_reliable_database_backup
+      description: |
+        The nightly VM checkpoint is taken while the SQL Server VM is running and no application-consistent (VSS) backup agent is installed. A host-level snapshot captures memory and disk state at an instant; if the database is mid-transaction, the snapshot can contain torn pages, partially written log records, and uncommitted changes flushed to disk. The database may start after restore and may even appear healthy while containing subtle corruption. A reliable database backup requires database-native consistency — a checkpoint coordinated with the engine, a VSS writer, or a native `BACKUP DATABASE` command — so the backup represents a transaction-consistent point in time.
+      severity: critical
+      miss_signal: |
+        Candidate treats the nightly VM snapshot as a usable database backup and argues that the database can be recovered from it, without addressing crash consistency. Or: candidate identifies that snapshots are "not ideal" but does not explain why a running database snapshot may capture an inconsistent state.
+      learning_note: |
+        VM-level snapshots protect infrastructure, not necessarily database state. A snapshot that happens to catch a quiescent moment may be lucky; one that catches a checkpoint or active transaction is not. The only reliable database backup is one the database engine knows about and coordinates.
+      type: critical
+    - id: read_replica_is_not_a_backup
+      description: |
+        db-replica-01 is an asynchronous read replica of `orders`. It replicates state changes in near real time. If a table is dropped, data is corrupted by a bad query, or files are encrypted by ransomware on the primary, those changes propagate to the replica. A replica provides read scaling and availability (promotion on primary failure), but it does not provide point-in-time recovery or protection against logical data loss. Recovery from data-level corruption requires a separate backup with point-in-time capability stored on infrastructure with separate credentials.
+      severity: high
+      miss_signal: |
+        Candidate points to the read replica as a recovery option for data loss or corruption, without recognizing that it replicates destructive changes. Or: candidate treats replica lag as a backup window without explaining why replication is not a recovery mechanism.
+      learning_note: |
+        A read replica and a backup solve different failure modes. The replica protects against primary hardware or service failure. A backup protects against data being wrong — corruption, deletion, encryption — and enables recovery to a specific point in time.
+      type: secondary
+    - id: emergency_vs_root_cause_remediation
+      description: |
+        The immediate remediation has two phases. Emergency: restore write capability by extending the data volume (or, only if safe and with DBA guidance, adding a one-time log backup and shrinking the log). This buys time but does not fix the underlying cause. Root cause: configure regular transaction log backups on a schedule appropriate to the workload and RPO — typically every 5 to 15 minutes for a business-critical database — so the log truncates and point-in-time recovery is available. A response that only extends disk space will repeat the outage.
+      severity: high
+      miss_signal: |
+        Candidate recommends only extending the disk and declares the incident resolved, without addressing the missing log-backup configuration. Or: candidate recommends shrinking the log file without establishing a backup schedule.
+      learning_note: |
+        Disk extension is a valid emergency measure, not a root-cause fix. The log will fill the new space if the recovery model and backup configuration remain unchanged.
+      type: secondary
+    - id: monitoring_gap_log_backup_success_not_tracked
+      description: |
+        The monitoring stack alerts on disk utilization and service availability, but there is no alert for "transaction log backup has not succeeded in N minutes" or "log file growth rate is abnormal." The leading indicator for this failure mode is log backup health, not disk percentage. By the time disk utilization reaches 98%, the outage has already occurred and the remediation window is narrow.
+      severity: moderate
+      miss_signal: |
+        Candidate recommends monitoring disk utilization more closely or lowering the disk-alert threshold without identifying that the useful leading indicator is log-backup success and log growth rate, not disk percentage.
+      learning_note: |
+        Disk utilization is a lagging indicator for log growth. The alert that prevents the outage is one that fires when log backups stop or the log grows faster than the backup schedule can truncate it.
+      type: secondary
+  level_indicators:
+    level_1: |
+      Treats the incident as a generic disk-full problem. Recommends extending the data volume or deleting/shrinking the log file to free space. Does not connect FULL recovery model to log growth, or suggests the log file can simply be cleared. Views the nightly VM snapshot as a usable backup and may point to the read replica as a recovery option. Does not distinguish emergency relief from root-cause remediation.
+    level_2: |
+      Identifies that the `orders` database is in FULL recovery model with only nightly full backups and no transaction log backups, which is why the log has grown to fill the disk. Explains that the VM snapshot of a running database without an application-consistent backup agent may capture an inconsistent state and is not a reliable database backup. Explains that the read replica replicates destructive changes and is not a backup. Recommends both emergency relief (extend disk or add a one-time log backup with DBA guidance) and root-cause remediation (regular log backups on a frequent schedule). Does NOT identify the monitoring gap — that log-backup success, not disk utilization, is the leading indicator.
+    level_3: |
+      All of the above plus: specifies a concrete log-backup schedule and retention policy appropriate to the workload (e.g. log backups every 15 minutes, 7-day local retention, offsite copy to separate infrastructure). Notes that the full-backup schedule may also need adjustment. Specifies database-native restore-test success criteria beyond "database starts" — point-in-time restore verification, consistency check, and application connectivity. Does NOT identify the monitoring gap — that log-backup success, not disk utilization, is the leading indicator — and does NOT reason about the time pressure and DBA arrival window, or make a defensible call about whether to wait for the DBA versus performing an emergency disk extension now.
+    level_4: |
+      All of the above plus: identifies the monitoring gap and proposes an alert on log-backup age or log growth rate — the leading indicator, where disk utilization is the lagging one. Triages under the constraint that the DBA is 45 minutes away and the log is growing at a measured rate. Estimates remaining runway from the current free space and growth trend, noting that those figures come from the 09:15–09:20 window and the situation may already be worse by the time of review, and uses that estimate to make a defensible call about whether the disk can wait for the DBA or whether an emergency disk extension is warranted now. Articulates the tradeoffs of taking emergency action without the DBA (risk of interrupting a running transaction, possible need for later log file management) versus waiting (risk of hitting 100% and a hard outage). Communicates what information the DBA will need on arrival and what the application team should be told about the batch deployment that coincided with the growth inflection.
+  mixed_signal:
+    expected_level: 2.5
+    description: "Catches the log-growth and VM-snapshot findings but conflates replica promotion with restore capability, and frames the remediation as 'extend disk and ask the DBA to set up log backups' without specifying schedule, retention, or monitoring"

@@ -1,0 +1,67 @@
+schema_version: 2.0
+id: d17-the-diff-before-applying
+title: The Diff Before Applying
+domain: 17
+domain_name: "Minimum Viable DevOps: Git, Containers, Orchestration"
+level: 2
+difficulty: 3
+delivery_modes:
+  - A
+presentation:
+  modes:
+    A:
+      type: diff
+      artifact_file: scenarios/d17/the_diff_before_applying/deployment_diff.txt
+      context: |
+        A teammate has opened a pull request with the commit message "update image to v1.2.4".
+        You are reviewing the diff before approving the merge.
+
+        Describe what this diff will actually do when applied, identify anything the commit
+        message does not mention, and assess the risk of each change.
+rubric:
+  findings:
+    - id: liveness_probe_removed
+      description: |
+        The diff removes the entire livenessProbe section from the container spec. The probe was configured to HTTP GET /healthz on port 8080 every 5 seconds after an initial 10-second delay. Removing it means Kubernetes will no longer detect when the container is running but not responding. A hung process will stay in Running state indefinitely; Kubernetes will not restart it automatically. This is a high-risk operational change that is not mentioned in the commit message.
+      severity: critical
+      miss_signal: |
+        Candidate reads only the image tag change because that is what the commit message mentions. Candidate misses the livenessProbe removal entirely, views it as benign cleanup, or does not connect it to loss of self-healing. Any response that does not explicitly state that removing the probe disables hung-container detection has missed this finding.
+      type: critical
+    - id: replicas_reduced_undocumented
+      description: |
+        The diff changes replicas from 3 to 1. This removes the deployment's redundancy: a single node failure, pod eviction, or container crash now produces a service outage until the controller reschedules and restarts the sole pod. The change also increases blast radius during rollouts and image pulls. Like the probe removal, it is not mentioned in the commit message.
+      severity: high
+      miss_signal: |
+        Candidate misses the replicas change entirely, or notes it in passing without recognizing that 3→1 removes redundancy and increases outage risk. Candidate treats the change as minor capacity tuning rather than an undocumented operational change.
+      type: secondary
+    - id: commit_message_scope_creep
+      description: |
+        The commit message says only "update image to v1.2.4", but the diff makes three changes: image tag update, replica count reduction, and liveness probe removal. Two of the three changes are not described in the message. This is the scope-creep pattern: the change does more than it says, and the undocumented parts are the ones most likely to cause an incident. A reviewer relying on the commit message would not expect the redundancy and self-healing changes.
+      severity: moderate
+      miss_signal: |
+        Candidate accepts the commit message at face value and concludes the diff is a routine version bump. Candidate does not flag that the message understates the diff or that undocumented changes are present.
+      type: secondary
+    - id: combined_failure_mode
+      description: |
+        The two undocumented changes compound each other. With replicas=1, there is no redundant pod to maintain service during a failure. With no livenessProbe, there is no mechanism to detect and restart a hung sole pod. Together they create a single-point-of-failure with no self-healing: a hung or crashed single pod produces a complete, unrecovered outage until a human intervenes or an external monitor triggers a restart. The combined risk is greater than either change in isolation.
+      severity: high
+      miss_signal: |
+        Candidate discusses the replicas change and the probe removal as separate concerns but does not describe how they interact. Candidate does not articulate that the combination of one replica and no liveness probe produces a single hung pod that takes down the service with no automatic recovery.
+      type: secondary
+    - id: image_tag_only_documented_change
+      description: |
+        The image tag change from v1.2.3 to v1.2.4 is the only change accurately described by the commit message. It is a routine update, but it should still be verified: v1.2.4 must exist in the registry, the application must still expose /healthz if the probe were retained, and the change should have a rollback plan. This finding credits candidates who correctly identify the one change that matches the message without letting it distract from the undocumented changes.
+      severity: low
+      type: secondary
+  level_indicators:
+    level_1: |
+      Reads only the image tag change because that is what the commit message mentions. Accepts the message at face value and concludes the diff is a routine version bump. May note the replicas change in passing but treats it as minor capacity tuning. Misses the livenessProbe removal entirely or views it as benign cleanup. Does not flag that the commit message understates the diff.
+    level_2: |
+      Identifies all three changes: image tag v1.2.3→v1.2.4, replicas 3→1, and livenessProbe removed. Recognizes that replicas 3→1 removes redundancy and is not mentioned in the commit message. Recognizes that removing livenessProbe disables Kubernetes' ability to detect and restart a hung container. Concludes the commit message is misleading and the diff contains undocumented risk. Does NOT explain how the two undocumented changes compound each other, and does not frame the diff as a scope-creep incident requiring rejection or rewrite.
+    level_3: |
+      All of the above plus: explains the operational impact of each change individually — fewer replicas means a single node or pod failure is now a service outage; no liveness probe means a hung container will stay in Running state indefinitely without being restarted. Notes that the diff bundles three changes under one commit message, making rollback harder and obscuring intent, and recommends updating the message or splitting the changes. Recommends verifying that v1.2.4 exists and that the application still exposes /healthz. Does NOT identify the combined failure mode: with replicas=1 AND no liveness probe, a single hung pod produces a complete, unrecovered outage.
+    level_4: |
+      All of the above plus: identifies the compounding risk — the combination of replicas=1 and no liveness probe creates a single-point-of-failure with no self-healing, so a hung sole pod produces a complete outage until a human intervenes. Frames the diff as a scope-creep incident that should be rejected or rewritten: the commit message says one thing and the diff does three, two of which are high-risk operational changes not mentioned in the message. Recommends splitting the changes into separate commits with clear rollback plans, or at minimum rewriting the commit message to describe every change and its rationale.
+  mixed_signal:
+    expected_level: 2.5
+    description: "Identifies the probe removal and the replicas reduction with partial operational depth, and flags that the commit message understates the diff — but treats the message as a fixable paperwork issue rather than a scope-creep pattern, does not describe how the two undocumented changes interact, and makes no verification or rollback recommendations"

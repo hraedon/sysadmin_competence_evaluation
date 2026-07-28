@@ -1,0 +1,12 @@
+The alerting system has two serious problems, both centered on the paging tier.
+
+First, 52 pages out of 412 were never acknowledged. Without an escalation policy, those alerts disappeared. That is a broken contract. Second, the paging tier is carrying alerts that should not be pages. The median acknowledgment time is 22 minutes, and 142 pages were acknowledged after 30 minutes. CPU, memory, and disk thresholds make up 368 of the 412 pages. If an alert can wait 30 minutes, it should not be waking someone up.
+
+The Slack channel is also a mess: 1,203 alerts in 30 days, mostly CPU and memory thresholds. Team members have muted it, which means it is functioning as noise rather than signal.
+
+My first three interventions:
+1. Move infrastructure threshold alerts out of the paging tier and add escalation for unacknowledged pages.
+2. Audit the 52 unacknowledged pages to find out which ones are being ignored and either fix ownership or remove them.
+3. Clean up the Slack channel by consolidating related threshold alerts.
+
+There are also a lot of emails — over 1,200 in 30 days — but most of those are backup success emails, which at least show the backups are running. That feels like a lower priority than the paging tier problems. The main thing is to get the urgent channel working again.

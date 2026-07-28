@@ -147,7 +147,15 @@ if (args.includes('--list-models')) {
 
 function getArg(flag, defaultValue = null) {
   const i = args.indexOf(flag)
-  return i !== -1 ? args[i + 1] : defaultValue
+  if (i === -1) return defaultValue
+  const value = args[i + 1]
+  // Guard: a flag followed by another flag (or end of args) means the value
+  // was omitted — fail loudly instead of silently treating "--level" as the value.
+  if (value === undefined || value.startsWith('--')) {
+    console.error(`Error: ${flag} requires a value.`)
+    process.exit(2)
+  }
+  return value
 }
 
 function getArgs(flag) {

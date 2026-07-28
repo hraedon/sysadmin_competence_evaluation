@@ -1,0 +1,14 @@
+The responder contract is broken in the paging tier, and the lower tiers are degraded by noise. The numbers make this a capacity problem, not just a tuning problem.
+
+First, 52 of 412 pages were never acknowledged. With no escalation policy, those pages disappeared. A page that gets no response is the same as no page at all. Second, 142 more pages were acknowledged after 30 minutes, and the median acknowledgment time is 22 minutes. CPU, memory, and disk threshold breaches account for 368 of 412 pages. Alerts that can wait half an hour should not be pages; they should be notifications or dashboard metrics.
+
+The load is also unsustainable for the team. A four-person rotation received 412 pages in 30 days, which is roughly 13.7 pages per on-call day. Total alert volume is about 95 alerts per day across all channels. When nearly half of all pages are acknowledged after 30 minutes or never, the volume has exceeded the team's triage capacity.
+
+The notification channel is swamped: 1,203 Slack alerts in 30 days, 847 of them CPU thresholds. That is roughly 28 CPU alerts per day. The channel has been muted, which is the expected response to that volume. The email channel has a different problem: 1,109 backup success notifications mixed with 123 disk space warnings in the same operations mailbox. When routine success traffic shares a channel with actionable warnings, responders process every message as routine. Warnings get buried in success noise.
+
+My first three interventions, ordered by impact:
+1. Reassign tier. Move CPU, memory, and disk threshold breaches out of the paging tier unless a runbook explicitly says they require immediate action. Make them notifications or dashboard metrics. Add an escalation policy so unacknowledged pages reach a secondary responder within a defined window.
+2. Separate signal from noise in email. Route backup success emails to a dashboard or daily digest; route backup failures and disk warnings to a distinct owner with a defined escalation path. The success/failure mixture in one mailbox is why warnings are missed.
+3. Clean up the notification channel. Consolidate repetitive threshold alerts and remove orphaned rules for decommissioned systems so the channel becomes readable again.
+
+The two recent user-discovered incidents are consistent with this pattern: the real signals existed but were buried in noise or reached a channel that nobody reads.

@@ -1,0 +1,14 @@
+The alerting contract with responders is broken in two places, both in the paging tier.
+
+First, 52 pages out of 412 were never acknowledged. A page that fires and gets no response is operationally the same as no alert at all — the contract was invoked but the counterparty did not show up. With no escalation policy configured, those alerts simply vanish. That is the most serious finding.
+
+Second, the paging tier is carrying alerts that do not need immediate attention. The median acknowledgment time is 22 minutes, and 142 pages (over a third) were acknowledged after 30 minutes. CPU, memory, and disk threshold breaches account for 368 of the 412 pages. An alert that can wait 30 minutes should not be waking someone up. These belong in a notification channel or on a dashboard, not in the paging tier.
+
+The notification channels need attention too, but the paging tier should be fixed first because unacknowledged and delayed pages are the failures that let real incidents slip through.
+
+My first three interventions, ordered by impact:
+1. Stop routing infrastructure threshold breaches (CPU, memory, disk) to the paging tier. Move them to the notification channel or a dashboard unless a runbook says they require immediate action. Add escalation for unacknowledged pages.
+2. Review the 52 unacknowledged pages to identify which alerts are being ignored and why; either fix ownership or remove them.
+3. Re-triage the 142 pages that were acknowledged after 30 minutes — anything that can wait half an hour moves out of the paging tier to a notification channel with a named owner.
+
+The email volume and backup success traffic are also high, but they are lower impact than a paging tier that people have stopped trusting.

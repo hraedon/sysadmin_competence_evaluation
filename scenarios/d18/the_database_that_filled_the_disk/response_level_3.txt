@@ -1,0 +1,12 @@
+The disk exhaustion is caused by missing transaction log backups under FULL recovery. SQL Server preserves committed transactions in the log until a log backup confirms they are captured elsewhere. With only nightly full backups, the `orders` log cannot truncate and has grown from 38.2 GB to 437.2 GB in seven days. Error 9002 confirms this by naming 'LOG_BACKUP' as the reason the log is full.
+
+The nightly VM snapshot is not a reliable database backup because it is a host-level checkpoint of a running VM with no VSS writer or application-consistent backup agent. It can capture an inconsistent state — torn pages, partial log writes, uncommitted data — and may restore to a database that starts but is silently corrupt. Only a database-native backup or a VSS-coordinated backup guarantees consistency.
+
+The read replica is not a backup either. db-replica-01 replicates state changes asynchronously with a one-second lag. Destructive changes on the primary — dropped tables, corrupting queries, ransomware encryption — will propagate to the replica almost immediately. A replica provides read scaling and availability, not point-in-time recovery.
+
+Immediate remediation should be split into emergency and root-cause work:
+
+1. Emergency: extend the E: drive now to restore write capability, or add a one-time log backup and carefully shrink the log only if the DBA approves it remotely.
+2. Root cause: implement a transaction log backup schedule. For a database that grew 399 GB in a week, I would start with log backups every 15 minutes, retaining at least 24 hours locally and copying logs to separate offsite storage. The nightly full backup can remain, but a weekly differential would reduce recovery time.
+
+Restore testing must verify more than "the database starts." A valid restore test includes: restoring to a specific point in time, running a consistency check (DBCC CHECKDB or equivalent), comparing row counts or checksums against a known-good reference, and confirming the application can connect and execute queries.

@@ -1,0 +1,9 @@
+The disk is full because the transaction log has grown to 437 GB. The `orders` database is in FULL recovery model, and without log backups the log cannot truncate. That is the root cause.
+
+The VM snapshot is not a reliable database backup because it captures the running VM without any application-consistent backup coordination, so it could include partial transactions.
+
+The read replica is a problem. It is synchronized almost in real time, so if something bad happens on the primary it will happen on the replica too. I would not rely on it as a backup.
+
+To fix this, I would extend the E: drive immediately and then ask the DBA to configure log backups once they arrive. That should stop the log from growing out of control again. I would also keep an eye on the batch process from the recent application deployment in case it is writing more data than expected.
+
+The read replica could potentially be used for a quick restore if the primary completely fails, but it is not the same as a real backup.

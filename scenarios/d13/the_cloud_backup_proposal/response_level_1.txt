@@ -1,0 +1,7 @@
+I would approve the proposal. The cost savings are significant — $42,000 per year — and cloud storage is faster to recall than waiting for a courier. The Object Lock feature means the backups are immutable, so ransomware can't delete them. Encryption in transit and at rest addresses the security concerns.
+
+The main thing to watch is egress cost when we restore, but that is only paid when we actually need the data. Compared to ongoing tape and vault costs it is probably still cheaper. I would make sure the backup job success alerts are enabled and maybe store the credential in the password vault instead of a file.
+
+The internet dependency is a risk, but our connection is 1 Gbps and reliable, and StorCloud manages availability. The single service account should be fine for a backup automation account. Thirty days of immutable cloud copies should cover anything we would realistically need to restore — if something breaks, we would know within a few days.
+
+Overall this is a modernization move that saves money and improves restore speed. I would approve it for all production systems on the proposed schedule.

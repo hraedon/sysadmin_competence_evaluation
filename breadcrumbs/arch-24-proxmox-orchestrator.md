@@ -4,7 +4,16 @@
 Medium
 
 ## Status
-**IMPLEMENTED (2026-07-10).** Full async implementation with aiohttp. See WI-002.
+**CLOSED — SUPERSEDED (2026-07-28).** Full async implementation with aiohttp
+landed 2026-07-10 (WI-002, 101 tests passing). Same day, the owner decided to
+standardize on **Hyper-V** as the only lab hypervisor, aligning with the
+windows-evidence-lab project's typed orchestration protocol and PowerShell
+command boundary rather than maintaining a second hypervisor backend. The
+Proxmox orchestrator is retained in-tree as a working reference implementation
+of `orchestrator_base.py` but is no longer a production path; known-unvalidated
+form-encoding details (noted in the 2026-07-10 reflection) are moot unless the
+backend is revived. Follow-up: Hyper-V/evidence-lab orchestration alignment is
+tracked as a new work item (WI-006).
 
 ## Location
 `platform/lab-controller/app/orchestrator_proxmox.py`

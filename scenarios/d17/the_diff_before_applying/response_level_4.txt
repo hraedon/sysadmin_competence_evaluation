@@ -1,0 +1,11 @@
+The commit message says "update image to v1.2.4", but the diff makes three changes, two of which are undocumented and materially change the operational posture of the deployment.
+
+Image tag change (v1.2.3 → v1.2.4): this is the only change the message describes. It is a routine patch update, but it still needs verification — the v1.2.4 image must exist in the registry, and there should be a rollback path if the new version fails.
+
+Replicas change (3 → 1): this removes redundancy. With three replicas, the service tolerates the loss or restart of one pod. With one replica, a node failure, pod eviction, or container crash is a service outage until the controller reschedules and restarts the sole pod. This also makes rollouts riskier: a single failing new pod means zero healthy replicas.
+
+Liveness probe removal: the probe checked /healthz on port 8080 every 5 seconds after a 10-second startup delay. Removing it means Kubernetes can no longer detect a hung container and will not restart it automatically.
+
+The two undocumented changes compound each other. With replicas=1 there is no redundant pod to maintain service during a failure, and with no livenessProbe there is no mechanism to detect and restart a hung sole pod. Together they create a single-point-of-failure with no self-healing: if the one pod hangs, the service is down and will stay down until a human intervenes or an external monitor triggers action. The combined risk is greater than either change in isolation.
+
+This diff should be rejected or rewritten as a scope-creep incident. The commit message says one thing and the diff does three, two of which are high-risk operational changes not mentioned in the message. The correct path is to split the changes into separate commits — one for the image update, one for the replica change with a capacity justification, and one for the probe removal with a clear explanation of what will replace its function — each with its own rollback plan. At minimum, the commit message must be rewritten to describe every change and its rationale before the merge is approved.

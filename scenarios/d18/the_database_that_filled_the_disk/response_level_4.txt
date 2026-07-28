@@ -1,0 +1,14 @@
+The immediate cause is missing transaction log backups under FULL recovery. The `orders` log grew 399 GB in seven days because SQL Server cannot truncate committed transactions without a log backup. Error 9002 names 'LOG_BACKUP' as the reason the log is full, so the diagnosis is unambiguous.
+
+The VM-level snapshot is not a reliable database backup: it is a host checkpoint of a running VM with no VSS writer, so it can capture an inconsistent database state. The read replica is not a backup because replication propagates destructive changes in near real time; it provides availability, not recoverability.
+
+Triage under the current constraints: the DBA is 45 minutes away and the log is growing at roughly 2.1 GB every five minutes, or about 25 GB per hour. With 9 GB free, the volume will hit 100% in approximately 20 minutes if the growth rate holds — and those figures come from the 09:15–09:20 window, so the real runway is already shorter by the time I act on them. Waiting for the DBA is not a safe option. The defensible emergency action is to extend the E: drive immediately. This restores write capability without touching the database engine and gives the DBA a stable target to work on when they arrive. I would not attempt a one-time log backup or shrink without the DBA, because the log is the durability mechanism and a mistake there can destroy recoverability.
+
+The root-cause remediation, which the DBA should own, is:
+- Take a log backup once the disk is expanded to truncate the accumulated log.
+- Configure recurring log backups every 15 minutes for this workload, with local retention that covers at least a full business cycle and an offsite copy on separate infrastructure with separate credentials.
+- Add weekly differentials to reduce recovery time, since replaying a week of 15-minute log files would be lengthy.
+
+I would also tell the application team that the 2026-07-20 batch-processing change coincides with the log-growth inflection; they should quantify whether the elevated write rate is expected, because the new backup schedule must be sized for the actual workload.
+
+The monitoring gap is the final piece. Disk utilization is a lagging indicator. The alert that prevents recurrence is one that fires when log backups stop or when log growth rate exceeds the truncation rate. The on-call playbook should be updated so the next incident is caught by a log-backup-age alert, not a disk-full page.

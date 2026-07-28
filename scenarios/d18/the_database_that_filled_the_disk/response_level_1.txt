@@ -1,0 +1,9 @@
+The immediate problem is that the data volume on db-prod-01 is nearly full. The database log file has grown to 437 GB, which is using most of the 500 GB volume, so we need to free up space quickly.
+
+For the root cause, I would check whether something changed recently. The application deployment on 2026-07-20 coincides with when the log started growing faster, so the new batch processing code is probably writing more data than before. The application team may need to throttle or optimize that process.
+
+To fix the immediate issue, I would expand the E: drive by adding more storage from the SAN. That gives the database room to keep running until the DBA arrives. If expansion is slow, shrinking the log file with a DBCC SHRINKFILE command would release space immediately.
+
+For backups, the nightly full backup is running successfully and the VM snapshot is also taken every night, so we have two recovery options if something goes wrong. The read replica on db-replica-01 is close to real time, so it could also be promoted if the primary fails. The important thing is to get the disk usage down so the application can write again.
+
+Before the DBA arrives I would extend the disk and monitor write volume. Once the DBA is on site they can look at whether the batch process needs tuning or whether the database needs a different recovery model.

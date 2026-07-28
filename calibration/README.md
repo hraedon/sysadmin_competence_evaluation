@@ -108,6 +108,30 @@ failure in one run but passes cleanly in another, it is not a calibration proble
 re-run the scenario to confirm. If parse failures are frequent, check for API rate
 limiting or unusually long responses exceeding context.
 
+## Model pinning policy
+
+The evaluator model is a **pinned dependency**, not configuration. "Calibrated on
+Sonnet 4.6" silently recalibrates when the provider changes the weights behind an
+alias, so the following rules apply (Plan 001, pre-kickoff note #3):
+
+1. **Pin by exact ID in `run.mjs`'s `MODELS` registry.** Where the provider offers
+   a dated snapshot ID for the pinned model, use it instead of the floating alias.
+   Where only an alias exists, treat it as floating: re-validate calibration on any
+   provider-side model update announcement before trusting prior results.
+2. **A calibration results file is valid only for the exact `model` ID recorded in
+   it.** The harness already records `model` and `timestamp` in every results JSON;
+   do not cite a results file as evidence for any other model.
+3. **Changing the pinned model requires a full re-calibration pass before the new
+   model serves learners.** Update the "Calibrated on …" line in the repo README in
+   the same commit that changes the pin.
+4. **Profiles record the evaluator.** Evaluation results stored in capability
+   profiles must carry the model ID alongside `map_version` (Plan 001, pre-kickoff
+   note #6) — profiles scored under different evaluators or map versions are not
+   comparable.
+5. **Local models pin by quantization too.** The MLX model IDs in `MODELS` encode
+   quantization (e.g. `-6bit`); a different quantization of the same weights is a
+   different evaluator and recalibrates independently.
+
 ## Local model calibration
 
 The calibration harness supports local models via `--provider local` (default endpoint:

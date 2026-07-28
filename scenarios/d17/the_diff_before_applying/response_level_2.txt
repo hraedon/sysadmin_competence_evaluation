@@ -1,0 +1,9 @@
+The commit message says "update image to v1.2.4", but the diff actually makes three changes, not one.
+
+1. Image tag: v1.2.3 → v1.2.4. This is the only change the commit message describes.
+
+2. Replicas: 3 → 1. This removes redundancy. With three replicas, one pod can fail or be rescheduled while the service stays available. With one replica, any failure of that single pod is an outage until the controller replaces it. This change is not mentioned in the commit message.
+
+3. livenessProbe: removed entirely. The probe was checking /healthz on port 8080 every 5 seconds after a 10-second startup delay. Removing it means Kubernetes will not detect a hung container and will not restart it automatically. A process that is running but not responding will stay in Running state. This change is also not mentioned in the commit message.
+
+The main risk is that the commit message understates the diff. A reviewer who only reads the message would think this is a routine image update and would not expect a redundancy reduction and loss of self-healing. I would not approve this as-is — the message needs to describe all three changes before this is safe to merge.

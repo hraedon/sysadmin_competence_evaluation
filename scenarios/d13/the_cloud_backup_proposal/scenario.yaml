@@ -1,0 +1,101 @@
+schema_version: 2.0
+id: d13-the-cloud-backup-proposal
+title: The Offsite Copy Moved Upstairs
+domain: 13
+domain_name: "Cross-domain Synthesis"
+level: 3
+delivery_modes:
+  - A
+difficulty: 4
+presentation:
+  modes:
+    A:
+      type: environment_description
+      artifact_file: scenarios/d13/the_cloud_backup_proposal/proposal.txt
+      context: |
+        The Infrastructure Optimization Team has submitted a proposal to replace
+        the offsite tape vault with replication to a cloud object-storage
+        service. The stated goals are cost reduction and faster recall.
+
+        Review the proposal and recommend whether to approve, conditionally
+        approve, or reject it. Your recommendation should give the reasoning
+        behind it: the specific risks you see, the controls that would have to
+        be in place for the design to be acceptable, and the tradeoffs you are
+        accepting by not choosing the alternative (retain tape).
+rubric:
+  findings:
+    - id: cloud_object_storage_is_not_an_air_gap
+      description: |
+        A cloud object-storage bucket reachable over the production network is not a physical air gap. It is a network-attached target protected by credentials and configuration. If an attacker gains access to the production network, identity platform, or backup service credentials, the offsite copy can be enumerated, modified, or deleted. The 3-2-1 rule's "different media / offsite" requirement is meant to survive a compromise of the primary site; a cloud bucket that shares authentication and network paths with production does not provide the same separation as an offline tape vault. The proposal's "cloud provider manages durability" argument addresses hardware failure, not adversarial compromise.
+      severity: critical
+      miss_signal: |
+        Candidate accepts the cloud offsite copy as equivalent to the tape vault because both are "offsite," without distinguishing network-attached storage from offline media. Or: candidate focuses only on vendor reliability or encryption and misses the trust-boundary problem.
+      learning_note: |
+        Offsite and air-gapped are not synonyms. Tape in a vault is offline unless physically mounted; cloud storage is online whenever credentials are valid. The threat model that justifies offsite copies includes ransomware and insider risk, not just datacenter failure.
+      type: critical
+    - id: immutability_is_credential_and_configuration_dependent
+      description: |
+        The proposal relies on "Object Lock" / immutable object storage to protect against ransomware. Object immutability is a configuration enforced by the storage service. It can be disabled, bypassed, or misconfigured by anyone holding the right administrative credentials — including the single service account (svc_backup_replicate), root/admin accounts on the cloud tenant, and anyone who can rotate or reset those credentials. Immutability is a useful control but it is not a substitute for credential separation, privilege restriction, and monitoring of configuration changes to the bucket policy and retention lock. The proposal treats immutability as a property of the storage, not as a conditional control that depends on identity and change management.
+      severity: critical
+      miss_signal: |
+        Candidate treats Object Lock / immutable buckets as sufficient ransomware protection without addressing who can disable the lock, who owns the credentials, and what happens if those credentials are compromised. Or: candidate identifies credential risk but does not connect it to the immutability claim.
+      learning_note: |
+        Immutability is a configuration, not a physical law. Its value depends on the identity and change controls around the configuration. A backup strategy that assumes immutability is unconditional has a single point of failure in administrative access.
+      type: critical
+    - id: restore_bandwidth_and_egress_affect_rto
+      description: |
+        The proposal assumes cloud storage enables faster recall than tape, but recall performance is bounded by internet bandwidth and egress throughput. Restoring multiple terabytes over a 1 Gbps symmetric link takes time, and egress fees add cost at the moment the organization is already under incident pressure. The current architecture keeps an on-site copy on BACKUP01 for the 30-day window; for restores within that window the cloud copy is not the primary path. For older restores or a site-loss scenario, RTO must account for download time and egress cost. The proposal does not quantify either.
+      severity: high
+      miss_signal: |
+        Candidate repeats the proposal's claim that cloud is "faster" than tape without calculating the impact of bandwidth and egress on large restores. Or: candidate discusses cost savings only in operational terms and misses incident-time egress and transfer time.
+      learning_note: |
+        Cloud storage is fast at the API layer; bulk restore is a bandwidth and egress problem. A backup architecture must be evaluated against its worst-case restore scenario, not its best-case API latency.
+      type: secondary
+    - id: credential_separation_and_blast_radius
+      description: |
+        The proposal uses a single service account (svc_backup_replicate) with read/write access to the offsite bucket. That account is a concentration of blast radius: if compromised, an attacker can overwrite or delete the offsite copy. Acceptable design would separate the write path (backup appliance writes new objects) from the delete/lock-management path, scope permissions to the minimum required, store credentials in a credential manager rather than on the backup server filesystem, and ensure the backup account cannot delete or modify immutable objects during the retention period. The blast-radius / reversibility framework from change management applies: a single credential with broad access has large blast radius and limited reversibility.
+      severity: high
+      miss_signal: |
+        Candidate notes the single service account as a risk but does not specify how permissions should be scoped or how credential separation should be implemented. Or: candidate recommends "better credentials" without explaining the principle of least privilege and separation of write/delete paths.
+      learning_note: |
+        Credential separation is not just having a dedicated account; it is ensuring that the account that can write backups cannot also delete them, disable retention, or manage the bucket policy.
+      type: secondary
+    - id: observability_gap_backup_success_vs_restore_test
+      description: |
+        The proposal's monitoring is limited to backup job success/failure. Job success means the backup file arrived at the destination; it does not verify that the file is restorable, uncorrupted, or accessible with the stored credentials. A complete observability design would add restore tests, object-integrity checks, and alerts for bucket-policy changes, credential rotation, and retention-lock tampering. The observability framework asks what signal would tell you the backup is usable; job success alone is insufficient.
+      severity: moderate
+      miss_signal: |
+        Candidate accepts job-success alerts as adequate monitoring without identifying the need for restore testing, integrity verification, or configuration-drift monitoring on the immutable bucket.
+      learning_note: |
+        An untested backup is functionally equivalent to no backup. For a cloud target, the test must include not just file presence but also restore path viability, egress path, credential validity, and object integrity.
+      type: secondary
+    - id: offsite_retention_window_reduced_unaddressed
+      description: |
+        The current architecture keeps offsite tape copies for 1 year; the proposed cloud bucket specifies only "Minimum retention: 30 days" with no maximum retention or lifecycle policy. The offsite recovery window therefore shrinks from 1 year to 30 days — a change the proposal never acknowledges or justifies. This defeats the offsite copy for several threat classes: ransomware with a dwell time over 30 days (the pre-dwell clean copy no longer exists), corruption or deletion discovered more than 30 days late, and any compliance or audit recall beyond 30 days. It also bounds the immutability claim: Compliance-mode Object Lock protects objects only within the retention window; after 30 days nothing retains or protects the data. Acceptable resolutions are an explicit lifecycle policy extending cloud retention to the existing 1-year window (with cost acknowledged), or a documented risk acceptance of the reduced window by a named owner.
+      severity: critical
+      miss_signal: |
+        Candidate does not compare the cloud bucket's 30-day minimum retention against the tape vault's 1-year retention, or reads "Minimum retention: 30 days" as adequate without noting that the offsite recovery window shrinks by 92%. Or: candidate discusses ransomware protection via Object Lock without noticing the lock (and the data) only lasts 30 days.
+      learning_note: |
+        "Minimum retention" in an immutability configuration is a deletion floor, not a retention guarantee — without a lifecycle policy the data may expire at the floor. Any change to a backup architecture must be checked for silent changes to the recovery window, because the window defines which incidents are recoverable at all.
+      type: critical
+    - id: change_management_blast_radius_of_target_migration
+      description: |
+        Changing the offsite target for all production systems at once is a high-blast-radius change. If the cloud target proves unreliable, misconfigured, or unreachable during a real incident, every protected system loses its offsite recovery path simultaneously. A lower-blast-radius approach is a phased rollout — for example, non-critical systems first, with a defined abort criterion and a rollback plan that can restore tape-based offsite copies within the existing RTO. The change-management framework asks what can go wrong and whether the change can be reversed before damage occurs.
+      severity: moderate
+      miss_signal: |
+        Candidate evaluates the proposal only on technical merits and does not address rollout strategy, blast radius, or rollback. Or: candidate recommends a phased rollout without explaining why it reduces blast radius or what the abort criteria should be.
+      learning_note: |
+        A backup target migration is a state change in the resilience architecture, not just a configuration update. The blast radius of getting it wrong is loss of recoverability for all systems at once.
+      type: secondary
+  level_indicators:
+    level_1: |
+      Evaluates the proposal primarily on cost savings and the claim that cloud is faster than tape. Approves or rejects based on a single dimension (e.g. "cloud is insecure" or "cloud is cheaper") without naming specific tradeoffs. Accepts Object Lock / immutable buckets as unconditional ransomware protection. Does not distinguish network-attached cloud storage from an offline tape vault. Recommends only generic controls like "encrypt it" or "monitor job success."
+    level_2: |
+      Identifies several concrete risks: that cloud storage is network-reachable and not a true air gap; that immutability depends on credentials and configuration; and that restore bandwidth and egress may affect RTO. Treats these risks as a checklist of concerns without synthesizing them into a recommendation or specifying the controls that would make a position defensible. Does NOT identify the offsite retention window reduction (1 year to 30 days), does not address monitoring beyond job success or credential scoping, and does not address rollout strategy.
+    level_3: |
+      Synthesizes across backup, security, cloud, and observability domains. Recommends a position (conditional approval or rejection) grounded in specific controls: separate credentials for write vs. lock-management paths, scoped permissions that prevent deletion during retention, credential storage outside the backup server, configuration-drift and bucket-policy-change monitoring, periodic restore tests from the cloud target, and an explicit resolution of the retention window reduction (extended cloud retention or documented risk acceptance). Quantifies the restore bandwidth/egress problem rather than accepting the "faster" claim. Explains that cloud offsite is a tradeoff — lower operational cost and faster API access, but reduced physical separation and dependency on credential/identity controls. Does NOT address the rollout strategy or migration blast radius, does NOT explicitly name the frameworks being used, and does NOT state what would change the recommendation.
+    level_4: |
+      All of the above plus: addresses the migration itself as a high-blast-radius change — a phased rollout with defined abort criteria and a rollback path to tape. Explicitly names the frameworks used — for example, blast radius / reversibility (change management), credential separation and risk acceptance (security reasoning), cloud-vs-physical approximation map (cloud primitives), RPO/RTO as design constraints (backup and recovery), and signal-to-noise / alert design (observability). Articulates what would change the recommendation: if credential separation and configuration-drift monitoring cannot be implemented, the proposal should be rejected because the cloud copy becomes a single-credential failure point; if the business will not fund retention beyond 30 days, the reduced recovery window must be explicitly accepted by a named risk owner or the proposal rejected. Frames the final position as a defensible judgment under organizational and budget constraints, not as the only correct answer.
+  mixed_signal:
+    expected_level: 2.5
+    description: "Identifies the air-gap gap and credential risk but accepts the proposal with only generic controls, missing the specific permission scoping, restore-test requirement, retention-window reduction, and phased-rollout blast-radius argument"

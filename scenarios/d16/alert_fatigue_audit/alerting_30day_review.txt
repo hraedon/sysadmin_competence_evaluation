@@ -1,0 +1,71 @@
+================================================================================
+MONITORING & ALERTING SYSTEM — 30 DAY REVIEW
+Review period: 2026-06-01 00:00 to 2026-06-30 23:59
+Generated: 2026-07-01 09:00
+On-call rotation: 4 engineers (one primary at a time)
+================================================================================
+
+EXECUTIVE SUMMARY
+-----------------
+Total alerts generated across all channels:        2,847
+  Paging tier (urgent, wake-someone-up):             412
+  Notification channel (ops team chat):            1,203
+  Email digest (operations mailbox):             1,232
+
+Average per day: 94.9 alerts
+Average pages per on-call day: 13.7 (one engineer carries the pager at a time)
+
+
+ALERT ROUTING SUMMARY
+---------------------
+
+1. Paging tier — on-call primary responder
+   Total pages: 412
+   Acknowledged in under 5 minutes:                    38   (9.2%)
+   Acknowledged in 5–30 minutes:                      180  (43.7%)
+   Acknowledged after 30 minutes:                     142  (34.5%)
+   Never acknowledged:                                 52  (12.6%)
+   Median time to acknowledge:                         22 minutes
+
+   Alert type breakdown:
+     CPU threshold breach (>90% for 5 min):           198
+     Memory threshold breach (>90% for 5 min):        124
+     Disk threshold breach (>85%):                     46
+     Health-check failure (3 consecutive failures):    44
+
+2. Notification channel — #ops-alerts
+   Total alerts: 1,203
+   CPU threshold breaches:                            847
+   Memory threshold breaches:                         286
+   Disk threshold breaches:                            70
+
+3. Email digest — operations@company.com
+   Total alerts: 1,232
+   Backup success notifications:                    1,109
+   Backup failure notifications:                         0
+   Disk space warnings:                               123
+
+
+CONTEXT NOTES
+-------------
+- CPU and memory thresholds are set at >90% for 5 minutes on all
+  application and database VMs.
+- Disk thresholds are set at >85% on all monitored hosts.
+- The backup tool sends a success email to operations@company.com after
+  every successful backup job and a failure email to the same mailbox.
+- No escalation policy is configured for unacknowledged pages.
+- The operations channel is muted by several team members during incident
+  response because "it scrolls too fast to read."
+
+
+RECENT INCIDENT HISTORY
+-----------------------
+2026-06-14 03:17 — Database write latency alert fired into the paging tier.
+                   Acknowledged after 47 minutes. Root cause: primary
+                   database had entered read-only mode after a failover.
+                   Detected by monitoring, discovered by users 3 hours
+                   later after reports of failed checkouts.
+
+2026-06-22 11:42 — Certificate expiry alert (30 days remaining) arrived in
+                   the operations mailbox. Not assigned to an owner. Renewed
+                   manually after a downstream service failed on 2026-06-25.

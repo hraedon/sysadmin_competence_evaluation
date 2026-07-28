@@ -11,7 +11,10 @@ const LEGACY_KEY = 'sysadmin_assessment_api_key'
 
 const IS_PRODUCTION = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1'
 const LOCAL_PROXY_ENDPOINT = '/llm-proxy/v1'
-const INTERNAL_LOCAL_ENDPOINT = 'http://192.168.1.28:1234/v1'
+// Dev default for the local LLM endpoint. Override per-machine via
+// VITE_LOCAL_LLM_ENDPOINT in platform/frontend/.env.local (gitignored);
+// the hardcoded fallback is the author's LM Studio host.
+const INTERNAL_LOCAL_ENDPOINT = import.meta.env.VITE_LOCAL_LLM_ENDPOINT ?? 'http://192.168.1.28:1234/v1'
 
 export const DEFAULT_SETTINGS = {
   provider: 'local',

@@ -1,0 +1,14 @@
+The responder contract is broken, but the root cause is not a one-time cleanup. The organization has accumulated alert rules faster than it has removed them, and the signal-to-noise ratio has degraded past the point where responders can act on what fires.
+
+The most severe finding is the 52 unacknowledged pages. A page that fires and gets no response is operationally the same as no alert; with no escalation policy, these alerts simply vanish. The second critical finding is that the paging tier is carrying non-urgent alerts: the median acknowledgment time is 22 minutes, 142 pages were acknowledged after 30 minutes, and infrastructure thresholds account for 368 of 412 pages. Alerts that can wait half an hour should not be pages.
+
+The capacity numbers confirm this. A four-person rotation received 412 pages in 30 days — roughly 13.7 pages per on-call day — and total alert volume is about 95 alerts per day across all channels. Nearly half of all pages are acknowledged after 30 minutes or never. That is not a tuning issue; it is a load that exceeds the team's ability to triage.
+
+The lower tiers are also degraded. #ops-alerts received 1,203 alerts, mostly CPU and memory thresholds, and several team members have muted it. The operations mailbox mixes 1,109 backup success emails with 123 disk warnings. When success and failure share a channel, every message is processed as routine and real warnings are buried.
+
+My first three interventions, ordered by impact:
+1. Reassign the paging tier. Move CPU, memory, and disk threshold breaches to notifications or dashboards unless a runbook explicitly requires an immediate response. Add escalation for unacknowledged pages. The goal is that every page is actionable and acknowledged quickly.
+2. Separate signal from noise in email. Route backup success emails to a dashboard or daily digest; route backup failures and disk warnings to a distinct owner with escalation. Success and failure must not share the same mailbox.
+3. Establish a signal-to-noise budget and governance process. Set a target page rate per responder, schedule a monthly alert-rule review to remove orphans and threshold drift, and create a post-incident feedback loop that converts every user-discovered incident into a specific rule change rather than a generic "improve monitoring" note. New alert rules must displace an existing rule or justify the additional volume.
+
+The tradeoff must be explicit: the organization will give up configured coverage on low-value alerts to regain effective coverage on things that actually fail. This only works if the governance process stays active, because the organizational pressure is always to add alerts and never to remove them.

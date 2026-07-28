@@ -1,0 +1,11 @@
+I would approve this proposal with some extra controls.
+
+The key risks are that the cloud bucket is not a true air gap — it is network-attached — and that the single service account is a concentration of risk. Object Lock helps, but it depends on credentials and configuration, so it is not absolute protection.
+
+To mitigate this I would:
+- Put the credential in the password vault instead of a file.
+- Enable monitoring on the backup job and the StorCloud bucket.
+- Restrict the service account permissions as much as possible.
+- Do a phased rollout instead of switching everything at once.
+
+The cost savings and faster recall are compelling. Tape is slow and expensive, and the cloud provider handles durability. I think the risks are manageable with the controls above, so I would approve the migration on the proposed schedule once the credential is moved and monitoring is in place.

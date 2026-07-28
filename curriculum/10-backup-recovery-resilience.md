@@ -3,6 +3,7 @@ domain: 10
 id: backup-recovery-resilience
 title: "Backup, Recovery & Resilience"
 subtitle: "The infrastructure that is irrelevant until it is the only thing that matters"
+reviewed: 2026-07-10
 ---
 
 # Domain 10: Backup, Recovery & Resilience

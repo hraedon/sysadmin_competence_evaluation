@@ -3,6 +3,7 @@ domain: 4
 id: certificate-pki-management
 title: "Certificate & PKI Management"
 subtitle: "Trust made material — and what happens when the human processes behind that trust fail"
+reviewed: 2026-07-10
 ---
 
 # Domain 4: Certificate & PKI Management

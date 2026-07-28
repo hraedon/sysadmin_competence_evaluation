@@ -3,6 +3,7 @@ domain: 6
 id: compute-architecture
 title: "Compute Architecture"
 subtitle: "From bare metal to orchestration — what each abstraction layer adds, costs, and hides"
+reviewed: 2026-07-10
 ---
 
 # Domain 6: Compute Architecture

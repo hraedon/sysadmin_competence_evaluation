@@ -3,6 +3,7 @@ domain: 12
 id: minimum-viable-linux-administration
 title: "Minimum Viable Linux Administration"
 subtitle: "Not Linux expertise — the functional floor for operating in environments you will actually encounter"
+reviewed: 2026-07-10
 ---
 
 # Domain 12: Minimum Viable Linux Administration

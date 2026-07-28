@@ -3,6 +3,7 @@ domain: 8
 id: security-reasoning
 title: "Security Reasoning"
 subtitle: "Security is risk management by another name — and most security failures are risk decisions made implicitly"
+reviewed: 2026-07-10
 ---
 
 # Domain 8: Security Reasoning

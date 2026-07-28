@@ -1,6 +1,6 @@
 # Sysadmin Competency Assessment Platform
 
-An interactive assessment platform built around the Modern Systems Administration Competency Map — a 14-domain framework with ~60 exercises testing applied reasoning rather than rote knowledge. The platform presents realistic scenarios (logs, scripts, change records, configuration artifacts), collects written responses, and evaluates them with an AI against calibrated rubrics.
+An interactive assessment platform built around the Modern Systems Administration Competency Map — an 18-domain framework with ~80 exercises testing applied reasoning rather than rote knowledge. The platform presents realistic scenarios (logs, scripts, change records, configuration artifacts), collects written responses, and evaluates them with an AI against calibrated rubrics.
 
 **Live:** https://learning.hraedon.com
 
@@ -8,7 +8,7 @@ An interactive assessment platform built around the Modern Systems Administratio
 
 ## What it tests
 
-The competency map divides sysadmin work into 14 domains. Each domain has exercises at Levels 1–4 (labels below are the map's canonical taxonomy; each domain names its own variant, e.g. "Script Audit", "Change Commission"):
+The competency map divides sysadmin work into 18 domains. Each domain has exercises at Levels 1–4 (labels below are the map's canonical taxonomy; each domain names its own variant, e.g. "Script Audit", "Change Commission"):
 
 | Level | Label | What it means |
 |-------|-------|---------------|
@@ -27,7 +27,7 @@ The exercises test reasoning, not recall. A candidate who has memorized the righ
 
 ```
 core/                    Shared JavaScript evaluator logic
-scenarios/               Exercise definitions and artifacts (58 scenarios across d01-d14)
+scenarios/               Exercise definitions and artifacts (60 scenarios across d01-d14)
 
   d01-d11/               Standard technical domains
   d12/                   Linux Administration (3 synthesis scenarios)
@@ -58,6 +58,14 @@ Evaluations are performed by a shared core module (`core/evaluator.js`). It asse
 Every scenario must pass the calibration harness before deployment. The harness runs synthetic responses at each level through the evaluator and verifies that the returned level matches the expected level within a 0.5 margin.
 
 **Current Status:** 60 scenarios (d01-d14) + 20 d15 scenarios synced from [agentic-onboarding](../agentic-onboarding) = 80 total. Calibrated on Sonnet 4.6.
+
+### D15 content sync direction
+
+The D15 curriculum chapter (`curriculum/15-directing-ai-agents.md`, once authored) is the **canonical source** for Domain 15 content — the level ladder, reasoning framework, and scope/boundary definition. D15 scenarios live in `scenarios/d15/` and were originally synced from agentic-onboarding; going forward the map chapter is canonical and agentic-onboarding syncs *from* it.
+
+**Sync direction:** `sysadmin_competence_evaluation/curriculum/15-directing-ai-agents.md` → `agentic-onboarding/curriculum/`
+
+Scenario files remain schema-compatible (Schema V2.0) and flow both directions. The teaching content in agentic-onboarding's curriculum files (`01-foundations.md`, `02-spec-literacy.md`, `03-composition-and-review.md`) is the source for the *pedagogy*, but the *domain definition* — level ladder, reasoning framework, scope/boundary — is canonical here. See `plans/001-curriculum-expansion.md`, pre-kickoff note #2.
 
 ---
 

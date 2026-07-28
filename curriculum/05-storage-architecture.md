@@ -3,6 +3,7 @@ domain: 5
 id: storage-architecture
 title: "Storage Architecture"
 subtitle: "Redundancy as probability management over time — not a binary protected/unprotected state"
+reviewed: 2026-07-10
 ---
 
 # Domain 5: Storage Architecture

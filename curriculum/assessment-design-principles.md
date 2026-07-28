@@ -1,3 +1,7 @@
+---
+reviewed: 2026-07-10
+---
+
 # Assessment Design Principles
 
 The assessment module will be specified separately. These principles constrain its design.
@@ -11,3 +15,7 @@ The assessment module will be specified separately. These principles constrain i
 - Severity assessment is part of the score. Identifying a risk matters. Identifying it as critical when it's minor, or minor when it's critical, is a distinct failure mode that should score differently.
 
 - The AI-generated framing is explicit. At least some exercises should be labeled as AI output. The meta-skill of evaluating AI-generated work is itself a competency, and candidates should encounter it directly.
+
+- **Rubrics reward tradeoff articulation, never conclusion-matching.** When a domain's reasoning framework argues a position (e.g. the portability argument in Domain 7, the Kubernetes organizational-fit question), the assessment rubric must reward the candidate's ability to articulate the tradeoff — what is gained, what is given up, and under what conditions the position holds or breaks. A candidate who reaches the author's conclusion without articulating the tradeoff has not demonstrated the skill. A candidate who reaches a different conclusion but articulates the tradeoff defensibly has. Rubrics that score on agreement with a predetermined answer test recall of the author's opinion, not reasoning.
+
+- **Reasoning frameworks vs. house opinions are labeled.** Sections that argue a position are legitimate and stay, but are marked as positions. The distinction: a reasoning framework (e.g. "security is risk management") is a transferable mental model that the candidate can apply to novel situations. A house opinion (e.g. "Kubernetes is overkill for a shop this size") is a judgment call that depends on context the candidate may not share. Assessment exercises built on house opinions must frame them as tradeoff questions, not as facts to be recalled.

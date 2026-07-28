@@ -3,6 +3,7 @@ domain: 2
 id: identity-hybrid-iam
 title: "Identity & Hybrid IAM"
 subtitle: "Active Directory, Entra ID, and the hybrid realities most organizations actually live in"
+reviewed: 2026-07-10
 ---
 
 # Domain 2: Identity & Hybrid IAM

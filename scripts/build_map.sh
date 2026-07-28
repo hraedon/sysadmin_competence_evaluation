@@ -9,8 +9,10 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 mkdir -p dist
 
-# v0.23 section order: front matter, domains 1-12, assessment design
-# principles, then 13 (synthesis) and 14 (theory of mind), history.
+# v0.26 section order: front matter, domains 1-14 (original),
+# assessment design principles, new domains 15-18, version history.
+# Domain numbers are stable IDs (R1); reading order is set by this
+# manifest, not by the number. New domains append at the end.
 ORDER=(
   00-front-matter.md
   01-scripting-automation.md
@@ -28,6 +30,10 @@ ORDER=(
   assessment-design-principles.md
   13-frameworks-as-tools-synthesis.md
   14-theory-of-mind.md
+  15-directing-ai-agents.md
+  16-observability-and-alert-design.md
+  17-minimum-viable-devops.md
+  18-minimum-viable-database-administration.md
   version-history.md
 )
 

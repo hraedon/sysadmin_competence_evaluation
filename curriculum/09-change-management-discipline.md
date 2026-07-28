@@ -3,6 +3,7 @@ domain: 9
 id: change-management-discipline
 title: "Change Management Discipline"
 subtitle: "The domain most responsible for self-inflicted outages — and the one with zero coverage in any certification"
+reviewed: 2026-07-10
 ---
 
 # Domain 9: Change Management Discipline

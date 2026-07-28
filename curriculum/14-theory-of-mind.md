@@ -3,6 +3,7 @@ domain: 14
 id: theory-of-mind
 title: "Theory of Mind"
 subtitle: "Modeling other agents accurately enough to stop arguing with their stated position and start engaging with their actual one"
+reviewed: 2026-07-10
 ---
 
 # Domain 14: Theory of Mind

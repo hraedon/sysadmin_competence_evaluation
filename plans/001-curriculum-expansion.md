@@ -71,9 +71,9 @@ concepts, level definitions (1 Literacy / 2 Audit / 3 Commission /
   Adaptation), canonical-source note added.
 - [x] Version bumped to 0.24 with a full changelog entry.
 
-The original `sysadmin_competency_map_v23.docx` stays in the repo root as
-the last hand-edited artifact; it should be moved to an `archive/` folder
-once the team confirms the rendered .docx is an acceptable replacement.
+The original `sysadmin_competency_map_v23.docx` was moved to `archive/`
+(2026-07-28) after the owner confirmed the rendered .docx is an acceptable
+replacement.
 
 ## Phase 1 — New domains (team, with owner review)
 

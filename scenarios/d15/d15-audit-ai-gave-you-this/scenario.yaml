@@ -1,11 +1,11 @@
 schema_version: 2.0
 id: d15-audit-ai-gave-you-this
 title: The AI Gave You This
-domain: 1
-domain_name: Scripting & Automation
+domain: 15
+domain_name: Directing AI Agents
 level: 2
 delivery_modes:
-- A
+  - A
 presentation:
   modes:
     A:
@@ -134,9 +134,10 @@ presentation:
         handle the rotation. The script is attached. They want to run it in
         the production environment this afternoon.
 
-        Your task: review the script before it runs. Identify anything that
-        concerns you, explain why each concern is a risk, and describe what
-        you would change or what questions you would ask before approving it.
+      question: |
+        You are responsible for deciding whether this agent-generated script may
+        run. Identify the consequential risks, state what must change or remain
+        gated, and name the evidence you would require before authorizing it.
 rubric:
   findings:
   - id: credential_in_log
@@ -150,21 +151,35 @@ rubric:
     description: |
       The default log path is C:\Temp, which is typically world-readable on Windows systems and is not an appropriate location for security-sensitive operation logs. Even if the password were not written, operation logs for credential rotation should be in an access-controlled path.
     severity: moderate
+    miss_signal: |
+      Candidate flags the password in the log message but treats the log location
+      as unremarkable, or never asks who can read C:\Temp once the file exists.
     type: secondary
   - id: plaintext_in_config
     description: |
       The config file update writes the new password as a plaintext string replacement. Depending on the application, this may be unavoidable, but the candidate should name it explicitly and note that plaintext credentials in config files are a risk if the config is accessible beyond the service account's own context.
     severity: moderate
+    miss_signal: |
+      Candidate doesn't follow the credential past the AD reset — doesn't ask how
+      the config file stores the new password, or who can read the config
+      afterward.
     type: secondary
   - id: no_dry_run
     description: |
       The script has no -WhatIf or dry-run mode. A reviewer has no way to confirm what it will touch without running it. This limits pre-run verification.
     severity: low
+    miss_signal: |
+      Candidate reviews only the code as written and never raises verifiability —
+      doesn't ask how you'd confirm what the script touches before it runs.
     type: secondary
   - id: no_post_rotation_verification
     description: |
-      The script does not verify that the application can successfully authenticate using the new credential after the config is updated. A rotation that breaks the application would not be caught until the application is next used. This finding becomes higher-priority in the context of the credential_in_log fix: the log message that must be corrected ("new credential: $newPassword") was inadvertently serving as the only confirmation that a specific credential was successfully set. Removing the password from the log message removes that evidence. A corrected script needs an alternative verification method — confirming the AD account accepts the new credential, or that the application authenticates successfully — to preserve the operational assurance the original log entry was accidentally providing.
+      The script does not verify that the application can authenticate after the config is updated. Set-ADAccountPassword returning without an error shows only that the cmdlet reported success; logging the local $newPassword value does not prove that AD accepts it or that the application can use it. A corrected script must keep the log non-sensitive and separately verify the intended outcome, such as a controlled authentication check or application health check.
     severity: moderate
+    miss_signal: |
+      Candidate proposes removing the password from the log message but treats a
+      successful cmdlet return or completion log as proof that the application can
+      authenticate with the rotated credential.
     type: secondary
   level_indicators:
     level_1: |
@@ -174,4 +189,4 @@ rubric:
     level_3: |
       Identifies the credential exposure and explains what a corrected log entry should contain (confirmation of completion without the credential value). Can articulate why the other exposure vectors (log path, plaintext config) are risks even if the log message is corrected. Can specify what changes are required and what verification would confirm the fix is complete. Notes the broader pattern: AI-generated scripts should be reviewed for what else they do, not only for whether they do the intended thing.
     level_4: |
-      All of the above, plus: can propose the minimal targeted changes to the script (remove $newPassword from the log message; change or parameterize the log path) with explicit reasoning for each change and an explanation of why each change is sufficient and does not introduce new risks. Critically, recognizes that removing the credential from the log also removes the only record that a specific credential was successfully set — and proposes an alternative verification method to preserve that assurance (e.g., confirming the AD account accepts the new credential via a test bind, or verifying the application authenticates successfully before the script exits). This is the "full understanding of side effects" that distinguishes adaptation from correction: the fix is correct, but it changes what the script proves about itself, and a Level 4 candidate notices that. Does not over-engineer — does not propose rewriting the script from scratch or adding features not relevant to the identified risks.
+      All of the above, plus: can propose the minimal targeted changes to the script (remove $newPassword from the log message; change or parameterize the log path) with explicit reasoning for each change. Distinguishes evidence that the cmdlet returned successfully from evidence that the rotated credential works end-to-end, and requires an independent post-rotation check such as a controlled test authentication or application health check. Explains that the plaintext log never provided valid verification and does not over-engineer by rewriting unrelated parts of the script.

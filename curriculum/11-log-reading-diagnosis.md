@@ -3,6 +3,7 @@ domain: 11
 id: log-reading-diagnosis
 title: "Log Reading & Diagnosis"
 subtitle: "Logs as timeline reconstruction tools — not search engines for known error codes"
+reviewed: 2026-07-10
 ---
 
 # Domain 11: Log Reading & Diagnosis

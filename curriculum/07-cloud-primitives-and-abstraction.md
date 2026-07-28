@@ -3,6 +3,7 @@ domain: 7
 id: cloud-primitives-and-abstraction
 title: "Cloud Primitives and Abstraction"
 subtitle: "The approximation map — where cloud represents underlying concepts faithfully and where it specifically does not"
+reviewed: 2026-07-10
 ---
 
 # Domain 7: Cloud Primitives and Abstraction

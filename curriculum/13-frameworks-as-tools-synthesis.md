@@ -3,6 +3,7 @@ domain: 13
 id: frameworks-as-tools-synthesis
 title: "Frameworks as Tools — Synthesis"
 subtitle: "What you have been practicing across the preceding twelve domains, made explicit"
+reviewed: 2026-07-10
 ---
 
 # Domain 13: Frameworks as Tools — Synthesis

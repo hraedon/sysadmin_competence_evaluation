@@ -3,6 +3,7 @@ domain: 1
 id: scripting-automation
 title: "Scripting & Automation"
 subtitle: "Auditing, commissioning, and safe adaptation in an AI-assisted world"
+reviewed: 2026-07-10
 ---
 
 # Domain 1: Scripting & Automation

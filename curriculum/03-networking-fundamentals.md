@@ -3,6 +3,7 @@ domain: 3
 id: networking-fundamentals
 title: "Networking Fundamentals"
 subtitle: "Not network engineering. The diagnostic baseline a sysadmin needs to not be helpless — and to hand off intelligently."
+reviewed: 2026-07-10
 ---
 
 # Domain 3: Networking Fundamentals

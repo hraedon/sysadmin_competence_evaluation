@@ -17,3 +17,6 @@ __pycache__/
 .env
 Anthropic_API_Key.txt
 dist/
+
+# never commit the local denylist (identifier gate)
+.identifiers-denylist.local

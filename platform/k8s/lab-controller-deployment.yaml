@@ -19,7 +19,7 @@ spec:
     spec:
       containers:
         - name: lab-controller
-          image: ghcr.io/hraedon/sysadmin_competence_evaluation-lab-controller:78afaef905576e8bf6fc39c41793b5d5d6187721
+          image: ghcr.io/hraedon/sysadmin_competence_evaluation-lab-controller:ffaae423c38d49101ed77687604a9bc8fd3320ef
           imagePullPolicy: Always
           ports:
             - containerPort: 8000

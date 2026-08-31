@@ -24,6 +24,11 @@ function saveAuth(data) {
   localStorage.setItem(AUTH_KEY, JSON.stringify(data))
 }
 
+/** Persist a successful auth response only after the UI accepts it. */
+export function persistAuth(data) {
+  saveAuth(data)
+}
+
 function clearAuth() {
   localStorage.removeItem(AUTH_KEY)
 }
@@ -44,33 +49,33 @@ export function getAuthHeaders() {
   return { Authorization: `Bearer ${auth.access_token}` }
 }
 
-export async function register(username, password) {
+export async function register(username, password, options = {}) {
   const res = await fetch(`${getBaseUrl()}/api/auth/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username, password }),
+    signal: options.signal,
   })
   if (!res.ok) {
     const data = await res.json().catch(() => ({}))
     throw new Error(data.detail || `Registration failed: HTTP ${res.status}`)
   }
   const data = await res.json()
-  saveAuth(data)
   return data
 }
 
-export async function login(username, password) {
+export async function login(username, password, options = {}) {
   const res = await fetch(`${getBaseUrl()}/api/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username, password }),
+    signal: options.signal,
   })
   if (!res.ok) {
     const data = await res.json().catch(() => ({}))
     throw new Error(data.detail || `Login failed: HTTP ${res.status}`)
   }
   const data = await res.json()
-  saveAuth(data)
   return data
 }
 

@@ -46,6 +46,20 @@ calibration/
   run.mjs                Node.js calibration harness
 ```
 
+## Development and testing
+
+From the repository root, run both JavaScript test suites:
+
+```bash
+npm test
+```
+
+Check curriculum cross-file references with:
+
+```bash
+python3 scripts/check_map_refs.py
+```
+
 ### Schema V2.0
 All scenarios use **Schema V2.0**, which features a unified `findings` list and support for hands-on lab (Mode E) provisioning and verification.
 

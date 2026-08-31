@@ -28,14 +28,16 @@ Learner operates in live VMs. Validation via state checks.
 
 ## Lab Orchestration (Phase 2)
 
-The lab environment uses a pluggable hypervisor backend for virtualization and Apache Guacamole for browser-based access.
+The lab environment retains a backend-neutral orchestration abstraction, but Hyper-V is the only supported implementation target. Apache Guacamole provides browser-based access. Alignment with the `windows-evidence-lab` orchestration protocol is planned work; this document does not imply that integration is complete.
 
 ### Supported Platforms
 
 | Platform | Orchestrator | VM Management | Guest Operations | Status |
 |----------|-------------|---------------|------------------|--------|
-| **Hyper-V** | `HyperVOrchestrator` | WinRM/PowerShell remoting | PowerShell Direct (VMBus) | Production |
-| **Proxmox** | `ProxmoxOrchestrator` | REST API | QEMU Guest Agent | Stub (dry-run only) |
+| **Hyper-V** | `HyperVOrchestrator` | WinRM/PowerShell remoting | PowerShell Direct (VMBus) | Supported implementation target |
+| **Proxmox** | `ProxmoxOrchestrator` | REST API | QEMU Guest Agent | Reference only (unsupported) |
+
+`ProxmoxOrchestrator` is retained as reference material only; it is not a supported deployment path.
 
 ### Orchestrator Interface
 
@@ -54,7 +56,7 @@ class Orchestrator(ABC):
     async def wait_for_guest_readiness(vm_name, timeout, callback) -> bool  # default impl
 ```
 
-Platform selection is controlled by the `LAB_PLATFORM` environment variable (`hyper-v` or `proxmox`).
+The current code selects a backend with the `LAB_PLATFORM` environment variable. Supported deployments use `hyper-v`; the `proxmox` path remains available only as reference code.
 
 ### Components
 1. **Lab Controller (FastAPI)**: A Python service that orchestrates VMs and Guacamole.
@@ -93,7 +95,7 @@ environments:
     status: "available"
 ```
 
-For Proxmox environments, a `vm_id_map` field maps friendly names to VMIDs:
+The following legacy Proxmox example documents the reference backend's `vm_id_map` shape. It is not a supported deployment configuration:
 
 ```yaml
   - id: env-proxmox-linux-01

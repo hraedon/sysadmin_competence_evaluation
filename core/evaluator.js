@@ -136,7 +136,7 @@ export async function performEvaluation({
   coachHistory = [], 
   compactRubric = false,
   isRetry = false 
-}) {
+}, { signal } = {}) {
   const systemPrompt = buildSystemPrompt(scenario, artifactContent, { coachMode, coachRound, compactRubric })
 
   const messages = [
@@ -149,6 +149,7 @@ export async function performEvaluation({
     model: model,
     max_tokens: 4096,
     messages,
+    signal,
   })
 
   const raw = response.choices[0]?.message?.content ?? ''
@@ -173,7 +174,7 @@ export async function performEvaluation({
         coachHistory, 
         compactRubric,
         isRetry: true 
-      })
+      }, { signal })
     }
     return { raw, parsed: null, error: 'JSON parse failure after retry' }
   }

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { login, register } from '../lib/auth.js'
 
 /**
@@ -14,47 +14,76 @@ export default function LoginView({ onLogin, onSkip }) {
   const [password, setPassword] = useState('')
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(false)
+  const requestRef = useRef(null)
+  const generationRef = useRef(0)
+
+  useEffect(() => {
+    const onKeyDown = event => {
+      if (event.key === 'Escape') handleSkip()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+      requestRef.current?.abort()
+    }
+  }, [])
 
   async function handleSubmit(e) {
     e.preventDefault()
     setError(null)
     setLoading(true)
+    requestRef.current?.abort()
+    const controller = new AbortController()
+    requestRef.current = controller
+    const generation = ++generationRef.current
     try {
       const fn = mode === 'login' ? login : register
-      const data = await fn(username, password)
-      onLogin(data.user)
+      const data = await fn(username, password, { signal: controller.signal })
+      if (generation !== generationRef.current || controller.signal.aborted) return
+      onLogin(data.user, data)
     } catch (err) {
+      if (generation !== generationRef.current || controller.signal.aborted) return
       setError(err.message)
     } finally {
-      setLoading(false)
+      if (generation === generationRef.current) setLoading(false)
     }
   }
 
+  function handleSkip() {
+    generationRef.current += 1
+    requestRef.current?.abort()
+    onSkip()
+  }
+
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-gray-800 rounded-lg p-8 w-full max-w-md shadow-xl">
+    <div role="dialog" aria-modal="true" aria-label={mode === 'login' ? 'Sign in' : 'Create Account'} className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 sm:p-8">
+      <div className="w-full max-w-md overflow-y-auto rounded-lg bg-gray-800 p-6 shadow-xl sm:p-8">
         <h2 className="text-xl font-semibold text-white mb-6">
           {mode === 'login' ? 'Sign In' : 'Create Account'}
         </h2>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm text-gray-400 mb-1">Username</label>
+            <label htmlFor={`${mode}-username`} className="block text-sm text-gray-400 mb-1">Username</label>
             <input
+              id={`${mode}-username`}
               type="text"
+              autoFocus
+              autoComplete="username"
               value={username}
               onChange={e => setUsername(e.target.value)}
               className="w-full px-3 py-2 bg-gray-700 text-white rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
               required
               minLength={3}
-              autoFocus
             />
           </div>
 
           <div>
-            <label className="block text-sm text-gray-400 mb-1">Password</label>
+            <label htmlFor={`${mode}-password`} className="block text-sm text-gray-400 mb-1">Password</label>
             <input
+              id={`${mode}-password`}
               type="password"
+              autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
               value={password}
               onChange={e => setPassword(e.target.value)}
               className="w-full px-3 py-2 bg-gray-700 text-white rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
@@ -99,7 +128,7 @@ export default function LoginView({ onLogin, onSkip }) {
 
         <div className="mt-6 pt-4 border-t border-gray-700 text-center">
           <button
-            onClick={onSkip}
+            onClick={handleSkip}
             className="text-sm text-gray-500 hover:text-gray-300 transition-colors"
           >
             Continue without account

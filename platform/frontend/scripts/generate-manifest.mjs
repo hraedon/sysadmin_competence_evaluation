@@ -88,21 +88,21 @@ for (const file of yamlFiles) {
     // Strip rubric data from the public manifest.
     //
     // VITE_EVALUATION_MODE controls how much is stripped:
-    //   "server" (default): Strip the entire rubric block. Evaluation is server-side
+    //   "server": Strip the entire rubric block. Evaluation is server-side
     //       (POST /api/evaluate) so the browser never needs rubric data. This closes
     //       SEC-05 fully — no finding descriptions, miss_signal, or level_indicators
     //       reach the browser. Learning notes are returned by the server after eval.
-    //   "local": Strip only answer-key fields (miss_signal, level_indicators) but keep
-    //       finding descriptions. Needed for air-gapped/LM Studio deployments where
-    //       evaluation runs client-side via core/evaluator.js.
-    const evalMode = process.env.VITE_EVALUATION_MODE ?? 'server'
+    //   "local": Strip miss signals but retain the scoring rubric and level indicators.
+    //       Needed for air-gapped/LM Studio deployments where
+    //       evaluation runs client-side via core/evaluator.js. This is the default
+    //       because the shipped frontend defaults to the local evaluator.
+    const evalMode = process.env.VITE_EVALUATION_MODE ?? 'local'
 
     if (evalMode === 'server') {
       // Full strip: remove entire rubric — server handles everything
       delete data.rubric
     } else if (data.rubric) {
-      // Local mode: strip only answer-key fields, keep descriptions for client-side eval
-      delete data.rubric.level_indicators
+      // Local mode: retain the evaluation rubric, but not diagnostic miss signals.
       for (const finding of data.rubric.findings ?? []) {
         delete finding.miss_signal
       }

@@ -12,16 +12,29 @@ export default function ScenarioPanel({ scenario, onSubmit, isEvaluating }) {
   const textareaRef = useRef(null)
 
   useEffect(() => {
+    const controller = new AbortController()
+    let current = true
     setResponse('')
     setArtifactContent(null)
     setArtifactCollapsed(false)
     if (scenario?.presentation?.artifact_file) {
       setArtifactLoading(true)
-      loadArtifact(scenario.presentation.artifact_file)
-        .then(text => { setArtifactContent(text); setArtifactLoading(false) })
-        .catch(() => setArtifactLoading(false))
+      loadArtifact(scenario.presentation.artifact_file, { signal: controller.signal })
+        .then(text => {
+          if (!current) return
+          setArtifactContent(text)
+          setArtifactLoading(false)
+        })
+        .catch(err => {
+          if (!current || err.name === 'AbortError') return
+          setArtifactLoading(false)
+        })
     }
-  }, [scenario?.id])
+    return () => {
+      current = false
+      controller.abort()
+    }
+  }, [scenario?.id, scenario?.presentation?.artifact_file])
 
   if (!scenario) {
     return (

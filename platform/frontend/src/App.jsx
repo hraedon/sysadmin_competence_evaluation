@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { loadManifest, groupByDomain } from './lib/scenarios.js'
 import { evaluate, loadSettings, saveSettings } from './lib/evaluator.js'
 import { loadProfile, saveResult, migrateLocalProfile, isOnboardingDismissed, dismissOnboarding } from './lib/profile.js'
-import { isAuthenticated, getUser, logout } from './lib/auth.js'
+import { isAuthenticated, getUser, logout, persistAuth } from './lib/auth.js'
 import { useLabSession } from './hooks/useLabSession.js'
 import ScenarioSidebar from './components/ScenarioSidebar.jsx'
 import ScenarioPanel from './components/ScenarioPanel.jsx'
@@ -24,17 +24,20 @@ export default function App() {
   const [evalError, setEvalError] = useState(null)
   const [profile, setProfile] = useState(() => loadProfile())
   const [settings, setSettings] = useState(() => loadSettings())
-  const [showSettings, setShowSettings] = useState(false)
-  const [showProfile, setShowProfile] = useState(false)
-  const [showLogin, setShowLogin] = useState(false)
+  const [activeModal, setActiveModal] = useState(() => {
+    const hasResults = Object.keys(loadProfile().domains).length > 0
+    return !hasResults && !isOnboardingDismissed() ? 'onboarding' : null
+  })
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+  const [isDesktop, setIsDesktop] = useState(() => window.matchMedia?.('(min-width: 768px)').matches ?? false)
   const [user, setUser] = useState(() => getUser())
+  const [isFirstRun, setIsFirstRun] = useState(() => !isAuthenticated() && !getUser())
   const [loadError, setLoadError] = useState(null)
 
-  // Onboarding: show on first visit (no profile results and not previously dismissed)
-  const [showOnboarding, setShowOnboarding] = useState(() => {
-    const hasResults = Object.keys(loadProfile().domains).length > 0
-    return !hasResults && !isOnboardingDismissed()
-  })
+  const showSettings = activeModal === 'settings'
+  const showProfile = activeModal === 'profile'
+  const showLogin = activeModal === 'login'
+  const showOnboarding = activeModal === 'onboarding'
 
   // Coach mode state
   const [coachPhase, setCoachPhase] = useState(null)  // null | 'active' | 'resolved' | 'exhausted'
@@ -42,9 +45,29 @@ export default function App() {
   const [coachHistory, setCoachHistory] = useState([])
   const [storedArtifact, setStoredArtifact] = useState(null)
   const [storedResponse, setStoredResponse] = useState(null)
+  const evaluationGenerationRef = useRef(0)
+  const evaluationAbortRef = useRef(null)
 
   const isLabMode = selected?.delivery_mode === 'E'
   const labSession = useLabSession(selected, settings.labControllerUrl, { enabled: isLabMode })
+
+  useEffect(() => {
+    const media = window.matchMedia?.('(min-width: 768px)')
+    if (!media) return undefined
+    const update = () => setIsDesktop(media.matches)
+    update()
+    media.addEventListener('change', update)
+    return () => media.removeEventListener('change', update)
+  }, [])
+
+  function invalidateEvaluation() {
+    evaluationGenerationRef.current += 1
+    evaluationAbortRef.current?.abort()
+    evaluationAbortRef.current = null
+    setIsEvaluating(false)
+  }
+
+  useEffect(() => () => invalidateEvaluation(), [])
 
   useEffect(() => {
     loadManifest()
@@ -55,25 +78,31 @@ export default function App() {
       .catch(err => setLoadError(err.message))
   }, [])
 
-  // Auto-open settings only when a key-requiring provider is configured without a key
+  // First-run sequence: explain the assessment before offering sign-in.
+  // This keeps the two full-screen overlays mutually exclusive.
   useEffect(() => {
-    const needsKey = (settings.provider === 'anthropic' || settings.provider === 'openai') && !settings.apiKey
-    if (needsKey) setShowSettings(true)
-  }, [])
+    if (isFirstRun && !activeModal && !user) setActiveModal('login')
+  }, [activeModal, isFirstRun, user])
 
-  // Show login prompt on first visit if not already authenticated
-  useEffect(() => {
-    if (!isAuthenticated() && !user) setShowLogin(true)
-  }, [])
+  function openModal(modal) {
+    setIsSidebarOpen(false)
+    setActiveModal(modal)
+  }
 
-  async function handleLogin(loggedInUser) {
+  async function handleLogin(loggedInUser, auth) {
+    // LoginView only calls us after checking its request was not aborted.
+    // Persist here so skipping a pending login can never leave credentials behind.
+    if (auth) persistAuth(auth)
     setUser(loggedInUser)
-    setShowLogin(false)
+    setIsFirstRun(false)
+    setActiveModal(null)
     // Migrate localStorage profile to server on first login
     await migrateLocalProfile()
   }
 
   function handleLogout() {
+    invalidateEvaluation()
+    labSession.handleEndLab?.()
     logout()
     setUser(null)
   }
@@ -87,6 +116,8 @@ export default function App() {
   }
 
   function handleSelectScenario(scenario) {
+    invalidateEvaluation()
+    setIsSidebarOpen(false)
     setSelected(scenario)
     setEvalResult(null)
     setEvalError(null)
@@ -95,17 +126,26 @@ export default function App() {
 
   /** Select a scenario from onboarding or profile view — closes the overlay first. */
   function handleSelectFromView(scenario) {
-    setShowOnboarding(false)
-    setShowProfile(false)
+    setActiveModal(null)
     handleSelectScenario(scenario)
   }
 
   function handleDismissOnboarding() {
     dismissOnboarding()
-    setShowOnboarding(false)
+    setActiveModal(null)
+  }
+
+  function handleSkipLogin() {
+    setIsFirstRun(false)
+    setActiveModal(null)
   }
 
   async function handleSubmit(responseText, artifactContent) {
+    invalidateEvaluation()
+    const controller = new AbortController()
+    const generation = ++evaluationGenerationRef.current
+    evaluationAbortRef.current = controller
+    const scenario = selected
     const coachMode = settings.evaluatorMode === 'coach'
     setIsEvaluating(true)
     setEvalResult(null)
@@ -118,7 +158,8 @@ export default function App() {
     }
 
     try {
-      const result = await evaluate({ scenario: selected, artifactContent, responseText, settings, coachMode, coachRound: 0 })
+      const result = await evaluate({ scenario, artifactContent, responseText, settings, coachMode, coachRound: 0, signal: controller.signal })
+      if (generation !== evaluationGenerationRef.current || controller.signal.aborted) return
       setEvalResult(result)
 
       if (result.parsed === null) {
@@ -128,7 +169,7 @@ export default function App() {
 
       if (result.parsed?.level) {
         const updated = saveResult({
-          scenario: selected,
+          scenario,
           level: result.parsed.level,
           confidence: result.parsed.confidence,
           gap: result.parsed.gap ?? null,
@@ -148,13 +189,19 @@ export default function App() {
         }
       }
     } catch (err) {
+      if (generation !== evaluationGenerationRef.current || controller.signal.aborted) return
       setEvalError(err.message ?? 'Unknown error')
     } finally {
-      setIsEvaluating(false)
+      if (generation === evaluationGenerationRef.current) setIsEvaluating(false)
     }
   }
 
   async function handleFollowUp(followUpText) {
+    invalidateEvaluation()
+    const controller = new AbortController()
+    const generation = ++evaluationGenerationRef.current
+    evaluationAbortRef.current = controller
+    const scenario = selected
     setIsEvaluating(true)
     setEvalError(null)
 
@@ -162,14 +209,16 @@ export default function App() {
 
     try {
       const result = await evaluate({
-        scenario: selected,
+        scenario,
         artifactContent: storedArtifact,
         responseText: storedResponse,
         settings,
         coachMode: true,
         coachRound,
         coachHistory: newHistory,
+        signal: controller.signal,
       })
+      if (generation !== evaluationGenerationRef.current || controller.signal.aborted) return
       setEvalResult(result)
 
       if (result.parsed === null) {
@@ -191,26 +240,27 @@ export default function App() {
         setCoachRound(r => r + 1)
       }
     } catch (err) {
+      if (generation !== evaluationGenerationRef.current || controller.signal.aborted) return
       setEvalError(err.message ?? 'Unknown error')
     } finally {
-      setIsEvaluating(false)
+      if (generation === evaluationGenerationRef.current) setIsEvaluating(false)
     }
   }
 
   function handleSaveSettings(newSettings) {
     setSettings(newSettings)
     saveSettings(newSettings)
-    setShowSettings(false)
+    setActiveModal(null)
   }
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="min-h-screen bg-gray-950">
 
       {/* Full-screen overlays — rendered above everything */}
       {showLogin && (
-        <LoginView
-          onLogin={handleLogin}
-          onSkip={() => setShowLogin(false)}
+          <LoginView
+            onLogin={handleLogin}
+            onSkip={handleSkipLogin}
         />
       )}
       {showOnboarding && (
@@ -224,40 +274,68 @@ export default function App() {
         <ProfileView
           profile={profile}
           allScenarios={scenarios}
-          onClose={() => setShowProfile(false)}
+          onClose={() => setActiveModal(null)}
           onSelect={handleSelectFromView}
         />
       )}
       {showSettings && (
-        <SettingsPage
-          settings={settings}
-          onSave={handleSaveSettings}
-          onClose={() => setShowSettings(false)}
-        />
+          <SettingsPage
+            settings={settings}
+            onSave={handleSaveSettings}
+            onProfileCleared={() => {
+              invalidateEvaluation()
+              labSession.handleEndLab?.()
+              setEvalResult(null)
+              setEvalError(null)
+              setProfile(loadProfile())
+              setUser(getUser())
+              setIsFirstRun(!isAuthenticated() && !getUser())
+            }}
+            onClose={() => setActiveModal(null)}
+          />
       )}
 
+      <div className="min-h-screen md:flex md:h-screen md:overflow-hidden" aria-hidden={activeModal ? true : undefined} inert={activeModal ? '' : undefined}>
+      {isSidebarOpen && (
+        <button
+          aria-label="Close scenario menu"
+          className="fixed inset-0 z-30 bg-black/60 md:hidden"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+      <button
+        aria-label="Open scenario menu"
+        aria-expanded={isSidebarOpen}
+        className="fixed left-3 top-3 z-20 rounded-md border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-gray-200 shadow-lg md:hidden"
+        onClick={() => setIsSidebarOpen(true)}
+      >
+        Scenarios
+      </button>
       <ScenarioSidebar
         groups={groups}
         selected={selected}
         profile={profile}
         onSelect={handleSelectScenario}
-        onSettings={() => setShowSettings(true)}
-        onProfile={() => setShowProfile(true)}
-        onOnboarding={() => setShowOnboarding(true)}
+        onSettings={() => openModal('settings')}
+        onProfile={() => openModal('profile')}
+        onOnboarding={() => openModal('onboarding')}
         user={user}
-        onLogin={() => setShowLogin(true)}
+        onLogin={() => openModal('login')}
         onLogout={handleLogout}
+        isOpen={isSidebarOpen}
+        isInert={!isSidebarOpen && !isDesktop}
+        onClose={() => setIsSidebarOpen(false)}
       />
 
       {loadError ? (
-        <div className="flex flex-1 items-center justify-center">
+        <div className="flex min-h-screen flex-1 items-center justify-center md:min-h-0">
           <div className="rounded-lg bg-red-900/30 px-6 py-4 text-red-300">
             <p className="font-semibold">Failed to load scenarios</p>
             <p className="text-sm">{loadError}</p>
           </div>
         </div>
       ) : (
-        <>
+        <main className={`flex min-w-0 flex-1 flex-col pt-14 md:pt-0 ${isLabMode ? 'md:overflow-y-auto lg:flex-row lg:overflow-hidden' : 'md:flex-row'}`}>
           {isLabMode ? (
             <ErrorBoundary label="The lab panel encountered an error.">
               <LabInfoPanel scenario={selected} {...labSession} />
@@ -285,8 +363,9 @@ export default function App() {
               isLabMode={isLabMode}
             />
           </ErrorBoundary>
-        </>
+        </main>
       )}
+      </div>
     </div>
   )
 }

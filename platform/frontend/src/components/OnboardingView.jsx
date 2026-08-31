@@ -1,3 +1,5 @@
+import { useEffect, useRef } from 'react'
+
 const LEVEL_COLORS = ['', 'bg-yellow-900 text-yellow-300', 'bg-blue-900 text-blue-300', 'bg-purple-900 text-purple-300', 'bg-green-900 text-green-300']
 const LEVEL_LABELS = ['', 'Awareness', 'Application', 'Analysis', 'Adaptation']
 const LEVEL_DESCRIPTIONS = [
@@ -23,6 +25,15 @@ const HOW_IT_WORKS = [
  *   onSelect      — (scenario) => void: close and select a scenario
  */
 export default function OnboardingView({ allScenarios, onDismiss, onSelect }) {
+  const closeRef = useRef(null)
+  useEffect(() => {
+    closeRef.current?.focus()
+    const onKeyDown = event => {
+      if (event.key === 'Escape') onDismiss()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [onDismiss])
   // Lowest-difficulty uncompleted scenario in D01 — sensible cold-start
   const suggested = allScenarios
     .filter(s => s.domain === 1)
@@ -34,13 +45,13 @@ export default function OnboardingView({ allScenarios, onDismiss, onSelect }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 overflow-y-auto py-8 px-4">
-      <div className="w-full max-w-2xl rounded-xl bg-gray-800 shadow-2xl">
+    <div role="dialog" aria-modal="true" aria-label="Assessment introduction" className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 p-4 sm:p-8">
+      <div className="w-full max-w-2xl overflow-y-auto rounded-xl bg-gray-800 shadow-2xl">
 
         {/* Header */}
         <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-gray-700">
-          <h2 className="text-base font-semibold text-gray-100">Modern Systems Administration Assessment</h2>
-          <button onClick={onDismiss} className="text-gray-400 hover:text-gray-200 text-xl leading-none">&times;</button>
+          <h2 id="onboarding-title" className="text-base font-semibold text-gray-100">Modern Systems Administration Assessment</h2>
+          <button ref={closeRef} aria-label="Close introduction" onClick={onDismiss} className="text-gray-400 hover:text-gray-200 text-xl leading-none">&times;</button>
         </div>
 
         <div className="p-6 space-y-6">

@@ -18,19 +18,33 @@ function Badge({ children, className }) {
   )
 }
 
-export default function ScenarioSidebar({ groups, selected, profile, onSelect, onSettings, onProfile, onOnboarding, user, onLogin, onLogout }) {
+export default function ScenarioSidebar({ groups, selected, profile, onSelect, onSettings, onProfile, onOnboarding, user, onLogin, onLogout, isOpen, isInert = false, onClose }) {
   const [filter, setFilter] = useState('')
   const query = filter.toLowerCase()
 
   const domainCount = Object.keys(profile?.domains ?? {}).length
 
   return (
-    <aside className="flex w-72 shrink-0 flex-col border-r border-gray-800 bg-gray-900">
+    <aside
+      aria-label="Scenario navigation"
+      aria-hidden={isInert || undefined}
+      inert={isInert ? '' : undefined}
+      className={`fixed inset-y-0 left-0 z-40 flex w-72 flex-col border-r border-gray-800 bg-gray-900 shadow-xl transition-transform md:static md:z-auto md:translate-x-0 md:shadow-none ${
+        isOpen ? 'translate-x-0' : '-translate-x-full'
+      }`}
+    >
 
       {/* Header */}
       <div className="flex items-center justify-between border-b border-gray-800 px-4 py-3">
         <span className="text-sm font-semibold text-gray-200">Scenarios</span>
         <div className="flex items-center gap-1">
+          <button
+            aria-label="Close scenario menu"
+            onClick={onClose}
+            className="rounded p-1 text-gray-500 hover:text-gray-300 md:hidden"
+          >
+            ×
+          </button>
           <button
             onClick={onOnboarding}
             title="How this works"

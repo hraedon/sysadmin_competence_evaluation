@@ -8,6 +8,7 @@ import { isAuthenticated, authFetch } from './auth.js'
 
 export const SETTINGS_KEY = 'sysadmin_assessment_settings'
 const LEGACY_KEY = 'sysadmin_assessment_api_key'
+export const EVALUATION_MODE = import.meta.env.VITE_EVALUATION_MODE === 'server' ? 'server' : 'local'
 
 const IS_PRODUCTION = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1'
 const LOCAL_PROXY_ENDPOINT = '/llm-proxy/v1'
@@ -17,7 +18,7 @@ const LOCAL_PROXY_ENDPOINT = '/llm-proxy/v1'
 const INTERNAL_LOCAL_ENDPOINT = import.meta.env.VITE_LOCAL_LLM_ENDPOINT ?? 'http://192.168.1.28:1234/v1'
 
 export const DEFAULT_SETTINGS = {
-  provider: 'local',
+  provider: EVALUATION_MODE === 'server' ? 'anthropic' : 'local',
   endpoint: IS_PRODUCTION ? LOCAL_PROXY_ENDPOINT : INTERNAL_LOCAL_ENDPOINT,
   apiKey: '',
   model: 'qwen3-next-80b-a3b-instruct-mlx',
@@ -30,7 +31,11 @@ export function loadSettings() {
   const stored = localStorage.getItem(SETTINGS_KEY)
   if (stored) {
     try {
-      const settings = { ...DEFAULT_SETTINGS, ...JSON.parse(stored) }
+      const storedSettings = JSON.parse(stored)
+      const settings = { ...DEFAULT_SETTINGS, ...storedSettings }
+      if (settings.provider === 'custom') settings.provider = 'local'
+      if (EVALUATION_MODE === 'server' && settings.provider === 'local') settings.provider = DEFAULT_SETTINGS.provider
+      if (settings.provider === 'anthropic' || settings.provider === 'openai') settings.apiKey = ''
 
       // If the user has the default "internal" IP but is in production,
       // upgrade them to the proxy endpoint automatically.
@@ -38,18 +43,15 @@ export function loadSettings() {
         settings.endpoint = LOCAL_PROXY_ENDPOINT
       }
 
+      if (JSON.stringify(settings) !== JSON.stringify(storedSettings)) saveSettings(settings)
       return settings
     } catch {
       // fall through to defaults
     }
   }
-  // Migrate legacy Anthropic-only key
-  const legacyKey = localStorage.getItem(LEGACY_KEY)
-  if (legacyKey) {
-    const migrated = { ...DEFAULT_SETTINGS, provider: 'anthropic', apiKey: legacyKey }
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify(migrated))
+  // The legacy value is a commercial browser credential. Do not migrate it.
+  if (localStorage.getItem(LEGACY_KEY)) {
     localStorage.removeItem(LEGACY_KEY)
-    return migrated
   }
   return { ...DEFAULT_SETTINGS }
 }
@@ -106,9 +108,10 @@ export function buildClient({ provider = 'local', endpoint, apiKey }) {
  *   the rubric server-side and calls the AI model. The browser never sees the
  *   rubric (SEC-03/SEC-05 closed).
  */
-export async function evaluate({ scenario, artifactContent, responseText, settings, coachMode = false, coachRound = 0, coachHistory = [], isRetry = false }) {
-  // Local provider: evaluate client-side for low latency / air-gapped use.
-  if (settings.provider === 'local') {
+export async function evaluate({ scenario, artifactContent, responseText, settings, coachMode = false, coachRound = 0, coachHistory = [], isRetry = false, signal }) {
+  // A server build deliberately has no rubric, irrespective of stale settings.
+  // A local build can still deliberately use the server proxy.
+  if (EVALUATION_MODE === 'local' && settings.provider === 'local') {
     const client = buildClient(settings)
     return performEvaluation({
       client,
@@ -120,7 +123,7 @@ export async function evaluate({ scenario, artifactContent, responseText, settin
       coachRound,
       coachHistory,
       isRetry
-    })
+    }, signal ? { signal } : undefined)
   }
 
   // Server-side evaluation via /api/evaluate.
@@ -136,7 +139,8 @@ export async function evaluate({ scenario, artifactContent, responseText, settin
       coachMode,
       coachRound,
       coachHistory
-    })
+    }),
+    signal,
   })
 
   if (!res.ok) {

@@ -2,9 +2,11 @@ import { useState, useEffect } from 'react'
 
 const LEVEL_COLORS = ['', 'bg-yellow-900 text-yellow-300', 'bg-blue-900 text-blue-300', 'bg-purple-900 text-purple-300', 'bg-green-900 text-green-300']
 const LEVEL_LABELS = ['', 'Awareness', 'Application', 'Analysis', 'Adaptation']
+const PANEL_CLASS = 'w-full shrink-0 border-t border-gray-800 bg-gray-900/50 md:w-80 md:border-l md:border-t-0'
 
 /** Look up a learning_note from the scenario rubric by finding ID. */
-function getLearningNote(scenario, findingId) {
+function getLearningNote(scenario, findingId, learningNotes) {
+  if (learningNotes?.[findingId]) return learningNotes[findingId]
   if (!scenario?.rubric) return null
   const all = [
     ...(scenario.rubric.critical_findings ?? []),
@@ -14,7 +16,7 @@ function getLearningNote(scenario, findingId) {
 }
 
 /** Full evaluation view — used in auditor mode and after coach session ends. */
-function FullEval({ parsed, scenario, showLearningNotes = false }) {
+function FullEval({ parsed, scenario, learningNotes, showLearningNotes = false }) {
   const [expandedNotes, setExpandedNotes] = useState({})
   const { level, confidence, caught = [], missed = [], almost_caught = [], unlisted = [], severity_calibration, gap, narrative } = parsed
   const levelColor = LEVEL_COLORS[level] ?? 'bg-gray-700 text-gray-300'
@@ -72,7 +74,7 @@ function FullEval({ parsed, scenario, showLearningNotes = false }) {
                 </div>
               ))}
               {missed.map(id => {
-                const note = getLearningNote(scenario, id)
+                const note = getLearningNote(scenario, id, learningNotes)
                 return (
                   <div key={id}>
                     <div className="flex items-center gap-2 text-xs">
@@ -125,6 +127,13 @@ function FullEval({ parsed, scenario, showLearningNotes = false }) {
 export default function EvalPanel({ result, isEvaluating, error, coachPhase, coachRound, scenario, onFollowUp, isLabMode = false }) {
   const [followUpText, setFollowUpText] = useState('')
   const [collapsed, setCollapsed] = useState(true)
+  const panelClass = isLabMode
+    ? 'w-full shrink-0 border-t border-gray-800 bg-gray-900/50 lg:w-80 lg:border-l lg:border-t-0'
+    : PANEL_CLASS
+
+  useEffect(() => {
+    setCollapsed(isLabMode)
+  }, [isLabMode, scenario?.id])
 
   // Clear follow-up input when coaching phase changes
   useEffect(() => {
@@ -144,7 +153,7 @@ export default function EvalPanel({ result, isEvaluating, error, coachPhase, coa
   // Collapsed strip for lab mode
   if (isLabMode && collapsed && !isEvaluating && !error) {
     return (
-      <div className="w-10 shrink-0 flex flex-col items-center border-l border-gray-800 bg-gray-900/50">
+      <div className="flex h-10 w-full shrink-0 items-center border-t border-gray-800 bg-gray-900/50 lg:h-auto lg:w-10 lg:flex-col lg:border-l lg:border-t-0">
         <button
           onClick={() => setCollapsed(false)}
           className="mt-3 p-1.5 rounded hover:bg-gray-800 text-gray-500 hover:text-gray-300 transition-colors"
@@ -161,7 +170,7 @@ export default function EvalPanel({ result, isEvaluating, error, coachPhase, coa
   // ── Loading ──────────────────────────────────────────────────────────────
   if (isEvaluating) {
     return (
-      <div className="flex w-80 shrink-0 items-center justify-center border-l border-gray-800 bg-gray-900/50">
+        <div className={`flex min-h-32 items-center justify-center ${panelClass}`}>
         <div className="text-center">
           <div className="mb-2 h-6 w-6 animate-spin rounded-full border-2 border-gray-600 border-t-indigo-500 mx-auto" />
           <p className="text-sm text-gray-500">
@@ -175,7 +184,7 @@ export default function EvalPanel({ result, isEvaluating, error, coachPhase, coa
   // ── Error ────────────────────────────────────────────────────────────────
   if (error) {
     return (
-      <div className="flex w-80 shrink-0 flex-col border-l border-gray-800 bg-gray-900/50 p-4">
+        <div className={`flex min-h-32 flex-col p-4 ${panelClass}`}>
         <p className="mb-2 text-sm font-semibold text-red-400">Evaluation error</p>
         <p className="text-xs text-gray-400">{error}</p>
       </div>
@@ -185,7 +194,7 @@ export default function EvalPanel({ result, isEvaluating, error, coachPhase, coa
   // ── Empty state ──────────────────────────────────────────────────────────
   if (!result) {
     return (
-      <div className="flex w-80 shrink-0 flex-col border-l border-gray-800 bg-gray-900/50">
+        <div className={`flex min-h-32 flex-col ${panelClass}`}>
         {isLabMode && (
           <button
             onClick={() => setCollapsed(true)}
@@ -209,7 +218,7 @@ export default function EvalPanel({ result, isEvaluating, error, coachPhase, coa
   // ── Raw fallback (JSON parse failed) ─────────────────────────────────────
   if (!parsed) {
     return (
-      <div className="w-80 shrink-0 overflow-y-auto border-l border-gray-800 bg-gray-900/50 p-4">
+      <div className={`overflow-visible p-4 md:overflow-y-auto ${panelClass}`}>
         <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Raw Evaluation</p>
         <pre className="whitespace-pre-wrap font-mono text-xs text-gray-300">{raw}</pre>
       </div>
@@ -224,7 +233,7 @@ export default function EvalPanel({ result, isEvaluating, error, coachPhase, coa
     const canRespond = followUpText.trim().length > 5
 
     return (
-      <div className="flex w-80 shrink-0 flex-col overflow-y-auto border-l border-gray-800 bg-gray-900/50">
+      <div className={`flex flex-col overflow-visible md:overflow-y-auto ${panelClass}`}>
         {/* Level badge */}
         <div className="border-b border-gray-800 px-4 py-3">
           <div className="flex items-center justify-between mb-2">
@@ -282,12 +291,12 @@ export default function EvalPanel({ result, isEvaluating, error, coachPhase, coa
   // ── Coach mode: resolved (learner found it) ───────────────────────────────
   if (coachPhase === 'resolved') {
     return (
-      <div className="flex w-80 shrink-0 flex-col overflow-y-auto border-l border-gray-800 bg-gray-900/50">
+      <div className={`flex flex-col overflow-visible md:overflow-y-auto ${panelClass}`}>
         <div className="border-b border-gray-800 px-4 py-3">
           <p className="text-sm font-semibold text-green-400">You got there.</p>
           <p className="mt-0.5 text-xs text-gray-500">Here's the full picture.</p>
         </div>
-        <FullEval parsed={parsed} scenario={scenario} />
+        <FullEval parsed={parsed} scenario={scenario} learningNotes={result.learning_notes} />
       </div>
     )
   }
@@ -295,20 +304,20 @@ export default function EvalPanel({ result, isEvaluating, error, coachPhase, coa
   // ── Coach mode: exhausted (3 rounds without resolution) ───────────────────
   if (coachPhase === 'exhausted') {
     return (
-      <div className="flex w-80 shrink-0 flex-col overflow-y-auto border-l border-gray-800 bg-gray-900/50">
+      <div className={`flex flex-col overflow-visible md:overflow-y-auto ${panelClass}`}>
         <div className="border-b border-gray-800 px-4 py-3">
           <p className="text-sm font-semibold text-amber-400">Let's look at this together.</p>
-          <p className="mt-0.5 text-xs text-gray-500">Concept notes are available for each missed finding.</p>
+          <p className="mt-0.5 text-xs text-gray-500">Here's the full evaluation after your coaching rounds.</p>
         </div>
-        <FullEval parsed={parsed} scenario={scenario} showLearningNotes={true} />
+        <FullEval parsed={parsed} scenario={scenario} learningNotes={result.learning_notes} showLearningNotes={true} />
       </div>
     )
   }
 
   // ── Auditor mode (default) ────────────────────────────────────────────────
   return (
-    <div className="flex w-80 shrink-0 flex-col overflow-y-auto border-l border-gray-800 bg-gray-900/50">
-      <FullEval parsed={parsed} scenario={scenario} />
+    <div className={`flex flex-col overflow-visible md:overflow-y-auto ${panelClass}`}>
+      <FullEval parsed={parsed} scenario={scenario} learningNotes={result.learning_notes} />
     </div>
   )
 }

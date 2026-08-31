@@ -15,7 +15,7 @@ export default function LabConsole({ session, phase }) {
 
   return (
     <div
-      className="flex-1 flex flex-col min-w-0 overflow-hidden bg-gray-950"
+      className="flex-1 flex min-h-[50vh] min-w-0 flex-col overflow-hidden bg-gray-950 lg:min-h-0"
       onClick={() => iframeRef.current?.focus()}
     >
       {isReady ? (

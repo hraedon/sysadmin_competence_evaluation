@@ -11,7 +11,7 @@
 
 import { test, describe } from 'node:test'
 import assert from 'node:assert/strict'
-import { buildSystemPrompt } from './evaluator.js'
+import { buildSystemPrompt, performEvaluation } from './evaluator.js'
 
 // Minimal V2 scenario fixture with both protected and public fields
 const scenario = {
@@ -151,4 +151,18 @@ describe('buildSystemPrompt — coach mode fields', () => {
     assert.ok(!prompt.includes('COACH MODE'), 'COACH MODE instruction must not appear in standard mode')
     assert.ok(!prompt.includes('"resolved"'), 'resolved field must not appear in standard mode')
   })
+})
+
+test('performEvaluation forwards AbortSignal to the client and retry', async () => {
+  const controller = new AbortController()
+  const calls = []
+  const client = { chat: { completions: { create: async options => {
+    calls.push(options)
+    return { choices: [{ message: { content: calls.length === 1 ? 'not json' : '{"level": 1}' } }] }
+  } } } }
+
+  await performEvaluation({ client, model: 'test', scenario, responseText: 'response' }, { signal: controller.signal })
+  assert.equal(calls.length, 2)
+  assert.equal(calls[0].signal, controller.signal)
+  assert.equal(calls[1].signal, controller.signal)
 })

@@ -21,6 +21,16 @@ const KEY = 'sysadmin_assessment_profile'
 const ONBOARDING_KEY = 'sysadmin_onboarding_dismissed'
 const REVIEW_THRESHOLD_DAYS = 14
 
+/** Return only portable learner progress; never include credentials or settings. */
+export function exportProfileData() {
+  return {
+    format: 'sysadmin-assessment-profile-v1',
+    exported_at: new Date().toISOString(),
+    profile: loadProfile(),
+    onboarding_dismissed: isOnboardingDismissed(),
+  }
+}
+
 function getBaseUrl() {
   const IS_PRODUCTION = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1'
   return IS_PRODUCTION ? '' : 'http://localhost:8000'

@@ -6,5 +6,10 @@
     "core",
     "calibration",
     "platform/frontend"
-  ]
+  ],
+  "scripts": {
+    "test": "npm run test:core && npm run test:frontend",
+    "test:core": "node --test core/evaluator.test.js",
+    "test:frontend": "npm run test --workspace=sysadmin-assessment -- --run"
+  }
 }

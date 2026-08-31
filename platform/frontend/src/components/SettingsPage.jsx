@@ -1,26 +1,36 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { buildClient } from '../lib/evaluator.js'
+import { exportProfileData } from '../lib/profile.js'
 
 const PROVIDERS = [
   { id: 'local',     label: 'Local (LM Studio / Ollama)', hasEndpoint: true,  hasKey: true,  isProxied: false },
   { id: 'anthropic', label: 'Anthropic (Server Proxy)',   hasEndpoint: false, hasKey: false, isProxied: true  },
   { id: 'openai',    label: 'OpenAI (Server Proxy)',      hasEndpoint: false, hasKey: false, isProxied: true  },
-  { id: 'custom',    label: 'Custom / Other',             hasEndpoint: true,  hasKey: true,  isProxied: false },
 ]
 
 const MODEL_DEFAULTS = {
   local:     'qwen3-next-80b-a3b-instruct-mlx',
   anthropic: 'claude-sonnet-4-6',
   openai:    'gpt-4o',
-  custom:    '',
 }
 
-export default function SettingsPage({ settings, onSave, onClose }) {
+export default function SettingsPage({ settings, onSave, onProfileCleared, onClose }) {
   const [draft, setDraft] = useState({ ...settings })
   const [testStatus, setTestStatus] = useState(null)   // null | 'testing' | 'ok' | { error: string }
   const [clearConfirm, setClearConfirm] = useState(false)
+  const closeRef = useRef(null)
+  const providers = PROVIDERS
 
-  const provider = PROVIDERS.find(p => p.id === draft.provider) ?? PROVIDERS[0]
+  const provider = providers.find(p => p.id === draft.provider) ?? providers[0]
+
+  useEffect(() => {
+    closeRef.current?.focus()
+    const onKeyDown = event => {
+      if (event.key === 'Escape') onClose?.()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [onClose])
 
   function setField(key, value) {
     setDraft(d => ({ ...d, [key]: value }))
@@ -31,6 +41,7 @@ export default function SettingsPage({ settings, onSave, onClose }) {
     setDraft(d => ({
       ...d,
       provider: id,
+      apiKey: id === 'anthropic' || id === 'openai' ? '' : d.apiKey,
       // Reset model to provider default when switching providers
       model: MODEL_DEFAULTS[id] ?? '',
     }))
@@ -58,12 +69,7 @@ export default function SettingsPage({ settings, onSave, onClose }) {
   }
 
   function handleExportProfile() {
-    const keys = Object.keys(localStorage).filter(k => k.startsWith('sysadmin_'))
-    const exported = {}
-    for (const k of keys) {
-      try { exported[k] = JSON.parse(localStorage.getItem(k)) }
-      catch { exported[k] = localStorage.getItem(k) }
-    }
+    const exported = exportProfileData()
     const blob = new Blob([JSON.stringify(exported, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -78,20 +84,19 @@ export default function SettingsPage({ settings, onSave, onClose }) {
     Object.keys(localStorage)
       .filter(k => k.startsWith('sysadmin_') && k !== 'sysadmin_assessment_settings')
       .forEach(k => localStorage.removeItem(k))
+    onProfileCleared?.()
     setClearConfirm(false)
   }
 
-  const canSave = draft.model.trim() &&
-    (draft.provider === 'local' || provider.isProxied || draft.apiKey.trim() ||
-     (draft.provider === 'custom' && !draft.apiKey.trim()))
+  const canSave = draft.model.trim() && Boolean(provider)
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 overflow-y-auto py-8">
-      <div className="w-full max-w-lg rounded-xl bg-gray-800 shadow-2xl">
+    <div role="dialog" aria-modal="true" aria-label="Settings" className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 p-4 sm:p-8">
+      <div className="w-full max-w-lg overflow-y-auto rounded-xl bg-gray-800 shadow-2xl">
         <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-gray-700">
           <h2 className="text-lg font-semibold text-gray-100">Settings</h2>
           {onClose && (
-            <button onClick={onClose} className="text-gray-400 hover:text-gray-200 text-xl leading-none">&times;</button>
+            <button ref={closeRef} aria-label="Close settings" onClick={onClose} className="text-gray-400 hover:text-gray-200 text-xl leading-none">&times;</button>
           )}
         </div>
 
@@ -101,7 +106,7 @@ export default function SettingsPage({ settings, onSave, onClose }) {
           <section>
             <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-3">Provider</h3>
             <div className="grid grid-cols-2 gap-2 mb-4">
-              {PROVIDERS.map(p => (
+              {providers.map(p => (
                 <label key={p.id}
                   className={`flex items-center gap-2 rounded-lg border px-3 py-2 cursor-pointer text-sm transition-colors
                     ${draft.provider === p.id

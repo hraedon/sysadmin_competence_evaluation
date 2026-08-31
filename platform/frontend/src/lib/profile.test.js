@@ -4,7 +4,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 // Vitest with jsdom already has localStorage, but we can clear it
 const clearStore = () => localStorage.clear()
 
-const { loadProfile, saveResult, domainLevel, recommendNext, staleScenariosForReview, clearProfile, isOnboardingDismissed, dismissOnboarding } = await import('./profile.js')
+const { loadProfile, saveResult, domainLevel, recommendNext, staleScenariosForReview, clearProfile, isOnboardingDismissed, dismissOnboarding, exportProfileData } = await import('./profile.js')
 
 // ── Fixtures ─────────────────────────────────────────────────────────────
 const mkScenario = (overrides) => ({
@@ -204,5 +204,24 @@ describe('clearProfile and onboarding', () => {
     expect(isOnboardingDismissed()).toBe(false)
     dismissOnboarding()
     expect(isOnboardingDismissed()).toBe(true)
+  })
+})
+
+describe('exportProfileData', () => {
+  beforeEach(() => clearStore())
+
+  it('allowlists progress data and excludes credentials, API keys, and proxy settings', () => {
+    saveResult({ scenario: mkScenario(), level: 2, confidence: 'high', gap: null })
+    localStorage.setItem('sysadmin_assessment_auth', JSON.stringify({ access_token: 'secret-token' }))
+    localStorage.setItem('sysadmin_assessment_settings', JSON.stringify({ apiKey: 'secret-key', endpoint: 'https://proxy.example' }))
+    localStorage.setItem('sysadmin_other', 'should-not-export')
+
+    const exported = exportProfileData()
+    const serialized = JSON.stringify(exported)
+    expect(exported).toMatchObject({ format: 'sysadmin-assessment-profile-v1', profile: { domains: { 1: expect.any(Object) } } })
+    expect(serialized).not.toContain('secret-token')
+    expect(serialized).not.toContain('secret-key')
+    expect(serialized).not.toContain('proxy.example')
+    expect(serialized).not.toContain('should-not-export')
   })
 })

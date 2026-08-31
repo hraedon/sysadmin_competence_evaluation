@@ -12,11 +12,13 @@ reviewed: 2026-07-10
 
 ## Scope and Domain Boundaries
 
-This domain covers the mechanics of finding relevant information in real log data. Domain 8 (Security Reasoning) established the boundary: Domain 8 owns what to look for and why — what attacker behavior looks like in infrastructure terms, what an indicator of compromise means conceptually. This domain owns how to look — the mechanics of reading event chains, correlating timestamps across sources, distinguishing symptom events from cause events, and navigating unfamiliar log formats.
+This domain covers the mechanics of finding relevant information in real log data. Domain 8 (Security Reasoning) established the boundary: Domain 8 owns what to look for and why — what attacker behavior looks like in infrastructure terms, what an indicator of compromise means conceptually. This domain owns how to look — the mechanics of reading event chains, correlating timestamps across sources, distinguishing symptom events from cause events, and navigating unfamiliar log formats. Windows Event Viewer/Security events and Linux authentication logs are two platform-specific surfaces for the same investigative skill.
 
 The boundary is deliberately porous at Level 2 and above. A candidate working Domain 11 at Level 2 or higher is expected to draw on Domain 8's threat model vocabulary to interpret what they are reading. The exercise that asks a candidate to read a sequence of authentication failures and identify a credential stuffing pattern is a log mechanics exercise that requires security reasoning to complete. Trying to purge all threat-pattern recognition from Domain 11 exercises would produce exercises that are less realistic, not more rigorous. The coupling is intentional — it reflects the reality that log reading without a threat model produces narrative without meaning.
 
 The domain also owns the log infrastructure layer: what gets collected, how it gets collected, how long it gets kept, and the tradeoffs that determine whether logs are useful for investigation or serve primarily as a paper trail after the fact. These are decisions that most organizations make implicitly, and this domain makes them explicit.
+
+On Linux, authentication messages may be written by a syslog implementation to `/var/log/auth.log` (Debian-family systems) or `/var/log/secure` (RHEL-family systems), and/or stored in `systemd-journald` and queried with `journalctl`. These are not interchangeable assumptions: journald may be forwarded to syslog, syslog may write a file, and either path may have different retention or filtering. Establish which source is authoritative before treating a missing entry as evidence of absence. On Windows, the analogous first step is to establish which event log, audit policy, and retention setting contain the event of interest.
 
 *This domain requires working with actual log data — real or realistic — in ways that earlier domains do not. Assessment exercises in this domain embed log fragments that candidates must read and reason about. A candidate who cannot work from actual log output has not developed the skill this domain is building, regardless of their conceptual knowledge.*
 
@@ -26,9 +28,9 @@ How it is normally taught: log reading is presented as knowing which event IDs t
 
 What it is actually for: a log is a partial record of what happened on a system, in temporal sequence. Reading it correctly means reconstructing the timeline of events — what happened, in what order, with what context — not retrieving individual data points. The event that is visually prominent (the error, the failure, the alert) is frequently not the cause. It is a symptom. The cause is in the events that preceded it, often on a different system, in a different log, minutes or seconds earlier.
 
-What misuse looks like: the candidate who opens the event log, searches for error events, finds one that looks relevant, and stops. They have found the symptom event and called it the cause. They have not read the log — they have searched it. The investigation that follows from a symptom mistaken for a cause will pursue the wrong remediation, fail to identify the actual issue, and produce no lasting resolution.
+What misuse looks like: the candidate who opens Event Viewer or runs a broad `journalctl`/log-file search, finds one entry that looks relevant, and stops. They have found the symptom event and called it the cause. They have not read the log — they have searched it. The investigation that follows from a symptom mistaken for a cause will pursue the wrong remediation, fail to identify the actual issue, and produce no lasting resolution.
 
-*The binary search parallel to Domain 3 applies directly: just as OSI layer isolation gives you a principled method for narrowing where in a communication stack a failure is occurring, temporal event sequence gives you a principled method for narrowing when a failure originated and what triggered it. Work backward from the symptom event, not forward from the beginning of the log.*
+*The binary search parallel to Domain 3 (Networking Fundamentals) applies directly: just as OSI layer isolation gives you a principled method for narrowing where in a communication stack a failure is occurring, temporal event sequence gives you a principled method for narrowing when a failure originated and what triggered it. Work backward from the symptom event, not forward from the beginning of the log.*
 
 The parallel to Domain 10 is also direct: the backup that had been failing for three months generated ninety unread failure notifications. The log that would have revealed a compromise was never read because no investigation was triggered. In both cases, the information existed and was not used. The domain is building the skill of using it.
 
@@ -40,7 +42,7 @@ Log collection is a constant tradeoff between three competing constraints: cover
 
 Coverage: medium. Cost: low. Actionability: low — high-frequency, low-signal monitoring stream.
 
-A syslog server or basic log aggregation solution collects logs at low cost with minimal infrastructure. The failure mode is actionability: logs exist, they are not easily queryable in real time, correlation across sources requires manual effort, and the system is most useful after an incident when you know what you are looking for and can grep through files. This is the detective role — useful for reconstruction after the fact, limited for prevention or early detection.
+A syslog server or basic log aggregation solution collects logs at low cost with minimal infrastructure. On Linux, the local sources may be traditional syslog files such as `/var/log/auth.log` or `/var/log/secure`, a `systemd-journald` store queried with `journalctl`, or both. The failure mode is actionability: logs exist, they are not easily queryable in real time, correlation across sources requires manual effort, and the system is most useful after an incident when you know what you are looking for and can grep through files. This is the detective role — useful for reconstruction after the fact, limited for prevention or early detection.
 
 Most small and medium organizations operate here, often without explicitly acknowledging it as a choice. The risk implication: events that would have triggered an alert in a more capable system go unnoticed until something breaks. The organization discovers problems rather than preventing them.
 
@@ -60,7 +62,7 @@ A SIEM with broad ingestion, properly tuned, with analysts reviewing output is g
 
 ### The Bespoke Language Problem
 
-Every backup solution, every SIEM, every log aggregation platform, and every network device has its own interface and query language for accessing historical log data. They share concepts and differ in every specific. Veeam's backup job history, Rubrik's event log, Splunk's search syntax, Elastic's KQL, and Windows Event Viewer's filter interface are all tools for answering the same class of questions through completely different mechanisms.
+Every backup solution, every SIEM, every log aggregation platform, and every network device has its own interface and query language for accessing historical log data. They share concepts and differ in every specific. Veeam's backup job history, Rubrik's event log, Splunk's search syntax, Elastic's KQL, Windows Event Viewer's filter interface, and Linux `journalctl` are all tools for answering the same class of questions through completely different mechanisms.
 
 The skill being developed is not fluency in any particular product but the ability to navigate an unfamiliar logging interface to answer a specific question. The conceptual map — what am I looking for, what time window, what systems, what event types — transfers across every product. The specific syntax and navigation do not. Assessment exercises in this domain present realistic but product-agnostic log output rather than asking candidates to recall product-specific commands.
 
@@ -86,7 +88,7 @@ Distinguishing symptom events from cause events is the core skill. A symptom eve
 
 ### Cross-Source Correlation and the Timestamp Problem
 
-A complete picture of what happened frequently requires correlating events across multiple log sources: authentication events on the domain controller, process creation events on the endpoint, network connection events on the firewall, application events in the application log. These sources have different event formats, different levels of verbosity, and different clock sources.
+A complete picture of what happened frequently requires correlating events across multiple log sources: authentication events on the domain controller or a Linux host's `sshd`/PAM logs, process creation events on the endpoint, network connection events on the firewall, application events in the application log. These sources have different event formats, different levels of verbosity, and different clock sources.
 
 The timestamp problem: logs from different systems reflect different clock states. NTP failures, timezone misconfigurations, and systems that log in local time when everything else logs in UTC produce event sequences that appear impossible or out of order when naively correlated. A sysadmin reconstructing an incident timeline from logs with a one-minute clock skew between sources can misidentify which event caused which. Verifying timestamp provenance — confirming that the clocks on the relevant systems were synchronized and what timezone each source uses — is a required step before trusting any cross-source correlation.
 
@@ -102,7 +104,7 @@ A log that shows no relevant events is not the same as a log that confirms the a
 
 | Level | Label | What it means |
 | --- | --- | --- |
-| Level 1 | Log Literacy | Can read a log extract and describe what it records in plain English. Can identify the timestamp, source system, event type, and relevant attributes of individual log entries. Can navigate to the correct log source for a given type of event on a Windows system. Does not require cross-source correlation or causal analysis. |
+| Level 1 | Log Literacy | Can read a log extract and describe what it records in plain English. Can identify the timestamp, source system, event type, and relevant attributes of individual log entries. Can navigate to the correct log source for a given type of event on Windows (Event Viewer/Security log) or Linux (`journalctl` and the configured authentication log). Does not require cross-source correlation or causal analysis. |
 | Level 2 | Log Audit | Given a log extract around a known event, can identify which entries are relevant, which are noise, and which represent symptoms versus causes. Can identify the gap between what the log shows and what would be needed to fully understand the event. Can recognize when a log extract is incomplete because events are missing that should be present given the system configuration. |
 | Level 3 | Log Correlation | Can correlate events across multiple log sources to reconstruct a timeline of what happened. Can identify timestamp discrepancies and account for clock skew in cross-source analysis. Can identify the specific log sources that would need to be examined to answer a given investigative question, and can assess what filtering or retention gaps would prevent those sources from providing a complete answer. |
 | Level 4 | Detection Design | Can assess an organization's logging posture against its threat model and identify the gaps that would leave specific incident types invisible. Can specify the log sources, retention period, collection architecture, and alert tuning required to move from a detective to a corrective logging capability. Can evaluate whether a described logging infrastructure actually provides the detection and investigation capability it is assumed to provide. |
@@ -111,15 +113,31 @@ A log that shows no relevant events is not the same as a log that confirms the a
 
 ### [LITERACY] Read the Chain
 
-*Candidate is given the following log extract from a Windows domain controller (simplified). They must describe what happened in plain English and identify which event represents the symptom and which represents the most likely cause:
+*Candidate is given one of the following platform-specific log extracts (both are simplified). They must describe what happened in plain English and identify which event represents the symptom and which represents the most likely cause. The Linux extract could be present in a traditional syslog authentication file or in the journal queried with `journalctl -u ssh`/`journalctl -u sshd`.*
 
-  [08:14:32] Event 4625 — Logon failure. Account: jsmith. Source IP: 10.4.22.18. Logon type: 3 (Network). Error: Unknown username or password.
-  [08:14:33] Event 4625 — Logon failure. Account: jsmith. Source IP: 10.4.22.18. Logon type: 3. Error: Unknown username or password.
-  [08:14:34] Event 4625 — Logon failure. Account: jsmith. Source IP: 10.4.22.18. Logon type: 3. Error: Unknown username or password.
-  [08:14:51] Event 4740 — Account lockout. Account: jsmith. Caused by: WORKSTATION-04.
-  [08:15:02] Event 4625 — Logon failure. Account: administrator. Source IP: 10.4.22.18. Logon type: 3. Error: Unknown username or password.*
+**Windows Security log:**
 
-**Watch for:** Candidates who identify Event 4740 (the lockout) as the primary finding without noting that it is the symptom of the rapid authentication failures that preceded it. The lockout is the effect. The pattern of failures from 10.4.22.18 against multiple accounts is the cause — and the shift from jsmith to administrator after the lockout is the most significant signal, indicating an automated credential stuffing attempt rather than a user who forgot their password. Candidates who can articulate why the IP, the logon type, the timing, and the account enumeration pattern together constitute a specific threat pattern are demonstrating Level 2 reasoning.
+```text
+[08:14:32] Event 4625 — Logon failure. Account: jsmith. Source IP: 10.4.22.18. Logon type: 3 (Network). Error: Unknown username or password.
+[08:14:33] Event 4625 — Logon failure. Account: jsmith. Source IP: 10.4.22.18. Logon type: 3. Error: Unknown username or password.
+[08:14:34] Event 4625 — Logon failure. Account: jsmith. Source IP: 10.4.22.18. Logon type: 3. Error: Unknown username or password.
+[08:14:51] Event 4740 — Account lockout. Account: jsmith. Caused by: WORKSTATION-04.
+[08:15:02] Event 4625 — Logon failure. Account: administrator. Source IP: 10.4.22.18. Logon type: 3. Error: Unknown username or password.
+```
+
+**Linux `auth.log`/`secure` or `journald`:**
+
+```text
+Aug 14 08:14:32 linux-bastion sshd[2711]: Failed password for jsmith from 10.4.22.18 port 49102 ssh2
+Aug 14 08:14:33 linux-bastion sshd[2712]: Failed password for jsmith from 10.4.22.18 port 49103 ssh2
+Aug 14 08:14:34 linux-bastion sshd[2713]: Failed password for jsmith from 10.4.22.18 port 49104 ssh2
+Aug 14 08:14:51 linux-bastion pam_faillock(sshd:auth): Consecutive login failures for user jsmith account locked
+Aug 14 08:15:02 linux-bastion sshd[2714]: Failed password for administrator from 10.4.22.18 port 49108 ssh2
+```
+
+*The candidate must also identify the platform-appropriate way to retrieve the surrounding time window (`journalctl` or the configured authentication log on Linux; the Security log/Event Viewer on Windows) rather than assuming that an event ID exists on both platforms.*
+
+**Watch for:** Candidates who identify only the lockout — Windows Event 4740 or the Linux `pam_faillock` entry — without noting that it is the symptom of the rapid authentication failures that preceded it. The lockout is the effect. The pattern of failures from 10.4.22.18 against multiple accounts is the meaningful upstream signal, and the shift from jsmith to administrator after the lockout is the most significant indicator of an automated credential stuffing attempt rather than a user who forgot their password. Candidates who can articulate why the source, timing, account enumeration pattern, and platform-specific event fields together constitute a threat pattern are demonstrating Level 2 reasoning. Candidates who note that syslog files and journald may differ in retention or filtering are showing the corresponding log-infrastructure awareness.
 
 ### [AUDIT] The Timestamp Problem
 
@@ -141,6 +159,6 @@ A log that shows no relevant events is not the same as a log that confirms the a
 
 ### [AUDIT] Assess the Logging Posture
 
-*Candidate is given a description of an organization's logging infrastructure: Windows event logs on each server retained locally for 7 days with no central collection, syslog from network devices retained for 90 days on a server that receives logs but has no query interface, email alerts from backup software sent to a shared mailbox checked weekly, no endpoint detection tooling. The organization's compliance framework requires 180-day log retention for authentication events. The organization experienced what may have been a security incident three weeks ago and is trying to reconstruct what happened. Candidate must: (1) identify what evidence is and is not available given the retention policy, (2) assess what the current posture can and cannot tell them about the three-week-old incident, (3) identify the compliance gap, and (4) describe what would need to change to move from a detective to a corrective logging capability.*
+*Candidate is given a description of an organization's logging infrastructure: Windows event logs and Linux authentication logs/journald on each server retained locally for 7 days with no central collection, syslog from network devices retained for 90 days on a server that receives logs but has no query interface, email alerts from backup software sent to a shared mailbox checked weekly, no endpoint detection tooling. The organization's compliance framework requires 180-day log retention for authentication events. The organization experienced what may have been a security incident three weeks ago and is trying to reconstruct what happened. Candidate must: (1) identify what evidence is and is not available given the retention policy, (2) assess what the current posture can and cannot tell them about the three-week-old incident, (3) identify the compliance gap, and (4) describe what would need to change to move from a detective to a corrective logging capability.*
 
 **Watch for:** Candidates who look for Windows Security logs from three weeks ago — those logs are definitively gone. The 7-day local retention means endpoint authentication evidence from the incident window does not exist. The only available evidence is 90 days of network device syslog, which may show connection patterns but cannot show what happened on individual endpoints. Candidates who recognize this immediately and pivot to 'what can the syslog tell us' are demonstrating correct prioritization. The compliance gap — 180-day retention required, 7-day retention implemented for the most relevant log source — is a second finding that should be surfaced. The forward-looking recommendation should be specific about what log sources need central collection and what retention periods are required, without defaulting to 'buy a SIEM' as the only path to compliance.

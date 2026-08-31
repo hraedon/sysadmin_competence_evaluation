@@ -32,30 +32,60 @@ export function useLabSession(scenario, labControllerUrl, { enabled = true } = {
   const pollRef = useRef(null)
   const provisionStartRef = useRef(null)
   const elapsedRef = useRef(null)
+  const generationRef = useRef(0)
+  const verifyGenerationRef = useRef(0)
+  const sessionRef = useRef(null)
+  const mountedRef = useRef(true)
 
   function clearTimers() {
     if (pollRef.current) clearInterval(pollRef.current)
     if (elapsedRef.current) clearInterval(elapsedRef.current)
+    pollRef.current = null
+    elapsedRef.current = null
     provisionStartRef.current = null
   }
 
-  function resetAll() {
+  function teardown(sessionRecord) {
+    const sessionToken = sessionRecord?.session_token
+    const controllerUrl = sessionRecord?.controllerUrl
+    if (!sessionToken || !controllerUrl) return
+    // The controller treats an absent or already-terminated session as success.
+    // Do not await this: Cancel/End must remain bounded even if the controller is down.
+    authFetch(`${controllerUrl}/lab/teardown/${sessionToken}`, { method: 'POST' })
+      .catch(err => console.error('Teardown failed:', err))
+  }
+
+  function resetAll({ teardownSession = false } = {}) {
+    generationRef.current += 1
+    verifyGenerationRef.current += 1
+    clearTimers()
+    const activeSession = sessionRef.current
+    sessionRef.current = null
+    if (teardownSession) teardown(activeSession)
+    if (!mountedRef.current) return
     setPhase('idle')
     setSession(null)
     setVerifyResults(null)
     setError(null)
     setProvisionStep(null)
     setElapsed(0)
-    clearTimers()
   }
 
-  // Reset on scenario change
+  // A session belongs to one enabled scenario only. This also clears a Mode E
+  // session when the app switches back to a non-lab scenario.
   useEffect(() => {
-    if (enabled) resetAll()
-  }, [scenario?.id])
+    resetAll({ teardownSession: true })
+  }, [scenario?.id, enabled, labControllerUrl])
 
-  // Clean up timers on unmount
-  useEffect(() => () => clearTimers(), [])
+  // React StrictMode replays effects in development. Restore this guard on
+  // each setup so the replay cannot permanently mark a mounted hook stale.
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      resetAll({ teardownSession: true })
+    }
+  }, [])
 
   const handleStartLab = useCallback(async () => {
     if (!enabled) return
@@ -64,6 +94,11 @@ export function useLabSession(scenario, labControllerUrl, { enabled = true } = {
       setPhase('error')
       return
     }
+    generationRef.current += 1
+    verifyGenerationRef.current += 1
+    const generation = generationRef.current
+    const controllerUrl = labControllerUrl
+    clearTimers()
     setPhase('provisioning')
     setError(null)
     setVerifyResults(null)
@@ -75,7 +110,7 @@ export function useLabSession(scenario, labControllerUrl, { enabled = true } = {
     }, 1000)
 
     try {
-      const res = await authFetch(`${labControllerUrl}/lab/provision/${scenario.id}`, {
+      const res = await authFetch(`${controllerUrl}/lab/provision/${scenario.id}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -91,29 +126,37 @@ export function useLabSession(scenario, labControllerUrl, { enabled = true } = {
         throw new Error(detail ?? `HTTP ${res.status}`)
       }
       const data = await res.json()
+      if (generation !== generationRef.current || !mountedRef.current) {
+        teardown({ ...data, controllerUrl })
+        return
+      }
+      sessionRef.current = { ...data, controllerUrl }
       setSession(data)
       setPhase('polling')
 
       pollRef.current = setInterval(async () => {
         try {
-          const sr = await authFetch(`${labControllerUrl}/lab/session/${data.session_token}`, {})
+          const sr = await authFetch(`${controllerUrl}/lab/session/${data.session_token}`, {})
           if (!sr.ok) return
           const sd = await sr.json()
+          if (generation !== generationRef.current || !mountedRef.current) return
           if (sd.provision_step) setProvisionStep(sd.provision_step)
           if (sd.environment_status === 'busy') {
-            clearInterval(pollRef.current)
-            if (elapsedRef.current) clearInterval(elapsedRef.current)
-            setSession(sd)
+            clearTimers()
+            const readySession = { ...sd, session_token: data.session_token }
+            sessionRef.current = { ...readySession, controllerUrl }
+            setSession(readySession)
             setPhase('ready')
           } else if (sd.environment_status === 'faulted') {
-            clearInterval(pollRef.current)
-            if (elapsedRef.current) clearInterval(elapsedRef.current)
+            clearTimers()
             setError('Environment provisioning failed. Check the lab controller logs.')
             setPhase('error')
           }
         } catch { /* transient fetch error — keep polling */ }
       }, POLL_INTERVAL_MS)
     } catch (err) {
+      if (generation !== generationRef.current) return
+      clearTimers()
       setError(err.message)
       setPhase('error')
     }
@@ -121,31 +164,32 @@ export function useLabSession(scenario, labControllerUrl, { enabled = true } = {
 
   const handleVerify = useCallback(async () => {
     if (!enabled || !session?.session_token) return
+    const generation = generationRef.current
+    const activeSession = sessionRef.current
+    if (!activeSession || activeSession.session_token !== session.session_token) return
+    verifyGenerationRef.current += 1
+    const verifyGeneration = verifyGenerationRef.current
     setPhase('verifying')
     setError(null)
     try {
-      const res = await authFetch(`${labControllerUrl}/lab/verify/${session.session_token}`, {
+      const res = await authFetch(`${activeSession.controllerUrl}/lab/verify/${session.session_token}`, {
         method: 'POST',
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data = await res.json()
+      if (generation !== generationRef.current || verifyGeneration !== verifyGenerationRef.current || !mountedRef.current) return
       setVerifyResults(data)
       setPhase('verified')
     } catch (err) {
+      if (generation !== generationRef.current || verifyGeneration !== verifyGenerationRef.current || !mountedRef.current) return
       setError(err.message)
       setPhase('ready')
     }
-  }, [enabled, labControllerUrl, session?.session_token])
+  }, [enabled, session?.session_token])
 
   const handleEndLab = useCallback(async () => {
-    if (!enabled) return
-    if (session?.session_token) {
-      authFetch(`${labControllerUrl}/lab/teardown/${session.session_token}`, {
-        method: 'POST',
-      }).catch(err => console.error('Teardown failed:', err))
-    }
-    resetAll()
-  }, [enabled, labControllerUrl, session?.session_token])
+    resetAll({ teardownSession: true })
+  }, [])
 
   return {
     phase,

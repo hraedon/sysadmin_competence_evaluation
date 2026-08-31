@@ -1,6 +1,7 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { describe, it, expect, vi } from 'vitest'
 import ScenarioPanel from './ScenarioPanel.jsx'
+import { loadArtifact } from '../lib/scenarios.js'
 
 // Mock react-markdown as it can be complex in JSDOM
 vi.mock('react-markdown', () => ({
@@ -79,5 +80,27 @@ describe('ScenarioPanel', () => {
     
     expect(screen.getByText('Evaluating…')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Evaluating…/i })).toBeDisabled()
+  })
+
+  it('ignores an artifact response from a scenario that is no longer selected', async () => {
+    let resolveFirst
+    let resolveSecond
+    loadArtifact
+      .mockImplementationOnce(() => new Promise(resolve => { resolveFirst = resolve }))
+      .mockImplementationOnce(() => new Promise(resolve => { resolveSecond = resolve }))
+    const nextScenario = {
+      ...mockScenario,
+      id: 'next-scenario',
+      title: 'Next scenario',
+      presentation: { ...mockScenario.presentation, artifact_file: 'next-artifact.txt' },
+    }
+    const { rerender } = render(<ScenarioPanel scenario={mockScenario} onSubmit={vi.fn()} isEvaluating={false} />)
+
+    rerender(<ScenarioPanel scenario={nextScenario} onSubmit={vi.fn()} isEvaluating={false} />)
+    resolveFirst('stale artifact')
+    resolveSecond('current artifact')
+
+    await waitFor(() => expect(screen.getByText('current artifact')).toBeInTheDocument())
+    expect(screen.queryByText('stale artifact')).not.toBeInTheDocument()
   })
 })

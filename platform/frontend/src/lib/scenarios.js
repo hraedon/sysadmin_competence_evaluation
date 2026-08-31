@@ -19,13 +19,17 @@ export async function loadManifest() {
   return _manifest
 }
 
-export async function loadArtifact(artifactFile) {
+export async function loadArtifact(artifactFile, { signal } = {}) {
   if (!artifactFile) return null
   if (_artifactCache.has(artifactFile)) return _artifactCache.get(artifactFile)
   // artifact_file paths start with "scenarios/..." — serve directly as static assets
-  const res = await fetch(`/${artifactFile}`)
+  const res = await fetch(`/${artifactFile}`, { signal })
   if (!res.ok) return null
+  const contentType = res.headers.get('content-type') ?? ''
+  // History fallbacks can return index.html with a successful status.
+  if (contentType.includes('text/html')) return null
   const text = await res.text()
+  if (/^\s*<!doctype html\b|^\s*<html[\s>]/i.test(text)) return null
   _artifactCache.set(artifactFile, text)
   return text
 }

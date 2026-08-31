@@ -25,7 +25,7 @@ This domain deliberately excludes deep routing protocol knowledge, spanning tree
 | Level 1 | Network Literacy | Can read and describe a network diagram, a firewall rule set, a DHCP scope configuration, or a DNS zone. Can explain what each component does and what would break if it were absent or misconfigured — without being able to build or modify any of them. |
 | Level 2 | Network Audit | Given a reported symptom, can identify which network component is likely implicated and what evidence would confirm or rule out that hypothesis. Can review a firewall rule set for obvious gaps, a DNS configuration for common misconfigurations, or a DHCP scope for exhaustion risk. |
 | Level 3 | Network Commission | Can write a clear, complete request to a network team — specifying what is needed, what systems are affected, what behavior is expected vs. observed, and what has already been ruled out. Can evaluate whether a delivered change addresses the stated requirement. |
-| Level 4 | Network Adaptation | Can make targeted, low-risk network changes within their authority: adding a DNS record, creating a DHCP reservation, adjusting a Windows Firewall rule, reading and interpreting a packet capture at the symptom level. Changes are documented and reversible. |
+| Level 4 | Network Adaptation | Can make targeted, low-risk network changes within their authority: adding a DNS record, creating a DHCP reservation, adjusting a Windows Firewall or nftables rule, reading and interpreting a packet capture at the symptom level. Changes are documented and reversible. |
 
 ## Core Concepts
 
@@ -33,7 +33,7 @@ This domain deliberately excludes deep routing protocol knowledge, spanning tree
 
 DNS failures account for a disproportionate share of connectivity complaints. The diagnostic challenge is that DNS failures often present as application failures — 'the website is down,' 'I can't reach the file server,' 'email isn't sending' — without any indication that name resolution is involved.
 
-- Resolution order — how a Windows client resolves a name: hosts file, DNS cache, configured DNS servers, in that order. The hosts file override is a common source of confusion in environments where it was used as a workaround and then forgotten.
+- Resolution order — how a host resolves a name: local overrides and caches are consulted before configured DNS servers, but the exact path is platform and resolver-stack dependent. On Windows, the hosts file, local DNS cache, and configured DNS servers are common checkpoints. On Linux, `/etc/hosts`, NSS configuration (`/etc/nsswitch.conf`), a local resolver or cache such as `systemd-resolved` or `nscd`, and the nameservers in `/etc/resolv.conf` may all be involved. The hosts file override is a common source of confusion on either platform when it was used as a workaround and then forgotten.
 
 - TTL and caching — why a DNS change propagates to some clients immediately and others take hours. The distinction between the TTL on the record and the cache on the client resolver.
 
@@ -43,7 +43,16 @@ DNS failures account for a disproportionate share of connectivity complaints. Th
 
 - Common failure modes — wrong record type (A vs. CNAME in contexts where CNAME is prohibited), missing PTR records causing authentication delays, stale records pointing to retired systems, missing SRV records breaking AD-integrated services.
 
-*The nslookup / Resolve-DnsName test is not sufficient. A record that resolves correctly from the admin's workstation may not resolve correctly from the affected system, due to different DNS server assignments, split-horizon configurations, or local cache state. Always test from the affected system or a system in the same network segment.*
+- Equivalent query tools — use the tool native to the host, and inspect the resolver and response rather than only whether an answer appears:
+
+  | Question | Linux | Windows |
+  | --- | --- | --- |
+  | Query the configured DNS resolver | `dig app.example.com` | `nslookup app.example.com` |
+  | Query a specific resolver | `dig @10.0.0.53 app.example.com` | `nslookup app.example.com 10.0.0.53` |
+
+  `dig` exposes status, answer, authority, and the server queried; `nslookup` exposes the analogous information in a different format. Both are direct DNS queries and do not prove the application's full name-service path, such as a local hosts/NSS override. `Resolve-DnsName` is another Windows option, but neither tool replaces testing the affected application path.
+
+*A query from an admin workstation — whether `dig` on Linux or `nslookup`/`Resolve-DnsName` on Windows — is not sufficient. A name that resolves there may fail on the affected system because of different DNS server assignments, split-horizon configuration, or local cache state. Always test from the affected system or a system in the same network segment.*
 
 ### DHCP: Scope, Exhaustion, and Reservations
 
@@ -67,7 +76,7 @@ Most sysadmins will never configure a routing protocol. What they need to unders
 
 - Static routes — when a specific route is needed that the default gateway does not cover. Common in multi-site environments where traffic to a remote subnet must go through a specific interface or next hop. A missing static route causes selective reachability failure: some destinations work, others do not, and the pattern corresponds to subnet boundaries.
 
-- Traceroute as a handoff tool — traceroute (tracert on Windows) shows the path packets take to a destination and where they stop. A sysadmin does not need to understand what to do about a routing problem, but they should be able to run traceroute, read the output, and report accurately: 'Packets reach this hop successfully and fail at the next hop, which resolves to this hostname.'
+- Traceroute as a handoff tool — `traceroute` on Linux and `tracert` on Windows show the path packets take to a destination and where probes stop receiving replies. A useful first comparison is `traceroute -n destination` on Linux or `tracert /d destination` on Windows; the flags suppress reverse DNS so a slow or broken resolver does not obscure the path. The probe method and output differ by platform, and `*` means that a particular probe received no reply — not necessarily that forwarding stopped. A sysadmin does not need to understand what to do about a routing problem, but they should be able to state which command and host they used and report accurately: 'Packets reach this hop successfully and fail to receive replies at the next hop, whose address/hostname is X.'
 
 ### VLANs: What a Sysadmin Needs to Know
 
@@ -81,15 +90,23 @@ VLANs are a network engineering concern, but sysadmins encounter their effects c
 
 ### Firewall Rule Logic
 
-Firewall rules are directional and ordered. Both of these properties are consistently misunderstood by candidates who have memorized firewall concepts without applying them to real configurations.
+Firewall rules are directional, but their evaluation model is platform-specific. The diagnostic concepts transfer; the rule language and precedence model do not. `nftables` evaluates rules in chain order, while Windows Defender Firewall builds an effective policy from rule precedence, profiles, direction, and scope. Do not infer Windows behavior from the order in which rules happen to appear in a management interface.
 
-- Directionality — a firewall rule permits or denies traffic in a specific direction. A rule that permits inbound TCP 443 does not permit outbound TCP 443. In host-based firewalls (Windows Firewall), inbound and outbound rules are managed separately. In network firewalls, traffic flow direction depends on the interface perspective.
+- Directionality — a firewall rule permits or denies traffic in a specific direction. A rule that permits inbound TCP 443 does not permit outbound TCP 443. In `nftables`, the relevant hook and chain may be `input`, `output`, or `forward`; in Windows Defender Firewall, inbound and outbound rules are managed separately. In network firewalls, traffic flow direction depends on the interface perspective.
 
-- Rule ordering — most firewalls evaluate rules top-to-bottom and stop at the first match. A permissive rule above a restrictive rule makes the restrictive rule irrelevant for traffic that matches the permissive one. A common mistake is adding a specific allow rule after a broad deny rule, then wondering why the allow rule has no effect.
+- Rule ordering and precedence — in `nftables`, a terminating `accept`, `drop`, or `reject` verdict can make later rules in that chain unreachable, and the base-chain policy handles traffic that matches no rule. Windows Defender Firewall uses effective filter precedence rather than simple display order; an applicable explicit block is not made ineffective merely because an allow rule appears above it. Check the active profile and the effective rule scope instead of assuming that two conflicting rows are evaluated like an `nftables` chain.
 
-- Stateful inspection — most modern firewalls track connection state, which means a rule permitting outbound traffic implicitly permits the return traffic for established connections. Understanding this prevents both over-permissive rules (adding an explicit inbound rule for return traffic that stateful inspection already handles) and misdiagnosis (assuming a connection is failing due to firewall when the return traffic is actually being blocked by the source host's firewall).
+- Stateful inspection — both platforms can track connection state, but the syntax differs. An `nftables` ruleset commonly uses `ct state established,related accept`; Windows stateful filtering handles return traffic for a permitted connection. Understanding this prevents both over-permissive rules (adding an explicit inbound rule for return traffic that stateful inspection already handles) and misdiagnosis (assuming a connection is failing due to firewall when the return traffic is actually being blocked by the source host's firewall).
 
-- The implicit deny — most firewall rule sets end with an implicit deny-all. Traffic that does not match any explicit permit rule is dropped. The symptom is a connection that times out rather than being actively refused. Timeout (no response) vs. reset (active refusal) is a useful diagnostic signal for whether traffic is being dropped silently or rejected at the destination.
+- Default policy — an `nftables` base chain declares its policy explicitly (`accept` or `drop`); Windows profiles also have default behaviors combined with local and policy-delivered rules. Traffic that is dropped silently often times out rather than being actively refused, but timeout versus reset is a diagnostic signal, not proof of which device made the decision.
+
+For a first-pass inspection, use the platform's effective-rule view rather than assuming the other platform's syntax or ordering:
+
+| Linux | Windows |
+| --- | --- |
+| `sudo nft list ruleset` | `Get-NetFirewallRule -PolicyStore ActiveStore` |
+
+On Linux, follow the relevant chain and its hook/policy; on Windows, inspect the associated port, address, profile, and direction filters (for example with `Get-NetFirewallPortFilter` and `Get-NetFirewallAddressFilter`).
 
 ### The Diagnostic Escalation Framework
 
@@ -125,9 +142,9 @@ What misuse looks like: a candidate who has memorized the OSI model will, when f
 
 ### [AUDIT] The DNS Hunch
 
-*A user reports that a specific internal application is unreachable. The candidate runs nslookup from their admin workstation and the name resolves correctly. Candidate must explain why this test may not be sufficient, what additional tests they would run, and from where.*
+*A user reports that a specific internal application is unreachable. On a Windows track, the candidate runs `nslookup` from their admin workstation; on a Linux track, they run `dig` from the workstation. The name resolves correctly in either case. Candidate must explain why this test may not be sufficient, what additional tests they would run, and from where.*
 
-**Watch for:** Candidates who accept the nslookup result as definitive. The correct answer involves testing from the affected system, checking client DNS server assignment, checking local cache state, and considering split-horizon behavior.
+**Watch for:** Candidates who accept the `dig` or `nslookup` result as definitive. The correct answer involves testing from the affected system with the platform-appropriate tool, checking client DNS server assignment, checking local cache state, and considering split-horizon behavior.
 
 ### [AUDIT] Scope This Failure
 
@@ -137,12 +154,25 @@ What misuse looks like: a candidate who has memorized the OSI model will, when f
 
 ### [AUDIT] Read the Firewall
 
-*Candidate is shown a simplified Windows Firewall rule set with an outbound allow for TCP 443 to Any, followed by a block rule for TCP 443 to a specific IP, followed by an allow for all established connections. An application cannot reach a specific HTTPS endpoint. Candidate must identify whether the firewall is the cause and explain their reasoning.*
+*Candidate is shown the effective outbound policy for their declared platform. On Linux, the relevant `nftables` chain is:*
 
-**Watch for:** Candidates who miss the rule ordering issue (the broad allow above the specific block makes the block unreachable). Candidates who cannot explain stateful inspection and why return traffic is handled separately from the initial connection.
+```text
+table inet filter {
+    chain output {
+        type filter hook output priority filter; policy accept;
+        ct state established,related accept
+        tcp dport 443 accept
+        ip daddr 203.0.113.10 tcp dport 443 drop
+    }
+}
+```
+
+*On Windows, the effective Windows Defender Firewall policy contains an outbound Allow rule for TCP 443 to Any and an outbound Block rule for TCP 443 to `203.0.113.10` in the active profile. An application cannot reach that HTTPS endpoint. For the platform presented, candidate must identify whether the firewall is the cause and explain direction, state, and platform-specific ordering or precedence.*
+
+**Watch for:** Candidates who treat both policies as the same first-match list. On Linux, the broad `accept` makes the later specific `drop` unreachable in that chain. On Windows, an applicable explicit Block rule normally takes precedence over a conflicting Allow rule regardless of display order; candidates should still verify the active profile and filter scope. Candidates who cannot explain stateful inspection and why return traffic is handled separately from the initial connection are missing the transferable concept.
 
 ### [COMMISSION] Write the Escalation
 
-*Following a scenario in which the candidate has diagnosed a likely inter-VLAN routing problem, they must write the escalation to the network team. The escalation must be specific enough that the network team can investigate without asking clarifying questions.*
+*Following a scenario in which the candidate has diagnosed a likely inter-VLAN routing problem, they must write the escalation to the network team. The escalation must be specific enough that the network team can investigate without asking clarifying questions. The evidence may include `traceroute` output from Linux or `tracert` output from Windows; the candidate must identify the platform and command used.*
 
 **Watch for:** Escalations that describe symptoms without diagnostic evidence. Escalations that omit the change correlation. Escalations that ask the network team to 'look into it' rather than to verify a specific hypothesis. The exercise explicitly rewards candidates who can say 'I believe the issue is X, because Y and Z, and the change correlation is W' over candidates who document the symptom and stop.

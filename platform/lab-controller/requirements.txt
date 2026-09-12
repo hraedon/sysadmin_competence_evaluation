@@ -13,3 +13,4 @@ apscheduler
 anthropic
 openai
 aiohttp
+httpx

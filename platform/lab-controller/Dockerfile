@@ -54,8 +54,9 @@ RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
 # ----- PSWSMan: WinRM for Linux PowerShell -----
 # PSWSMan replaces the Windows WinRM client stack for non-Windows PowerShell Core.
 # Must be installed before Invoke-Command -ComputerName will work against Windows hosts.
+# Pinned: PSWSMan 3.0.0 (2026-10-13) dropped Install-WSMan, which this step needs.
 RUN pwsh -NoProfile -NonInteractive -Command \
-    "Install-Module -Name PSWSMan -Scope AllUsers -Force -AcceptLicense; \
+    "Install-Module -Name PSWSMan -RequiredVersion 2.3.1 -Scope AllUsers -Force -AcceptLicense; \
      Install-WSMan"
 
 # ----- Python app -----
